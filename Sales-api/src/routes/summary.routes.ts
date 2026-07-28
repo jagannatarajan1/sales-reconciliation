@@ -82,11 +82,6 @@ summaryRouter.put("/", async (req, res) => {
   const date = await getActiveDate();
   const body = req.body ?? {};
 
-  const existing = await prisma.dailySummary.findUnique({ where: { date } });
-  if (existing?.isCommitted) {
-    return res.status(409).json({ message: "Today has already been committed and can no longer be edited." });
-  }
-
   const fieldData = Object.fromEntries(EDITABLE_KEYS.map((k) => [k, toNumber(body[k])]));
   const lastSafe = toNumber(body.lastSafe);
   const safeDropAmount = toNumber(body.safeDropAmount);
@@ -169,19 +164,8 @@ summaryRouter.post("/commit", async (req, res) => {
   }
 
   const date = await getActiveDate();
-  const existing = await prisma.dailySummary.findUnique({ where: { date } });
-  if (existing?.isCommitted) {
-    return res.status(409).json({ message: "Today's values are already committed." });
-  }
-
   const totals = await computeDailyTotals(date);
   const committedAt = new Date();
-
-  await prisma.dailySummary.upsert({
-    where: { date },
-    create: { date, isCommitted: true },
-    update: { isCommitted: true },
-  });
 
   const record = await prisma.reconciliationRecord.upsert({
     where: { date },

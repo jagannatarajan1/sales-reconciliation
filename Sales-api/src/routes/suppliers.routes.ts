@@ -65,11 +65,6 @@ suppliersRouter.post("/invoices", async (req, res) => {
   if (req.userId == null) return res.status(401).json({ message: "User not authenticated" });
 
   const date = await getActiveDate();
-  const summary = await prisma.dailySummary.findUnique({ where: { date } });
-  if (summary?.isCommitted) {
-    return res.status(409).json({ message: "Today has already been committed and can no longer be edited." });
-  }
-
   const { supplierId, invoiceNo, value } = req.body ?? {};
   const supplier = supplierId ? await prisma.supplier.findUnique({ where: { supplierId: Number(supplierId) } }) : null;
 

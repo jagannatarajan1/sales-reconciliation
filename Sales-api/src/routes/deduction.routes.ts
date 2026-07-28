@@ -37,11 +37,6 @@ deductionRouter.post("/", async (req, res) => {
   }
 
   const date = await getActiveDate();
-  const summary = await prisma.dailySummary.findUnique({ where: { date } });
-  if (summary?.isCommitted) {
-    return res.status(409).json({ message: "Today has already been committed and can no longer be edited." });
-  }
-
   const body = req.body ?? {};
   const fieldData = Object.fromEntries(FIELDS.map((k) => [k, toNumber(body[k])]));
 

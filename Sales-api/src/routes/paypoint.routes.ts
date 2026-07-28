@@ -20,21 +20,10 @@ paypointRouter.get("/", async (req, res) => {
   res.json({ id: record.paypointRecordId, paypointValue: record.paypointValue, date: record.date });
 });
 
-async function assertNotCommitted(res: import("express").Response, date: Date): Promise<boolean> {
-  const summary = await prisma.dailySummary.findUnique({ where: { date } });
-  if (summary?.isCommitted) {
-    res.status(409).json({ message: "Today has already been committed and can no longer be edited." });
-    return false;
-  }
-  return true;
-}
-
 paypointRouter.post("/", async (req, res) => {
   if (req.userId == null) return res.status(401).json({ message: "User not authenticated" });
 
   const date = await getActiveDate();
-  if (!(await assertNotCommitted(res, date))) return;
-
   const paypointValue = toNumber(req.body?.paypointValue);
   const record = await prisma.paypointRecord.upsert({
     where: { date },
@@ -48,9 +37,6 @@ paypointRouter.post("/", async (req, res) => {
 
 paypointRouter.put("/:id", async (req, res) => {
   if (req.userId == null) return res.status(401).json({ message: "User not authenticated" });
-
-  const date = await getActiveDate();
-  if (!(await assertNotCommitted(res, date))) return;
 
   const paypointValue = toNumber(req.body?.paypointValue);
   const record = await prisma.paypointRecord.update({

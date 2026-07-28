@@ -28,10 +28,12 @@ function toNumber(value: unknown): number {
 adminReconciliationRouter.get("/pending", async (req, res) => {
   if (!requireAdmin(req, res)) return;
 
-  const uncommitted = await prisma.dailySummary.findMany({
-    where: { isCommitted: false },
-    orderBy: { date: "desc" },
-  });
+  const [allDays, reconciled] = await Promise.all([
+    prisma.dailySummary.findMany({ orderBy: { date: "desc" } }),
+    prisma.reconciliationRecord.findMany({ select: { date: true } }),
+  ]);
+  const reconciledDates = new Set(reconciled.map((r) => r.date.toISOString()));
+  const uncommitted = allDays.filter((day) => !reconciledDates.has(day.date.toISOString()));
 
   const items = [];
   for (const day of uncommitted) {
@@ -124,12 +126,6 @@ adminReconciliationRouter.post("/submit", async (req, res) => {
     where: { date },
     create: { date, ...data, isStaffCommitted: existing?.isStaffCommitted ?? false },
     update: data,
-  });
-
-  await prisma.dailySummary.upsert({
-    where: { date },
-    create: { date, isCommitted: true },
-    update: { isCommitted: true },
   });
 
   res.json({ message: "Reconciliation submitted successfully" });

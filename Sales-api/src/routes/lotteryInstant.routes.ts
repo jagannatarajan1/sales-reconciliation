@@ -9,15 +9,6 @@ function toInt(value: unknown): number {
   return Number.isFinite(n) ? Math.trunc(n) : 0;
 }
 
-async function assertNotCommitted(res: import("express").Response, date: Date): Promise<boolean> {
-  const summary = await prisma.dailySummary.findUnique({ where: { date } });
-  if (summary?.isCommitted) {
-    res.status(409).json({ message: "Today has already been committed and can no longer be edited." });
-    return false;
-  }
-  return true;
-}
-
 lotteryInstantRouter.get("/today", async (req, res) => {
   if (req.userId == null) return res.status(401).json({ message: "User not authenticated" });
 
@@ -72,8 +63,6 @@ lotteryInstantRouter.post("/", async (req, res) => {
   if (req.userId == null) return res.status(401).json({ message: "User not authenticated" });
 
   const date = await getActiveDate();
-  if (!(await assertNotCommitted(res, date))) return;
-
   const scratchCardId = toInt(req.body?.lotteryId);
   const openNo = toInt(req.body?.openNo);
   const closeNo = toInt(req.body?.closeNo);
@@ -101,8 +90,6 @@ lotteryInstantRouter.delete("/today/:lotteryId", async (req, res) => {
   if (req.userId == null) return res.status(401).json({ message: "User not authenticated" });
 
   const date = await getActiveDate();
-  if (!(await assertNotCommitted(res, date))) return;
-
   const scratchCardId = toInt(req.params.lotteryId);
   await prisma.instantLotteryInventoryEntry
     .delete({ where: { scratchCardId_date: { scratchCardId, date } } })
