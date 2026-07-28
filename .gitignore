@@ -1,0 +1,9 @@
+# Deprecated .NET backend — intentionally not part of this repo
+Sales-main/
+
+# Common build/dependency output, in case anything gets added at this level
+node_modules/
+dist/
+bin/
+obj/
+.env
