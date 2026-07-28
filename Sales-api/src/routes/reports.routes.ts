@@ -1,6 +1,8 @@
 import { Router } from "express";
 import { prisma } from "../lib/prisma.js";
 import { dateOnly } from "../lib/activeDate.js";
+import { renderReconciliationReportPdf } from "../lib/pdf.js";
+import { buildZip } from "../lib/zip.js";
 
 export const reportsRouter = Router();
 
@@ -40,6 +42,42 @@ reportsRouter.get("/", async (req, res) => {
       isAdminReconciled: r.isAdminReconciled,
     })),
   );
+});
+
+reportsRouter.get("/download-pdf", async (req, res) => {
+  if (!requireAdmin(req, res)) return;
+
+  const startDate = req.query.startDate ? dateOnly(req.query.startDate as string) : undefined;
+  const endDate = req.query.endDate ? dateOnly(req.query.endDate as string) : undefined;
+  if (!startDate || !endDate) return res.status(400).json({ message: "startDate and endDate are required." });
+
+  const records = await prisma.reconciliationRecord.findMany({
+    where: { date: { gte: startDate, lte: endDate } },
+    orderBy: { date: "asc" },
+  });
+  if (records.length === 0) return res.status(404).json({ message: "No reports found for this range." });
+
+  const startStr = startDate.toISOString().split("T")[0];
+  const endStr = endDate.toISOString().split("T")[0];
+
+  if (records.length === 1) {
+    const pdf = await renderReconciliationReportPdf(records[0]);
+    const dateStr = records[0].date.toISOString().split("T")[0];
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `attachment; filename="reconciliation-report-${dateStr}.pdf"`);
+    return res.send(pdf);
+  }
+
+  const files = await Promise.all(
+    records.map(async (r) => ({
+      name: `reconciliation-report-${r.date.toISOString().split("T")[0]}.pdf`,
+      content: await renderReconciliationReportPdf(r),
+    })),
+  );
+  const zip = await buildZip(files);
+  res.setHeader("Content-Type", "application/zip");
+  res.setHeader("Content-Disposition", `attachment; filename="reconciliation-reports-${startStr}-to-${endStr}.zip"`);
+  res.send(zip);
 });
 
 reportsRouter.get("/:date", async (req, res) => {

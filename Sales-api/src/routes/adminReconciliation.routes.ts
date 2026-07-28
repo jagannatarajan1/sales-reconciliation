@@ -2,6 +2,9 @@ import { Router } from "express";
 import { prisma } from "../lib/prisma.js";
 import { dateOnly } from "../lib/activeDate.js";
 import { computeDailyTotals } from "../lib/dailyTotals.js";
+import { renderZReportBillPdf } from "../lib/pdf.js";
+import { buildZip } from "../lib/zip.js";
+import * as gmailService from "../services/gmail.service.js";
 
 export const adminReconciliationRouter = Router();
 
@@ -191,4 +194,51 @@ adminReconciliationRouter.get("/committed/:date", async (req, res) => {
     committedByName: record.committedByName,
     committedAt: record.committedAt,
   });
+});
+
+adminReconciliationRouter.get("/download-bill", async (req, res) => {
+  if (!requireAdmin(req, res)) return;
+
+  const dateParam = req.query.date as string | undefined;
+  if (!dateParam) return res.status(400).json({ message: "date query parameter is required." });
+
+  const date = dateOnly(dateParam);
+  const email = await gmailService.findZReportEmail(date);
+  if (!email) return res.status(400).json({ message: "No Z-report email found for this date." });
+
+  const pdf = await renderZReportBillPdf(date, email.body);
+  const dateStr = date.toISOString().split("T")[0];
+  res.setHeader("Content-Type", "application/pdf");
+  res.setHeader("Content-Disposition", `attachment; filename="zreport-bill-${dateStr}.pdf"`);
+  res.send(pdf);
+});
+
+adminReconciliationRouter.get("/download-bills-range", async (req, res) => {
+  if (!requireAdmin(req, res)) return;
+
+  const fromParam = req.query.fromDate as string | undefined;
+  const toParam = req.query.toDate as string | undefined;
+  if (!fromParam || !toParam) return res.status(400).json({ message: "fromDate and toDate query parameters are required." });
+
+  const fromDate = dateOnly(fromParam);
+  const toDate = dateOnly(toParam);
+
+  const files: Array<{ name: string; content: Buffer }> = [];
+  for (let d = new Date(fromDate); d <= toDate; d.setUTCDate(d.getUTCDate() + 1)) {
+    const current = new Date(d);
+    const email = await gmailService.findZReportEmail(current);
+    if (!email) continue;
+
+    const pdf = await renderZReportBillPdf(current, email.body);
+    files.push({ name: `zreport-bill-${current.toISOString().split("T")[0]}.pdf`, content: pdf });
+  }
+
+  if (files.length === 0) return res.status(400).json({ message: "No Z-report emails found for this range." });
+
+  const zip = await buildZip(files);
+  const fromStr = fromDate.toISOString().split("T")[0];
+  const toStr = toDate.toISOString().split("T")[0];
+  res.setHeader("Content-Type", "application/zip");
+  res.setHeader("Content-Disposition", `attachment; filename="zreport-bills-${fromStr}-to-${toStr}.zip"`);
+  res.send(zip);
 });
