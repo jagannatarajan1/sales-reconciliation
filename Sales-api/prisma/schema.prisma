@@ -34,6 +34,40 @@ model Order {
   user User @relation(fields: [userId], references: [userId])
 }
 
+model DailySummary {
+  dailySummaryId Int      @id @default(autoincrement())
+  date           DateTime @unique @db.Date
+
+  cashback             Decimal @default(0) @db.Decimal(18, 2)
+  paypointPayout       Decimal @default(0) @db.Decimal(18, 2)
+  instantLotteryPayout Decimal @default(0) @db.Decimal(18, 2)
+  lotteryPayout        Decimal @default(0) @db.Decimal(18, 2)
+  newsVoucher          Decimal @default(0) @db.Decimal(18, 2)
+  ddPoint              Decimal @default(0) @db.Decimal(18, 2)
+  lotteryValue         Decimal @default(0) @db.Decimal(18, 2)
+  paypointValue        Decimal @default(0) @db.Decimal(18, 2)
+  lastSafe             Decimal @default(0) @db.Decimal(18, 2)
+  safeDropAmount       Decimal @default(0) @db.Decimal(18, 2)
+
+  isCommitted          Boolean @default(false)
+  isPendingAdminReview Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
+  creditCardEntries CreditCardEntry[]
+}
+
+model CreditCardEntry {
+  creditCardEntryId Int      @id @default(autoincrement())
+  manualCardAmount  Decimal  @default(0) @db.Decimal(18, 2)
+  cardAmount        Decimal  @default(0) @db.Decimal(18, 2)
+  createdDate       DateTime @default(now())
+
+  dailySummaryId Int
+  dailySummary   DailySummary @relation(fields: [dailySummaryId], references: [dailySummaryId], onDelete: Cascade)
+}
+
 model GmailConnection {
   gmailConnectionId    Int       @id @default(autoincrement())
   emailAddress         String
