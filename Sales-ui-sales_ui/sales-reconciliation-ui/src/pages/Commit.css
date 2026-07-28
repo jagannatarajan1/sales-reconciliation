@@ -1,0 +1,483 @@
+/* ── Page shell ─────────────────────────────────────────── */
+.commit-page {
+  min-height: 100vh;
+  background: linear-gradient(145deg, #1e1b4b 0%, #312e81 45%, #4c1d95 100%);
+  padding: 2rem;
+  box-sizing: border-box;
+  font-family: 'Plus Jakarta Sans', 'Inter', system-ui, sans-serif;
+}
+
+/* ── Back button (glass) ────────────────────────────────── */
+.commit-back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0.6rem 1.4rem;
+  background: rgba(255, 255, 255, 0.1);
+  color: white;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.95rem;
+  font-weight: 600;
+  margin-bottom: 1.8rem;
+  backdrop-filter: blur(10px);
+  transition: background 0.2s ease, transform 0.2s ease;
+}
+
+.commit-back-btn:hover {
+  background: rgba(255, 255, 255, 0.18);
+  transform: translateX(-3px);
+}
+
+/* ── Header (on dark bg) ────────────────────────────────── */
+.commit-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 2rem;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.commit-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.commit-icon { font-size: 2.8rem; line-height: 1; }
+
+.commit-title {
+  color: white;
+  margin: 0;
+  font-size: 1.75rem;
+  font-weight: 700;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+}
+
+.commit-subtitle {
+  color: rgba(255, 255, 255, 0.55);
+  margin: 2px 0 0;
+  font-size: 0.95rem;
+}
+
+.commit-date-chip {
+  background: rgba(255, 255, 255, 0.12);
+  color: white;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 20px;
+  padding: 5px 14px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  backdrop-filter: blur(10px);
+}
+
+/* ── Loading ────────────────────────────────────────────── */
+.commit-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 4rem 0;
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 1rem;
+}
+
+.commit-spinner {
+  width: 26px;
+  height: 26px;
+  border: 3px solid rgba(255, 255, 255, 0.3);
+  border-top-color: white;
+  border-radius: 50%;
+  animation: commit-spin 0.75s linear infinite;
+}
+
+@keyframes commit-spin { to { transform: rotate(360deg); } }
+
+/* ── Card (white) ───────────────────────────────────────── */
+.commit-card {
+  max-width: 520px;
+  margin: 0 auto;
+  background: white;
+  border-radius: 16px;
+  padding: 1.75rem 2rem;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.16);
+  display: flex;
+  flex-direction: column;
+  gap: 1.2rem;
+}
+
+/* ── Field rows ─────────────────────────────────────────── */
+.commit-field {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.commit-field--diff {
+  border-top: 1px dashed #e5e7eb;
+  padding-top: 16px;
+  margin-top: 4px;
+}
+
+.commit-label {
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: #374151;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+/* ── Diff badge ─────────────────────────────────────────── */
+.commit-diff-badge {
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 2px 9px;
+  border-radius: 12px;
+  width: fit-content;
+}
+
+.commit-diff-badge--ok   { background: #dcfce7; color: #15803d; }
+.commit-diff-badge--over { background: #fee2e2; color: #dc2626; }
+
+/* ── Input wrap ─────────────────────────────────────────── */
+.commit-input-wrap {
+  display: flex;
+  align-items: center;
+  border: 1.5px solid #d1d5db;
+  border-radius: 8px;
+  overflow: hidden;
+  width: 200px;
+  flex-shrink: 0;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.commit-input-wrap:focus-within {
+  border-color: #6366f1;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+}
+
+.commit-input-wrap--readonly { background: #f9fafb; border-color: #e5e7eb; }
+.commit-input-wrap--readonly:focus-within { box-shadow: none; border-color: #e5e7eb; }
+.commit-input-wrap--ok   { border-color: #16a34a; background: #f0fdf4; }
+.commit-input-wrap--over { border-color: #dc2626; background: #fef2f2; }
+
+.commit-currency {
+  padding: 0 10px;
+  background: #f3f4f6;
+  color: #6b7280;
+  font-size: 0.9rem;
+  font-weight: 600;
+  border-right: 1.5px solid #d1d5db;
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+}
+
+.commit-currency--ok   { background: #dcfce7; color: #15803d; border-right-color: #86efac; }
+.commit-currency--over { background: #fee2e2; color: #dc2626; border-right-color: #fca5a5; }
+
+.commit-input {
+  border: none;
+  outline: none;
+  padding: 10px 12px;
+  font-size: 0.92rem;
+  width: 100%;
+  background: white;
+  color: #1f2937;
+  font-family: 'Plus Jakarta Sans', 'Inter', system-ui, sans-serif;
+}
+
+.commit-input--readonly { background: #f9fafb; color: #6b7280; cursor: default; }
+.commit-input--ok  { background: #f0fdf4; color: #15803d; font-weight: 700; cursor: default; }
+.commit-input--over { background: #fef2f2; color: #dc2626; font-weight: 700; cursor: default; }
+
+/* ── Wide card (comparison table visible) ───────────────── */
+.commit-card--wide {
+  max-width: 900px;
+}
+
+/* ── Already-committed note ─────────────────────────────── */
+.commit-committed-note {
+  margin: 0;
+  font-size: 0.9rem;
+  color: #374151;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 12px 16px;
+}
+
+/* ── Comparison date note ───────────────────────────────── */
+.commit-comparing-note {
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #4b5563;
+  background: #f0f9ff;
+  border: 1px solid #bae6fd;
+  border-radius: 6px;
+  padding: 8px 14px;
+}
+
+/* ── Z-report email display ─────────────────────────────── */
+.commit-email-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.commit-email-label {
+  margin: 0;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.commit-email-body {
+  width: 100%;
+  box-sizing: border-box;
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: #374151;
+  background: #f9fafb;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  padding: 12px;
+  resize: vertical;
+  outline: none;
+}
+
+/* ── Compare button ─────────────────────────────────────── */
+.commit-compare-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding: 0.75rem;
+  border: 2px solid #6366f1;
+  border-radius: 10px;
+  background: white;
+  color: #6366f1;
+  font-size: 0.95rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease, transform 0.15s ease;
+}
+
+.commit-compare-btn:hover:not(:disabled) {
+  background: #6366f1;
+  color: white;
+  transform: translateY(-1px);
+}
+
+.commit-compare-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* ── Comparison table ───────────────────────────────────── */
+.commit-table-wrap {
+  overflow-x: auto;
+  border-radius: 10px;
+  border: 1px solid #e5e7eb;
+}
+
+.commit-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+
+.commit-table thead th {
+  background: linear-gradient(135deg, #4f46e5, #6d28d9);
+  color: white;
+  font-weight: 700;
+  padding: 10px 14px;
+  text-align: left;
+  border-bottom: none;
+  white-space: nowrap;
+}
+
+.commit-table tbody td {
+  padding: 9px 14px;
+  border-bottom: 1px solid #f3f4f6;
+  color: #374151;
+}
+
+.commit-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.commit-table tbody tr:hover td {
+  background: #f8faff;
+}
+
+/* Amber highlight for rows with non-zero difference */
+.commit-row--amber td {
+  background: #fffbeb;
+}
+
+.commit-table tfoot td {
+  padding: 10px 14px;
+  font-weight: 700;
+  color: #1f2937;
+  background: #f9fafb;
+  border-top: 2px solid #e5e7eb;
+}
+
+.commit-cell--num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.commit-cell--diff {
+  color: #d97706;
+  font-weight: 700;
+}
+
+.commit-cell--ok   { color: #16a34a; font-weight: 700; }
+.commit-cell--over { color: #dc2626; font-weight: 700; }
+
+/* ── API error message ──────────────────────────────────── */
+.commit-error-msg {
+  background: #fef2f2;
+  border: 1px solid #fca5a5;
+  color: #dc2626;
+  border-radius: 8px;
+  padding: 11px 16px;
+  font-size: 0.88rem;
+  font-weight: 500;
+}
+
+/* ── Committed badge ────────────────────────────────────── */
+.commit-done-badge {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  background: #f0fdf4;
+  border: 1.5px solid #86efac;
+  color: #15803d;
+  border-radius: 10px;
+  padding: 14px 18px;
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.commit-done-time {
+  font-size: 0.82rem;
+  font-weight: 400;
+  color: #166534;
+  opacity: 0.85;
+}
+
+/* ── Email sent badge ───────────────────────────────────── */
+.commit-email-sent {
+  background: #eff6ff;
+  border: 1.5px solid #93c5fd;
+  color: #1d4ed8;
+  border-radius: 10px;
+  padding: 10px 16px;
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+
+/* ── Date block (simplified commit view) ───────────────── */
+.commit-date-block {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: #f8faff;
+  border: 1.5px solid #c7d7fb;
+  border-radius: 10px;
+  padding: 18px 20px;
+  text-align: center;
+}
+
+.commit-date-label {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.commit-date-value {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #1f2937;
+}
+
+/* ── Commit button ──────────────────────────────────────── */
+.commit-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding: 0.9rem;
+  border: none;
+  border-radius: 10px;
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
+}
+
+/* Green — enabled when within limit */
+.commit-btn--green {
+  background: linear-gradient(135deg, #16a34a, #22c55e);
+  color: white;
+  box-shadow: 0 4px 16px rgba(22, 163, 74, 0.4);
+}
+
+.commit-btn--green:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(22, 163, 74, 0.5);
+}
+
+/* Red — blocked when difference exceeds limit */
+.commit-btn--red {
+  background: linear-gradient(135deg, #b91c1c, #dc2626);
+  color: white;
+  cursor: not-allowed;
+  box-shadow: 0 4px 16px rgba(185, 28, 28, 0.35);
+}
+
+/* Inactive — no z-report entered yet */
+.commit-btn--inactive {
+  background: #e5e7eb;
+  color: #9ca3af;
+  cursor: default;
+  box-shadow: none;
+}
+
+.commit-btn:disabled { cursor: not-allowed; }
+
+.commit-btn-spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255, 255, 255, 0.4);
+  border-top-color: white;
+  border-radius: 50%;
+  animation: commit-spin 0.7s linear infinite;
+  display: inline-block;
+}
+
+@media (max-width: 480px) {
+  .commit-page { padding: 1.2rem; }
+  .commit-title { font-size: 1.4rem; }
+  .commit-field { flex-direction: column; align-items: flex-start; }
+  .commit-input-wrap { width: 100%; }
+  .commit-done-badge { flex-direction: column; align-items: flex-start; }
+}

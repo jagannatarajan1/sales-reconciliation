@@ -1,0 +1,309 @@
+/* ── Page shell ─────────────────────────────────────────── */
+.cb-page {
+  min-height: 100vh;
+  background: linear-gradient(145deg, #1e1b4b 0%, #312e81 45%, #4c1d95 100%);
+  padding: 2rem;
+  box-sizing: border-box;
+  font-family: 'Plus Jakarta Sans', 'Inter', system-ui, sans-serif;
+}
+
+/* ── Back button (glass) ────────────────────────────────── */
+.cb-back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0.6rem 1.4rem;
+  background: rgba(255, 255, 255, 0.1);
+  color: white;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.95rem;
+  font-weight: 600;
+  margin-bottom: 1.8rem;
+  backdrop-filter: blur(10px);
+  transition: background 0.2s ease, transform 0.2s ease;
+}
+
+.cb-back-btn:hover {
+  background: rgba(255, 255, 255, 0.18);
+  transform: translateX(-3px);
+}
+
+/* ── White content card ─────────────────────────────────── */
+.cb-page-content {
+  max-width: 520px;
+  margin: 0 auto;
+  background: white;
+  padding: 1.75rem 2rem;
+  border-radius: 16px;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.16);
+}
+
+/* ── Card header ────────────────────────────────────────── */
+.cb-page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1.75rem;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.cb-page-header h1 {
+  margin: 0;
+  color: #1e293b;
+  font-size: 1.6rem;
+  font-weight: 700;
+}
+
+.cb-date-badge {
+  font-size: 0.85rem;
+  color: #1d4ed8;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  padding: 5px 14px;
+  border-radius: 20px;
+  font-weight: 600;
+}
+
+/* ── Date warning banner ────────────────────────────────── */
+.date-banner {
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  color: #92400e;
+  border-radius: 8px;
+  padding: 10px 16px;
+  font-size: 0.88rem;
+  font-weight: 500;
+  margin-bottom: 1.4rem;
+}
+
+/* ── Loading ────────────────────────────────────────────── */
+.cb-loading {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 2rem 0;
+  color: #6b7280;
+}
+
+.cb-spinner {
+  width: 22px;
+  height: 22px;
+  border: 3px solid #e5e7eb;
+  border-top-color: #6366f1;
+  border-radius: 50%;
+  animation: cb-spin 0.75s linear infinite;
+  flex-shrink: 0;
+}
+
+@keyframes cb-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ── Form groups ────────────────────────────────────────── */
+.cb-form-group {
+  margin-bottom: 1.4rem;
+}
+
+.cb-form-label {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #374151;
+}
+
+.cb-form-label--total {
+  color: #1d4ed8;
+}
+
+.cb-field-note {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: #6b7280;
+  margin-top: 2px;
+}
+
+.cb-input-wrap--readonly {
+  background: #f9fafb;
+  border-color: #e5e7eb;
+}
+
+.cb-input--readonly {
+  background: #f9fafb;
+  color: #6b7280;
+  cursor: default;
+}
+
+/* ── Input wrapper ──────────────────────────────────────── */
+.cb-input-wrap {
+  display: flex;
+  align-items: center;
+  border: 1.5px solid #d1d5db;
+  border-radius: 8px;
+  overflow: hidden;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.cb-input-wrap:focus-within {
+  border-color: #6366f1;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+}
+
+.cb-input-wrap--total {
+  border-color: #2563eb;
+  background: #eff6ff;
+}
+
+.cb-input-wrap--total:focus-within {
+  box-shadow: none;
+}
+
+.cb-currency {
+  padding: 0 12px;
+  background: #f3f4f6;
+  color: #6b7280;
+  font-size: 0.95rem;
+  font-weight: 600;
+  border-right: 1.5px solid #d1d5db;
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+}
+
+.cb-currency--total {
+  background: #dbeafe;
+  color: #1d4ed8;
+  border-right-color: #93c5fd;
+}
+
+.cb-input {
+  border: none;
+  outline: none;
+  padding: 12px;
+  font-size: 0.95rem;
+  width: 100%;
+  background: white;
+  color: #1f2937;
+  box-sizing: border-box;
+  font-family: 'Plus Jakarta Sans', 'Inter', system-ui, sans-serif;
+}
+
+.cb-input--total {
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-weight: 700;
+  cursor: default;
+}
+
+.cb-total-note {
+  margin: 6px 0 0;
+  font-size: 0.78rem;
+  color: #9ca3af;
+}
+
+/* ── Submit button ──────────────────────────────────────── */
+.cb-submit-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding: 0.85rem;
+  margin-top: 0.5rem;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(102, 126, 234, 0.4);
+  transition: transform 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
+}
+
+.cb-submit-btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(102, 126, 234, 0.5);
+}
+
+.cb-submit-btn:disabled {
+  opacity: 0.65;
+  cursor: default;
+}
+
+.cb-btn-spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255, 255, 255, 0.4);
+  border-top-color: white;
+  border-radius: 50%;
+  animation: cb-spin 0.7s linear infinite;
+  display: inline-block;
+}
+
+/* ── Toast ──────────────────────────────────────────────── */
+.cb-toast {
+  position: fixed;
+  top: 24px;
+  right: 24px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 13px 20px;
+  border-radius: 10px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  z-index: 1000;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
+  animation: cb-slide-in 0.25s ease;
+}
+
+.cb-toast-icon {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.8rem;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.cb-toast--success {
+  background: #eff6ff;
+  color: #1d4ed8;
+  border: 1px solid #93c5fd;
+}
+
+.cb-toast--success .cb-toast-icon {
+  background: #2563eb;
+  color: white;
+}
+
+.cb-toast--error {
+  background: #fef2f2;
+  color: #dc2626;
+  border: 1px solid #fca5a5;
+}
+
+.cb-toast--error .cb-toast-icon {
+  background: #dc2626;
+  color: white;
+}
+
+@keyframes cb-slide-in {
+  from { opacity: 0; transform: translateX(16px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+/* ── Responsive ─────────────────────────────────────────── */
+@media (max-width: 480px) {
+  .cb-page { padding: 1.2rem; }
+  .cb-page-content { padding: 1.25rem 1rem; }
+  .cb-page-header h1 { font-size: 1.3rem; }
+}

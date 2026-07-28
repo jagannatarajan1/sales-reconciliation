@@ -1,0 +1,212 @@
+import React, { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "../../context/AuthContext";
+import "./CreditCardBanking.css";
+
+const SUMMARY_URL = `${import.meta.env.VITE_API_URL || "https://localhost:7276/api"}/Summary`;
+
+const PRESERVE_KEYS = [
+  "lastSafe",
+  "safeDropAmount",
+  "cashback",
+  "paypointPayout",
+  "instantLotteryPayout",
+  "lotteryPayout",
+  "newsVoucher",
+  "ddPoint",
+  "lotteryValue",
+  "paypointValue",
+];
+
+const blankRow = () => ({ id: 0, manualCardAmount: "", cardAmount: "", createdDate: null });
+
+export const CreditCardBanking = () => {
+  const navigate = useNavigate();
+  const { user } = useAuth();
+
+  const [entries, setEntries]     = useState([blankRow()]);
+  const [preserved, setPreserved] = useState({});
+  const [activeDate, setActiveDate]   = useState(null);
+  const [isCommitted, setIsCommitted] = useState(false);
+  const [isPendingAdminReview, setIsPendingAdminReview] = useState(false);
+  const [loading, setLoading]         = useState(true);
+  const [saving, setSaving]       = useState(false);
+  const [toast, setToast]         = useState(null);
+
+  const authHeaders = () => ({ Authorization: `Bearer ${user.token}` });
+
+  const showToast = (message, type = "success") => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 3500);
+  };
+
+  useEffect(() => { loadToday(); }, []);
+
+  const loadToday = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(`${SUMMARY_URL}/today`, { headers: authHeaders() });
+      if (res.ok) {
+        const data = await res.json();
+        setActiveDate(data.date ?? null);
+        setIsCommitted(data.isCommitted ?? false);
+        setIsPendingAdminReview(data.isPendingAdminReview ?? false);
+
+        const loaded =
+          Array.isArray(data.creditCardEntries) && data.creditCardEntries.length > 0
+            ? data.creditCardEntries.map((e) => ({
+                id:               e.id,
+                manualCardAmount: e.manualCardAmount ? String(e.manualCardAmount) : "",
+                cardAmount:       e.cardAmount       ? String(e.cardAmount)       : "",
+                createdDate:      e.createdDate ?? e.createdAt ?? null,
+              }))
+            : [blankRow()];
+
+        setEntries(loaded);
+        setPreserved(Object.fromEntries(PRESERVE_KEYS.map((k) => [k, data[k] ?? 0])));
+      } else if (res.status !== 404) {
+        showToast("Failed to load entries", "error");
+      }
+    } catch {
+      showToast("Network error", "error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleChange = (index, key, value) => {
+    setEntries((prev) =>
+      prev.map((row, i) => (i === index ? { ...row, [key]: value } : row))
+    );
+  };
+
+  const handleSave = async () => {
+    const body = {
+      ...preserved,
+      creditCardEntries: entries.map(({ id, manualCardAmount, cardAmount }) => ({
+        id,
+        manualCardAmount: parseFloat(manualCardAmount) || 0,
+        cardAmount:       parseFloat(cardAmount)       || 0,
+      })),
+    };
+
+    setSaving(true);
+    try {
+      const res = await fetch(SUMMARY_URL, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", ...authHeaders() },
+        body: JSON.stringify(body),
+      });
+      if (res.ok) {
+        showToast("Saved successfully");
+        await loadToday();
+      } else {
+        const err = await res.text();
+        showToast(`Save failed: ${err}`, "error");
+      }
+    } catch {
+      showToast("Network error saving", "error");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const todayStr = new Date().toISOString().split("T")[0];
+  const activeDateStr = activeDate ? activeDate.split("T")[0] : null;
+  const isYesterday = activeDateStr && activeDateStr !== todayStr;
+  const isLocked = isCommitted || isPendingAdminReview;
+  const fmtDate = (d) => new Date(d).toLocaleDateString("en-GB", {
+    day: "2-digit", month: "short", year: "numeric",
+  });
+  const displayDate = activeDateStr ? fmtDate(activeDateStr) : fmtDate(new Date());
+
+  return (
+    <div className="ccb-page">
+      {toast && (
+        <div className={`ccb-toast ccb-toast--${toast.type}`}>
+          <span className="ccb-toast-icon">{toast.type === "success" ? "✓" : "✕"}</span>
+          {toast.message}
+        </div>
+      )}
+
+      <button className="ccb-back-btn" onClick={() => navigate(-1)}>
+        ← Back
+      </button>
+
+      <div className="ccb-page-content">
+        <div className="ccb-page-header">
+          <h1>Credit Card Banking</h1>
+          <span className="ccb-date-badge">{displayDate}</span>
+        </div>
+
+        {isYesterday && (
+          <div className="date-banner">
+            <span className="date-banner__icon">{isCommitted ? '✅' : '⚠️'}</span>
+            Showing {fmtDate(activeDateStr)} data — {isCommitted ? 'committed' : 'not yet committed'}
+          </div>
+        )}
+
+        {loading ? (
+          <div className="ccb-loading">
+            <div className="ccb-spinner" />
+            <span>Loading…</span>
+          </div>
+        ) : (
+          <>
+            {entries.map((row, i) => (
+              <div className="ccb-entry" key={i}>
+                {entries.length > 1 && <p className="ccb-entry-label">Entry {i + 1}</p>}
+
+                <div className="ccb-form-group">
+                  <label className="ccb-form-label">Manual Card Amount (£)</label>
+                  <div className="ccb-input-wrap">
+                    <span className="ccb-currency">£</span>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      placeholder="Enter Manual Card Amount"
+                      value={row.manualCardAmount}
+                      className="ccb-input"
+                      readOnly={isLocked}
+                      onChange={isLocked ? undefined : (e) => handleChange(i, "manualCardAmount", e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                <div className="ccb-form-group">
+                  <label className="ccb-form-label">Card Amount (£)</label>
+                  <div className="ccb-input-wrap">
+                    <span className="ccb-currency">£</span>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      placeholder="Enter Card Amount"
+                      value={row.cardAmount}
+                      className="ccb-input"
+                      readOnly={isLocked}
+                      onChange={isLocked ? undefined : (e) => handleChange(i, "cardAmount", e.target.value)}
+                    />
+                  </div>
+                </div>
+              </div>
+            ))}
+
+            <button
+              className="ccb-submit-btn"
+              onClick={handleSave}
+              disabled={saving || isLocked}
+            >
+              {saving ? (
+                <><span className="ccb-btn-spinner" /> Saving…</>
+              ) : (
+                "Save"
+              )}
+            </button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+};

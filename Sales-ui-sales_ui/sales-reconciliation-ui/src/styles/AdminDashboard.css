@@ -1,0 +1,339 @@
+/* ════════════════════════════════════════
+   Admin Dashboard — Professional Design
+════════════════════════════════════════ */
+
+/* ── Wrapper ─────────────────────────────────── */
+.adm-wrapper {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: linear-gradient(145deg, #0f172a 0%, #1e1b4b 40%, #312e81 100%);
+  font-family: 'Plus Jakarta Sans', 'Inter', system-ui, sans-serif;
+}
+
+/* ── Navbar ──────────────────────────────────── */
+.adm-navbar {
+  background: rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.09);
+  color: white;
+  padding: 0 2rem;
+  height: 66px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  flex-shrink: 0;
+}
+
+.adm-navbar-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.adm-navbar-logo {
+  width: 38px;
+  height: 38px;
+  background: linear-gradient(135deg, #f59e0b 0%, #ef4444 100%);
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.8rem;
+  font-weight: 800;
+  color: white;
+  letter-spacing: 0.03em;
+  flex-shrink: 0;
+  box-shadow: 0 4px 12px rgba(245, 158, 11, 0.4);
+}
+
+.adm-navbar-brand {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: white;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+}
+
+.adm-navbar-sub {
+  font-size: 0.72rem;
+  color: rgba(255, 255, 255, 0.4);
+  font-weight: 400;
+  line-height: 1;
+}
+
+.adm-navbar-right {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.adm-navbar-date {
+  font-size: 0.78rem;
+  color: rgba(255, 255, 255, 0.45);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.adm-nav-divider {
+  width: 1px;
+  height: 22px;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.adm-user-avatar {
+  width: 34px;
+  height: 34px;
+  background: linear-gradient(135deg, #f59e0b 0%, #ef4444 100%);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: white;
+  letter-spacing: 0.04em;
+  flex-shrink: 0;
+  box-shadow: 0 2px 8px rgba(245, 158, 11, 0.4);
+}
+
+.adm-user-name {
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.8);
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.adm-admin-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  background: rgba(245, 158, 11, 0.15);
+  color: #fbbf24;
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  border-radius: 20px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.adm-logout-btn {
+  padding: 0.42rem 1rem;
+  background: rgba(239, 68, 68, 0.12);
+  color: #fca5a5;
+  border: 1px solid rgba(239, 68, 68, 0.28);
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.8rem;
+  font-weight: 600;
+  font-family: inherit;
+  transition: background 0.2s ease, color 0.2s ease;
+  white-space: nowrap;
+}
+
+.adm-logout-btn:hover {
+  background: rgba(239, 68, 68, 0.28);
+  color: white;
+  border-color: rgba(239, 68, 68, 0.5);
+}
+
+/* ── Main area ───────────────────────────────── */
+.adm-main {
+  flex: 1;
+  padding: 2.5rem 2rem 3rem;
+  width: 100%;
+  max-width: 1280px;
+  margin: 0 auto;
+  box-sizing: border-box;
+}
+
+/* ── Hero / Greeting ─────────────────────────── */
+.adm-hero {
+  margin-bottom: 2rem;
+}
+
+.adm-greeting {
+  font-size: 2rem;
+  font-weight: 700;
+  color: white;
+  margin: 0 0 6px;
+  letter-spacing: -0.025em;
+  line-height: 1.2;
+}
+
+.adm-subline {
+  font-size: 0.875rem;
+  color: rgba(255, 255, 255, 0.42);
+  margin: 0;
+  font-weight: 400;
+}
+
+/* ── Card grid ───────────────────────────────── */
+.adm-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(265px, 1fr));
+  gap: 1.1rem;
+}
+
+/* ── Card ────────────────────────────────────── */
+.adm-card {
+  background: rgba(255, 255, 255, 0.97);
+  border: none;
+  border-radius: 14px;
+  padding: 1.3rem 1.2rem 2.4rem;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.7rem;
+  text-align: left;
+  font-family: inherit;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  box-shadow: 0 2px 14px rgba(0, 0, 0, 0.18);
+  position: relative;
+  overflow: hidden;
+  border-top: 3px solid var(--adm-accent, #6366f1);
+}
+
+.adm-card:hover {
+  transform: translateY(-6px);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.26);
+}
+
+.adm-card:active {
+  transform: translateY(-2px);
+  transition-duration: 0.08s;
+}
+
+/* Accent tint overlay on hover */
+.adm-card::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, var(--adm-accent-bg, transparent), transparent 60%);
+  opacity: 0;
+  transition: opacity 0.25s ease;
+  pointer-events: none;
+  border-radius: inherit;
+}
+
+.adm-card:hover::after {
+  opacity: 1;
+}
+
+/* ── Icon wrap ───────────────────────────────── */
+.adm-card-icon-wrap {
+  width: 46px;
+  height: 46px;
+  border-radius: 11px;
+  background: var(--adm-accent-bg, #f3f4f6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.adm-card-icon {
+  font-size: 1.45rem;
+  line-height: 1;
+  display: block;
+}
+
+/* ── Card text ───────────────────────────────── */
+.adm-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
+}
+
+.adm-card-name {
+  font-size: 0.925rem;
+  font-weight: 700;
+  color: #0f172a;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+}
+
+.adm-card-desc {
+  font-size: 0.775rem;
+  color: #94a3b8;
+  font-weight: 400;
+  line-height: 1.45;
+}
+
+/* ── Arrow ───────────────────────────────────── */
+.adm-card-arrow {
+  position: absolute;
+  bottom: 13px;
+  right: 14px;
+  font-size: 0.8rem;
+  color: #cbd5e1;
+  transition: color 0.15s ease, transform 0.15s ease;
+  line-height: 1;
+}
+
+.adm-card:hover .adm-card-arrow {
+  color: var(--adm-accent, #6366f1);
+  transform: translateX(4px);
+}
+
+/* ── Responsive ──────────────────────────────── */
+@media (max-width: 768px) {
+  .adm-navbar {
+    padding: 0 1.25rem;
+    height: 60px;
+  }
+
+  .adm-navbar-date,
+  .adm-nav-divider,
+  .adm-user-name {
+    display: none;
+  }
+
+  .adm-navbar-brand { font-size: 0.875rem; }
+
+  .adm-main {
+    padding: 1.5rem 1.25rem 2.5rem;
+  }
+
+  .adm-greeting { font-size: 1.5rem; }
+
+  .adm-grid {
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 0.9rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .adm-main { padding: 1.25rem 1rem 2rem; }
+  .adm-greeting { font-size: 1.3rem; }
+
+  .adm-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 0.75rem;
+  }
+
+  .adm-card {
+    padding: 1rem 0.9rem 2rem;
+  }
+
+  .adm-card-icon-wrap {
+    width: 38px;
+    height: 38px;
+  }
+
+  .adm-card-icon { font-size: 1.2rem; }
+  .adm-card-name { font-size: 0.825rem; }
+  .adm-card-desc { display: none; }
+}

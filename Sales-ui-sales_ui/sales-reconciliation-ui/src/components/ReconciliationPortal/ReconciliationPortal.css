@@ -1,0 +1,200 @@
+.rp-container {
+  max-width: 1400px;
+  margin: 2.5rem auto 0;
+  padding: 0 2rem 2rem;
+}
+
+.rp-heading {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 1.25rem;
+}
+
+.rp-heading h2 {
+  margin: 0;
+  font-size: 1.25rem;
+  color: white;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+}
+
+/* Loading */
+.rp-center {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 1.5rem;
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 0.95rem;
+}
+
+.rp-spinner {
+  width: 22px;
+  height: 22px;
+  border: 3px solid rgba(255, 255, 255, 0.3);
+  border-top-color: white;
+  border-radius: 50%;
+  animation: rp-spin 0.75s linear infinite;
+  flex-shrink: 0;
+}
+
+@keyframes rp-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Notice / empty state */
+.rp-notice {
+  background: rgba(255, 255, 255, 0.18);
+  color: white;
+  padding: 1.25rem 1.5rem;
+  border-radius: 12px;
+  font-size: 0.95rem;
+  text-align: center;
+  backdrop-filter: blur(4px);
+}
+
+.rp-notice--error {
+  background: rgba(220, 38, 38, 0.2);
+  border: 1px solid rgba(252, 165, 165, 0.4);
+}
+
+/* Data card */
+.rp-card {
+  background: white;
+  border-radius: 16px;
+  padding: 1.75rem;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+}
+
+/* Meta badges */
+.rp-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 1.5rem;
+}
+
+.rp-badge {
+  padding: 4px 13px;
+  border-radius: 20px;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.rp-badge--date {
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  color: white;
+}
+
+.rp-badge--submitted {
+  background: #dcfce7;
+  color: #166534;
+}
+
+/* Grid of sections */
+.rp-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+}
+
+/* Section card */
+.rp-section {
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+.rp-section-header {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 10px 14px;
+  font-weight: 700;
+  font-size: 0.84rem;
+  color: white;
+}
+
+.rp-section-body {
+  padding: 10px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* Section colors */
+.rp-section--blue   { border-left: 3px solid #2563eb; }
+.rp-section--green  { border-left: 3px solid #16a34a; }
+.rp-section--orange { border-left: 3px solid #ea580c; }
+.rp-section--purple { border-left: 3px solid #7c3aed; }
+.rp-section--gold   { border-left: 3px solid #b45309; }
+.rp-section--teal   { border-left: 3px solid #0e7490; }
+.rp-section--rose   { border-left: 3px solid #e11d48; }
+
+.rp-section--blue   .rp-section-header { background: linear-gradient(90deg, #2563eb, #3b82f6); }
+.rp-section--green  .rp-section-header { background: linear-gradient(90deg, #16a34a, #22c55e); }
+.rp-section--orange .rp-section-header { background: linear-gradient(90deg, #ea580c, #f97316); }
+.rp-section--purple .rp-section-header { background: linear-gradient(90deg, #7c3aed, #8b5cf6); }
+.rp-section--gold   .rp-section-header { background: linear-gradient(90deg, #b45309, #f59e0b); }
+.rp-section--teal   .rp-section-header { background: linear-gradient(90deg, #0e7490, #06b6d4); }
+.rp-section--rose   .rp-section-header { background: linear-gradient(90deg, #e11d48, #f43f5e); }
+
+/* Data row */
+.rp-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.85rem;
+  gap: 8px;
+}
+
+.rp-row-label {
+  color: #6b7280;
+  font-weight: 500;
+}
+
+.rp-row-value {
+  color: #1f2937;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* Admin notes */
+.rp-notes {
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 14px 16px;
+}
+
+.rp-notes-label {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #374151;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  display: block;
+  margin-bottom: 6px;
+}
+
+.rp-notes-text {
+  margin: 0;
+  font-size: 0.9rem;
+  color: #4b5563;
+  line-height: 1.55;
+}
+
+@media (max-width: 640px) {
+  .rp-container {
+    padding: 0 1rem 1.5rem;
+  }
+  .rp-card {
+    padding: 1.25rem;
+  }
+  .rp-grid {
+    grid-template-columns: 1fr;
+  }
+}

@@ -1,0 +1,100 @@
+/* ── Admin form pages (Register / Change Password) ── */
+
+.admin-form-page {
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: linear-gradient(145deg, #0f172a 0%, #1e1b4b 40%, #312e81 100%);
+  padding: 20px;
+  font-family: 'Plus Jakarta Sans', 'Inter', system-ui, sans-serif;
+}
+
+.admin-form-card {
+  background: white;
+  border-radius: 16px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.35);
+  padding: 40px;
+  width: 100%;
+  max-width: 460px;
+  animation: adminCardSlideUp 0.4s ease-out;
+}
+
+@keyframes adminCardSlideUp {
+  from { opacity: 0; transform: translateY(24px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Glass back button override */
+.admin-form-card .admin-back-btn {
+  background: none;
+  border: none;
+  color: #4f46e5;
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0 0 18px 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: color 0.2s ease, transform 0.2s ease;
+}
+
+.admin-form-card .admin-back-btn:hover {
+  color: #6d28d9;
+  transform: translateX(-3px);
+}
+
+/* Indigo focus ring for inputs */
+.admin-form-card .form-input:focus {
+  border-color: #6366f1;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+}
+
+/* Indigo primary button */
+.admin-form-card .btn-primary {
+  background: linear-gradient(135deg, #4f46e5, #6d28d9);
+}
+
+.admin-form-card .btn-primary:hover:not(:disabled) {
+  box-shadow: 0 6px 20px rgba(79, 70, 229, 0.45);
+  transform: translateY(-2px);
+}
+
+@media (max-width: 480px) {
+  .admin-form-card {
+    padding: 28px 20px;
+  }
+}
+
+/* ── Register page role tabs ── */
+.admin-register-tabs {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 24px;
+}
+
+.admin-register-tab {
+  flex: 1;
+  padding: 0.65rem 1rem;
+  background: #f9fafb;
+  color: #6b7280;
+  border: 1.5px solid #e5e7eb;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+
+.admin-register-tab:hover {
+  border-color: #c7d2fe;
+  color: #4f46e5;
+}
+
+.admin-register-tab--active {
+  background: linear-gradient(135deg, #4f46e5, #6d28d9);
+  color: white;
+  border-color: transparent;
+}
+

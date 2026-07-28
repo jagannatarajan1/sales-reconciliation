@@ -1,0 +1,246 @@
+/* Deductions.css */
+.ded-page {
+  min-height: 100vh;
+  background: linear-gradient(145deg, #1e1b4b 0%, #312e81 45%, #4c1d95 100%);
+  padding: 2rem 1.5rem 60px;
+  font-family: 'Plus Jakarta Sans', 'Inter', system-ui, sans-serif;
+  color: #1e293b;
+}
+
+/* ── Back button (glass) ────────────────────────────────── */
+.ded-back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0.6rem 1.4rem;
+  background: rgba(255, 255, 255, 0.1);
+  color: white;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: 600;
+  margin-bottom: 1.75rem;
+  backdrop-filter: blur(10px);
+  transition: background 0.2s ease, transform 0.2s ease;
+}
+
+.ded-back-btn:hover {
+  background: rgba(255, 255, 255, 0.18);
+  transform: translateX(-3px);
+}
+
+.ded-content {
+  max-width: 860px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+}
+
+/* ── Title row (on dark bg) ─────────────────────────────── */
+.ded-title-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-bottom: 4px;
+}
+
+.ded-page-title {
+  font-size: 1.75rem;
+  font-weight: 800;
+  letter-spacing: -0.5px;
+  margin: 0;
+  color: white;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+}
+
+.ded-date-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 14px;
+  background: rgba(255, 255, 255, 0.12);
+  color: white;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 20px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  white-space: nowrap;
+  backdrop-filter: blur(10px);
+}
+
+/* ── White section card ─────────────────────────────────── */
+.ded-section {
+  background: white;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.16);
+}
+
+.ded-section-title {
+  font-size: 15px;
+  font-weight: 700;
+  padding: 16px 20px;
+  margin: 0;
+  border-bottom: 1px solid #e2e8f7;
+  color: #4f46e5;
+  background: #eef2ff;
+}
+
+.ded-table-wrap { overflow-x: auto; }
+
+.ded-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.ded-table thead {
+  background: linear-gradient(135deg, #4f46e5, #6d28d9);
+}
+
+.ded-table th {
+  padding: 12px 16px;
+  text-align: left;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.ded-table td {
+  padding: 12px 16px;
+  border-bottom: 1px solid #f3f4f6;
+  color: #374151;
+}
+
+.ded-table tbody tr:last-child td { border-bottom: none; }
+.ded-table tbody tr:hover { background: #f8faff; }
+
+.ded-table tfoot td {
+  background: #f8faff;
+  border-top: 2px solid #e2e8f7;
+  font-weight: 700;
+}
+
+.ded-label { font-weight: 600; color: #1e293b; }
+.ded-total-label { font-size: 13px; font-weight: 700; text-transform: uppercase; color: #475569; }
+.ded-total-value { font-size: 15px; font-weight: 800; color: #059669; font-family: 'JetBrains Mono', monospace; }
+
+.ded-input {
+  width: 100%;
+  padding: 8px 12px;
+  background: #f8faff;
+  border: 1.5px solid #e2e8f7;
+  border-radius: 8px;
+  font-size: 13px;
+  color: #1e293b;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.ded-input:focus {
+  border-color: #6366f1;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+  background: white;
+}
+
+.ded-new-row { background: #fffbeb; }
+
+.ded-no-data {
+  text-align: center;
+  color: #94a3b8;
+  font-style: italic;
+  padding: 24px !important;
+}
+
+.ded-del-btn {
+  padding: 5px 10px;
+  border-radius: 6px;
+  border: 1.5px solid rgba(220, 38, 38, 0.25);
+  background: #fef2f2;
+  color: #dc2626;
+  cursor: pointer;
+  font-size: 13px;
+  transition: all 0.15s;
+}
+
+.ded-del-btn:hover { background: #fee2e2; }
+
+.ded-actions {
+  display: flex;
+  gap: 12px;
+  padding: 16px 20px;
+  justify-content: flex-end;
+  border-top: 1px solid #e2e8f7;
+}
+
+.ded-add-btn {
+  padding: 10px 20px;
+  background: #eef2ff;
+  color: #4f46e5;
+  border: 1.5px solid rgba(99, 102, 241, 0.3);
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 700;
+  transition: all 0.2s;
+}
+
+.ded-add-btn:hover { background: #e0e7ff; }
+
+.ded-save-btn {
+  padding: 10px 28px;
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 700;
+  box-shadow: 0 4px 14px rgba(102, 126, 234, 0.4);
+  transition: all 0.2s;
+}
+
+.ded-save-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.5);
+}
+
+.ded-save-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+
+.ded-loading { text-align: center; padding: 40px; color: #94a3b8; font-size: 14px; }
+
+.ded-toast {
+  position: fixed;
+  bottom: 28px;
+  right: 28px;
+  padding: 13px 20px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  z-index: 9999;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+  animation: toastIn 0.3s ease;
+}
+
+.ded-toast.success {
+  background: #ecfdf5;
+  border: 1px solid rgba(5, 150, 105, 0.3);
+  color: #059669;
+}
+
+.ded-toast.error {
+  background: #fef2f2;
+  border: 1px solid rgba(220, 38, 38, 0.3);
+  color: #dc2626;
+}
+
+@keyframes toastIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
