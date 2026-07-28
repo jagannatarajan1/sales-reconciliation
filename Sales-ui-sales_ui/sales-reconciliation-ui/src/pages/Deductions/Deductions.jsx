@@ -307,7 +307,7 @@ function SupplierInvoices({ token, showToast, isLocked }) {
           <tfoot>
             <tr>
               <td colSpan={2} className="ded-total-label">Grand Total</td>
-              <td className="ded-total-value">${grandTotal.toFixed(2)}</td>
+              <td className="ded-total-value">£{grandTotal.toFixed(2)}</td>
               <td />
             </tr>
           </tfoot>
