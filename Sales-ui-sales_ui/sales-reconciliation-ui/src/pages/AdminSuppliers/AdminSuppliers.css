@@ -5,33 +5,8 @@
   display: flex;
   flex-direction: column;
   gap: 1.75rem;
-  font-family: 'Plus Jakarta Sans', 'Inter', system-ui, sans-serif;
+  font-family: var(--font-heading);
 }
-
-/* ── Toast ── */
-.sup-toast {
-  position: fixed;
-  top: 24px;
-  right: 24px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 13px 20px;
-  border-radius: 10px;
-  font-size: 0.9rem;
-  font-weight: 500;
-  z-index: 1000;
-  animation: sup-slide-in 0.25s ease;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
-}
-
-@keyframes sup-slide-in {
-  from { transform: translateX(110px); opacity: 0; }
-  to   { transform: translateX(0);     opacity: 1; }
-}
-
-.sup-toast--success { background: #eff6ff; color: #1d4ed8; border: 1px solid #93c5fd; }
-.sup-toast--error   { background: #fef2f2; color: #dc2626; border: 1px solid #fca5a5; }
 
 /* ── Back button ── */
 .sup-back-btn {
@@ -42,13 +17,13 @@
   background: rgba(255, 255, 255, 0.1);
   color: white;
   border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   font-size: 0.95rem;
   font-weight: 600;
   cursor: pointer;
   align-self: flex-start;
   backdrop-filter: blur(10px);
-  transition: background 0.2s ease, transform 0.2s ease;
+  transition: background var(--duration-base) var(--ease-standard), transform var(--duration-base) var(--ease-standard);
 }
 
 .sup-back-btn:hover {
@@ -58,10 +33,10 @@
 
 /* ── Panel ── */
 .sup-panel {
-  background: white;
-  border-radius: 16px;
+  background: var(--bg-surface);
+  border-radius: var(--radius-lg);
   overflow: hidden;
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
+  box-shadow: var(--shadow-md);
   max-width: 800px;
   width: 100%;
   align-self: center;
@@ -69,19 +44,22 @@
 
 .sup-panel-header {
   padding: 1.25rem 1.5rem 1rem;
-  border-bottom: 1px solid #f3f4f6;
+  border-bottom: 1px solid var(--color-border);
 }
 
 .sup-panel-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   margin: 0 0 4px;
   font-size: 1.1rem;
-  color: #1f2937;
+  color: var(--text-primary);
 }
 
 .sup-panel-sub {
   margin: 0;
   font-size: 0.83rem;
-  color: #6b7280;
+  color: var(--text-tertiary);
 }
 
 /* ── Add row ── */
@@ -95,53 +73,18 @@
 .sup-input {
   flex: 1;
   padding: 0.7rem 1rem;
-  border: 2px solid #e5e7eb;
-  border-radius: 10px;
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-sm);
   font-size: 0.95rem;
-  color: #1f2937;
-  transition: border-color 0.2s ease;
+  color: var(--text-primary);
+  font-family: var(--font-body);
+  transition: border-color var(--duration-fast) var(--ease-standard);
   outline: none;
 }
 
 .sup-input:focus {
-  border-color: #6366f1;
-  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
-}
-
-.sup-add-btn {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 0.7rem 1.4rem;
-  background: linear-gradient(135deg, #4f46e5, #6d28d9);
-  color: white;
-  border: none;
-  border-radius: 10px;
-  font-size: 0.9rem;
-  font-weight: 600;
-  cursor: pointer;
-  white-space: nowrap;
-  transition: opacity 0.2s ease, transform 0.2s ease;
-}
-
-.sup-add-btn:hover:not(:disabled) {
-  opacity: 0.9;
-  transform: translateY(-1px);
-}
-
-.sup-add-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.sup-btn-spinner {
-  display: inline-block;
-  width: 14px;
-  height: 14px;
-  border: 2px solid rgba(255, 255, 255, 0.4);
-  border-top-color: white;
-  border-radius: 50%;
-  animation: sup-spin 0.7s linear infinite;
+  border-color: var(--brand-500);
+  box-shadow: 0 0 0 3px var(--brand-100);
 }
 
 @keyframes sup-spin { to { transform: rotate(360deg); } }
@@ -153,15 +96,15 @@
   align-items: center;
   gap: 0.75rem;
   padding: 3rem 1rem;
-  color: #6b7280;
+  color: var(--text-tertiary);
   font-size: 0.9rem;
 }
 
 .sup-spinner {
   width: 36px;
   height: 36px;
-  border: 4px solid #f3f4f6;
-  border-top-color: #6366f1;
+  border: 4px solid var(--bg-surface-muted);
+  border-top-color: var(--brand-500);
   border-radius: 50%;
   animation: sup-spin 0.8s linear infinite;
 }
@@ -172,10 +115,10 @@
   align-items: center;
   gap: 0.5rem;
   padding: 3rem 1rem;
-  color: #9ca3af;
+  color: var(--text-muted);
 }
 
-.sup-empty-icon { font-size: 2.5rem; }
+.sup-empty-icon { font-size: 2.5rem; color: var(--brand-400); }
 .sup-empty p { margin: 0; font-size: 0.9rem; }
 
 /* ── Supplier list ── */
@@ -189,9 +132,9 @@
   align-items: center;
   justify-content: space-between;
   padding: 0.9rem 1.5rem;
-  border-bottom: 1px solid #f3f4f6;
+  border-bottom: 1px solid var(--bg-surface-muted);
   gap: 1rem;
-  transition: background 0.15s ease;
+  transition: background var(--duration-fast) var(--ease-standard);
 }
 
 .sup-row:last-child { border-bottom: none; }
@@ -203,25 +146,28 @@
   gap: 10px;
   font-size: 0.95rem;
   font-weight: 600;
-  color: #1f2937;
+  color: var(--text-primary);
   flex: 1;
   min-width: 0;
 }
 
-.sup-row-icon { font-size: 1.1rem; flex-shrink: 0; }
+.sup-row-icon { font-size: 1.1rem; flex-shrink: 0; color: var(--brand-500); }
 
 /* ── Delete button ── */
 .sup-delete-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   padding: 0.45rem 0.9rem;
-  background: #fef2f2;
-  color: #dc2626;
-  border: 1px solid #fecaca;
-  border-radius: 8px;
+  background: var(--color-danger-bg);
+  color: var(--color-danger);
+  border: 1px solid var(--color-danger-border);
+  border-radius: var(--radius-sm);
   font-size: 0.82rem;
   font-weight: 600;
   cursor: pointer;
   white-space: nowrap;
-  transition: all 0.2s ease;
+  transition: all var(--duration-base) var(--ease-standard);
   flex-shrink: 0;
 }
 
@@ -241,38 +187,17 @@
 
 .sup-confirm-text {
   font-size: 0.82rem;
-  color: #dc2626;
+  color: var(--color-danger);
   font-weight: 500;
 }
 
-.sup-confirm-yes {
-  padding: 0.4rem 0.8rem;
-  background: #dc2626;
-  color: white;
-  border: none;
-  border-radius: 7px;
-  font-size: 0.8rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background 0.2s ease;
-}
-
-.sup-confirm-yes:hover:not(:disabled) { background: #b91c1c; }
-.sup-confirm-yes:disabled { opacity: 0.6; cursor: not-allowed; }
-
+/* Button component already supplies color/variant styling —
+   these just fit the confirm-row's compact sizing. */
+.sup-confirm-yes,
 .sup-confirm-no {
-  padding: 0.4rem 0.8rem;
-  background: #f3f4f6;
-  color: #4b5563;
-  border: none;
-  border-radius: 7px;
-  font-size: 0.8rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background 0.2s ease;
+  padding: 6px 14px !important;
+  font-size: 0.8rem !important;
 }
-
-.sup-confirm-no:hover { background: #e5e7eb; }
 
 /* ── Responsive ── */
 @media (max-width: 600px) {

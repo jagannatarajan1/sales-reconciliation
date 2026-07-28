@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { motion } from 'framer-motion';
+import { FiArrowLeft, FiUser, FiShield } from 'react-icons/fi';
 import { useAuth } from '../context/AuthContext';
 import '../styles/Auth.css';
 import '../styles/AdminFormPage.css';
@@ -83,25 +85,35 @@ export const AdminRegister = () => {
 
   if (user?.role !== 'admin') {
     return (
-      <div className="admin-form-page">
+      <motion.div
+        className="admin-form-page"
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4, ease: [0.4, 0, 0.2, 1] }}
+      >
         <div className="admin-form-card">
           <button className="admin-back-btn" onClick={() => navigate('/admin/dashboard')}>
-            ← Back to Dashboard
+            <FiArrowLeft /> Back to Dashboard
           </button>
           <div className="auth-header">
             <h1>Access Denied</h1>
             <p>Only admins can register new accounts.</p>
           </div>
         </div>
-      </div>
+      </motion.div>
     );
   }
 
   return (
-    <div className="admin-form-page">
+    <motion.div
+      className="admin-form-page"
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4, ease: [0.4, 0, 0.2, 1] }}
+    >
       <div className="admin-form-card">
         <button className="admin-back-btn" onClick={() => navigate('/admin/dashboard')}>
-          ← Back to Dashboard
+          <FiArrowLeft /> Back to Dashboard
         </button>
 
         <div className="auth-header">
@@ -115,14 +127,14 @@ export const AdminRegister = () => {
             className={`admin-register-tab ${form.role === 'user' ? 'admin-register-tab--active' : ''}`}
             onClick={() => setRole('user')}
           >
-            👤 User
+            <FiUser /> User
           </button>
           <button
             type="button"
             className={`admin-register-tab ${form.role === 'admin' ? 'admin-register-tab--active' : ''}`}
             onClick={() => setRole('admin')}
           >
-            🛡️ Admin
+            <FiShield /> Admin
           </button>
         </div>
 
@@ -191,6 +203,6 @@ export const AdminRegister = () => {
           </button>
         </form>
       </div>
-    </div>
+    </motion.div>
   );
 };

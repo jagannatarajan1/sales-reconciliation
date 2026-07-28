@@ -1,5 +1,7 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { motion } from "framer-motion";
+import { FiArrowLeft, FiCheckCircle, FiMail, FiAlertCircle } from "react-icons/fi";
 import { useAuth } from "../context/AuthContext";
 import "./Commit.css";
 
@@ -114,14 +116,19 @@ export const Commit = () => {
     });
 
   return (
-    <div className="commit-page">
+    <motion.div
+      className="commit-page"
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4, ease: [0.4, 0, 0.2, 1] }}
+    >
       <button className="commit-back-btn" onClick={() => navigate(-1)}>
-        ← Back
+        <FiArrowLeft /> Back
       </button>
 
       <div className="commit-header">
         <div className="commit-title-wrap">
-          <span className="commit-icon">✅</span>
+          <span className="commit-icon"><FiCheckCircle /></span>
           <div>
             <h1 className="commit-title">Commit Transactions</h1>
             <p className="commit-subtitle">End-of-day reconciliation</p>
@@ -141,19 +148,19 @@ export const Commit = () => {
           {isCommitted && (
             <>
               <div className="commit-done-badge">
-                ✅ Committed successfully
+                <FiCheckCircle /> Committed successfully
                 {committedAt && (
                   <span className="commit-done-time">{formatDateTime(committedAt)}</span>
                 )}
               </div>
-              <div className="commit-email-sent">📧 Notification email sent</div>
+              <div className="commit-email-sent"><FiMail /> Notification email sent</div>
               <p className="commit-committed-note">{committedMsg}</p>
             </>
           )}
 
           {/* ── No Z-report email ── */}
           {!isCommitted && emailError && (
-            <div className="commit-error-msg">{emailError}</div>
+            <div className="commit-error-msg"><FiAlertCircle /> {emailError}</div>
           )}
 
           {/* ── Ready to commit ── */}
@@ -167,12 +174,12 @@ export const Commit = () => {
               )}
 
               {errorMsg && (
-                <div className="commit-error-msg">{errorMsg}</div>
+                <div className="commit-error-msg"><FiAlertCircle /> {errorMsg}</div>
               )}
 
               {committed ? (
                 <div className="commit-done-badge">
-                  ✅ Committed successfully
+                  <FiCheckCircle /> Committed successfully
                   {committedAt && (
                     <span className="commit-done-time">{formatDateTime(committedAt)}</span>
                   )}
@@ -198,6 +205,6 @@ export const Commit = () => {
 
         </div>
       )}
-    </div>
+    </motion.div>
   );
 };

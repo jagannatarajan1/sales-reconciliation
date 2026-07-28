@@ -33,7 +33,7 @@
 /* ── Page Layout ── */
 .page-container {
   min-height: 100vh;
-  background: linear-gradient(145deg, #1e1b4b 0%, #312e81 45%, #4c1d95 100%);
+  background: var(--bg-gradient);
   padding: 2rem 1.5rem 60px;
   font-family: var(--font);
   color: var(--text);
@@ -106,6 +106,27 @@
   margin-bottom: 28px;
   flex-wrap: wrap;
   gap: 16px;
+}
+
+/* ── Date warning banner ── */
+.date-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--color-warning-bg);
+  border: 1px solid var(--color-warning-border);
+  color: var(--color-warning);
+  border-radius: var(--radius-sm);
+  padding: 10px 16px;
+  font-size: 0.88rem;
+  font-weight: 500;
+  margin-bottom: 1.4rem;
+}
+
+.date-banner__icon {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
 }
 
 .page-header h1 {
@@ -307,7 +328,7 @@
 
 .save-button {
   padding: 12px 28px;
-  background: linear-gradient(135deg, #667eea, #764ba2);
+  background: linear-gradient(135deg, var(--brand-600), var(--brand-500));
   color: #fff;
   border: none;
   border-radius: var(--radius-sm);
@@ -315,13 +336,13 @@
   font-family: var(--font);
   font-size: 14px;
   font-weight: 700;
-  box-shadow: 0 4px 14px rgba(102, 126, 234, 0.4);
+  box-shadow: var(--shadow-glow-brand);
   transition: all 0.2s ease;
 }
 
 .save-button:hover:not(:disabled) {
   transform: translateY(-1px);
-  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.5);
+  box-shadow: 0 6px 20px rgba(79, 70, 229, 0.5);
 }
 
 .save-button:disabled {
@@ -353,38 +374,6 @@
   color: var(--text-muted);
   font-size: 14px;
   font-style: italic;
-}
-
-/* ── Toast ── */
-.lii-toast {
-  position: fixed;
-  bottom: 28px;
-  right: 28px;
-  padding: 13px 20px;
-  border-radius: 10px;
-  font-family: var(--font);
-  font-size: 13px;
-  font-weight: 600;
-  z-index: 9999;
-  animation: toastIn 0.3s ease;
-  box-shadow: var(--shadow-lg);
-}
-
-.lii-toast.success {
-  background: var(--accent-light);
-  border: 1px solid rgba(5, 150, 105, 0.3);
-  color: var(--accent);
-}
-
-.lii-toast.error {
-  background: var(--danger-light);
-  border: 1px solid rgba(220, 38, 38, 0.3);
-  color: var(--danger);
-}
-
-@keyframes toastIn {
-  from { opacity: 0; transform: translateY(10px); }
-  to   { opacity: 1; transform: translateY(0); }
 }
 
 /* ── Responsive ── */

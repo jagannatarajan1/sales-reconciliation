@@ -9,10 +9,16 @@
   align-items: center;
   gap: 0.6rem;
   margin-bottom: 1.25rem;
+  color: white;
+}
+
+.rp-heading svg {
+  font-size: 1.2rem;
 }
 
 .rp-heading h2 {
   margin: 0;
+  font-family: var(--font-heading, inherit);
   font-size: 1.25rem;
   color: white;
   text-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
@@ -47,7 +53,7 @@
   background: rgba(255, 255, 255, 0.18);
   color: white;
   padding: 1.25rem 1.5rem;
-  border-radius: 12px;
+  border-radius: var(--radius-md, 12px);
   font-size: 0.95rem;
   text-align: center;
   backdrop-filter: blur(4px);
@@ -60,10 +66,10 @@
 
 /* Data card */
 .rp-card {
-  background: white;
-  border-radius: 16px;
+  background: var(--bg-surface, white);
+  border-radius: var(--radius-lg, 16px);
   padding: 1.75rem;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+  box-shadow: var(--shadow-lg, 0 8px 24px rgba(0, 0, 0, 0.2));
 }
 
 /* Meta badges */
@@ -83,7 +89,7 @@
 }
 
 .rp-badge--date {
-  background: linear-gradient(135deg, #667eea, #764ba2);
+  background: linear-gradient(135deg, var(--brand-600, #667eea), var(--brand-800, #764ba2));
   color: white;
 }
 
@@ -102,9 +108,9 @@
 
 /* Section card */
 .rp-section {
-  border-radius: 10px;
+  border-radius: var(--radius-md, 10px);
   overflow: hidden;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  box-shadow: var(--shadow-sm, 0 2px 8px rgba(0, 0, 0, 0.06));
 }
 
 .rp-section-header {
@@ -115,6 +121,11 @@
   font-weight: 700;
   font-size: 0.84rem;
   color: white;
+}
+
+.rp-section-icon {
+  font-size: 1rem;
+  flex-shrink: 0;
 }
 
 .rp-section-body {

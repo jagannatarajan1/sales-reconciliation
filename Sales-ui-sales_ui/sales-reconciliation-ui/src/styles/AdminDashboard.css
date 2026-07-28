@@ -246,6 +246,7 @@
   font-size: 1.45rem;
   line-height: 1;
   display: block;
+  color: var(--adm-accent, var(--brand-500));
 }
 
 /* ── Card text ───────────────────────────────── */

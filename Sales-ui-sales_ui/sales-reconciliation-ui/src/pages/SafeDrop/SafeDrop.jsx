@@ -1,14 +1,17 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { FiTrash2 } from "react-icons/fi";
+import { motion } from "framer-motion";
+import { FiArrowLeft, FiTrash2 } from "react-icons/fi";
 import "./SafeDrop.css";
 import { useAuth } from "../../context/AuthContext";
+import { useToast } from "../../components/ui/Toast";
 
 const BASE_URL = `${import.meta.env.VITE_API_URL || "https://localhost:7276/api"}/SafeDrop`;
 
 export const SafeDrop = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { showToast } = useToast();
 
   const [record, setRecord] = useState(null);
   const [lastSafe, setLastSafe] = useState("");
@@ -54,15 +57,15 @@ export const SafeDrop = () => {
 
   const handleSave = async () => {
     if (lastSafe === "") {
-      alert("Please enter Last Safe amount");
+      showToast("Please enter Last Safe amount", "error");
       return;
     }
     if (safeDropAmount === "") {
-      alert("Please enter Safe Drop Amount");
+      showToast("Please enter Safe Drop Amount", "error");
       return;
     }
     if (parseFloat(lastSafe) < 0 || parseFloat(safeDropAmount) < 0) {
-      alert("Values cannot be negative");
+      showToast("Values cannot be negative", "error");
       return;
     }
 
@@ -80,11 +83,11 @@ export const SafeDrop = () => {
       });
 
       if (response.ok) {
-        alert("Saved Successfully");
+        showToast("Saved successfully");
         loadToday();
       } else {
         const err = await response.text();
-        alert(`Save failed: ${err}`);
+        showToast(`Save failed: ${err}`, "error");
       }
     } catch (error) {
       console.error("Save error:", error);
@@ -110,7 +113,7 @@ export const SafeDrop = () => {
         setLastSafe("");
         setSafeDropAmount("");
       } else {
-        alert("Delete failed");
+        showToast("Delete failed", "error");
       }
     } catch (error) {
       console.error("Delete error:", error);
@@ -124,9 +127,14 @@ export const SafeDrop = () => {
   });
 
   return (
-    <div className="page-container">
+    <motion.div
+      className="page-container"
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4, ease: [0.4, 0, 0.2, 1] }}
+    >
       <button className="back-button" onClick={() => navigate(-1)}>
-        ← Back
+        <FiArrowLeft /> Back
       </button>
 
       <div className="page-content">
@@ -212,6 +220,6 @@ export const SafeDrop = () => {
           </>
         )}
       </div>
-    </div>
+    </motion.div>
   );
 };

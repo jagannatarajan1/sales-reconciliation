@@ -1,0 +1,87 @@
+:root {
+  /* ── Color: background ── */
+  --bg-gradient: linear-gradient(145deg, #0f172a 0%, #1e1b4b 42%, #312e81 72%, #4c1d95 100%);
+  --bg-app: #0f172a;
+  --bg-surface: #ffffff;
+  --bg-surface-muted: #f8fafc;
+  --bg-glass: rgba(255, 255, 255, 0.08);
+  --bg-glass-strong: rgba(255, 255, 255, 0.97);
+
+  /* ── Color: brand ── */
+  --brand-50: #eef2ff;
+  --brand-100: #e0e7ff;
+  --brand-400: #818cf8;
+  --brand-500: #6366f1;
+  --brand-600: #4f46e5;
+  --brand-700: #4338ca;
+  --brand-800: #3730a3;
+  --accent-from: #f59e0b;
+  --accent-to: #ef4444;
+  --accent-gradient: linear-gradient(135deg, var(--accent-from) 0%, var(--accent-to) 100%);
+
+  /* ── Color: text ── */
+  --text-primary: #0f172a;
+  --text-secondary: #334155;
+  --text-tertiary: #64748b;
+  --text-muted: #94a3b8;
+  --text-faint: #cbd5e1;
+  --text-on-dark: #f8fafc;
+  --text-on-dark-muted: #cbd5e1;
+
+  /* ── Color: semantic ── */
+  --color-success: #16a34a;
+  --color-success-bg: #f0fdf4;
+  --color-success-border: #86efac;
+  --color-danger: #dc2626;
+  --color-danger-bg: #fef2f2;
+  --color-danger-border: #fecaca;
+  --color-warning: #d97706;
+  --color-warning-bg: #fffbeb;
+  --color-warning-border: #fcd34d;
+  --color-info: #0284c7;
+  --color-info-bg: #f0f9ff;
+  --color-info-border: #bae6fd;
+  --color-border: #e2e8f0;
+
+  /* ── Typography ── */
+  --font-heading: 'Plus Jakarta Sans', 'Inter', system-ui, sans-serif;
+  --font-body: 'Inter', 'Plus Jakarta Sans', system-ui, sans-serif;
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
+  --text-base: 1rem;
+  --text-lg: 1.125rem;
+  --text-xl: 1.25rem;
+  --text-2xl: 1.5rem;
+  --text-3xl: 2rem;
+  --text-4xl: 2.5rem;
+
+  /* ── Spacing (8px scale) ── */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-12: 48px;
+  --space-16: 64px;
+
+  /* ── Radius ── */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
+  --radius-full: 999px;
+
+  /* ── Shadow ── */
+  --shadow-sm: 0 2px 8px rgba(15, 23, 42, 0.08);
+  --shadow-md: 0 8px 24px rgba(15, 23, 42, 0.12);
+  --shadow-lg: 0 20px 48px rgba(15, 23, 42, 0.22);
+  --shadow-glow-brand: 0 8px 24px rgba(79, 70, 229, 0.35);
+  --shadow-glow-accent: 0 8px 24px rgba(245, 158, 11, 0.35);
+
+  /* ── Motion ── */
+  --duration-fast: 150ms;
+  --duration-base: 250ms;
+  --duration-slow: 400ms;
+  --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
+}

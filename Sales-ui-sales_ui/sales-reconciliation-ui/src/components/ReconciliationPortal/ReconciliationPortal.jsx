@@ -1,4 +1,9 @@
 import { useState, useEffect } from 'react';
+import { motion } from 'framer-motion';
+import {
+  FiCalendar, FiCreditCard, FiDollarSign, FiTrendingDown,
+  FiPackage, FiAward, FiTarget, FiBarChart2,
+} from 'react-icons/fi';
 import { useAuth } from '../../context/AuthContext';
 import './ReconciliationPortal.css';
 
@@ -13,7 +18,7 @@ const SECTIONS = [
   {
     title: 'Credit Card',
     color: 'blue',
-    icon: '💳',
+    icon: FiCreditCard,
     fields: [
       { label: 'Manual Card Amount', key: 'manualCardAmount', monetary: true },
       { label: 'Card Amount', key: 'cardAmount', monetary: true },
@@ -22,7 +27,7 @@ const SECTIONS = [
   {
     title: 'Cash',
     color: 'green',
-    icon: '💵',
+    icon: FiDollarSign,
     fields: [
       { label: 'Last Safe', key: 'lastSafe', monetary: true },
       { label: 'Safe Drop Amount', key: 'safeDropAmount', monetary: true },
@@ -32,7 +37,7 @@ const SECTIONS = [
   {
     title: 'Deductions',
     color: 'orange',
-    icon: '📉',
+    icon: FiTrendingDown,
     fields: [
       { label: 'Cashback', key: 'cashback', monetary: true },
       { label: 'Paypoint Payout', key: 'paypointPayout', monetary: true },
@@ -45,7 +50,7 @@ const SECTIONS = [
   {
     title: 'Instant Lottery',
     color: 'purple',
-    icon: '📦',
+    icon: FiPackage,
     fields: [
       { label: 'Total Count', key: 'instantLotteryTotalCount', monetary: false },
       { label: 'Total Sales', key: 'instantLotteryTotalSales', monetary: true },
@@ -54,7 +59,7 @@ const SECTIONS = [
   {
     title: 'Lottery',
     color: 'gold',
-    icon: '🎰',
+    icon: FiAward,
     fields: [
       { label: 'Lottery Value', key: 'lotteryValue', monetary: true },
     ],
@@ -62,7 +67,7 @@ const SECTIONS = [
   {
     title: 'Paypoint',
     color: 'teal',
-    icon: '🎲',
+    icon: FiTarget,
     fields: [
       { label: 'Paypoint Value', key: 'paypointValue', monetary: true },
     ],
@@ -70,7 +75,7 @@ const SECTIONS = [
   {
     title: 'Totals',
     color: 'rose',
-    icon: '📊',
+    icon: FiBarChart2,
     fields: [
       { label: 'Summary Total', key: 'summaryTotal', monetary: true },
       { label: 'Z-Report Total', key: 'zReportTotal', monetary: true },
@@ -104,9 +109,14 @@ export const ReconciliationPortal = () => {
   }, [user.token]);
 
   return (
-    <div className="rp-container">
+    <motion.div
+      className="rp-container"
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4, ease: [0.4, 0, 0.2, 1] }}
+    >
       <div className="rp-heading">
-        <span>📅</span>
+        <FiCalendar />
         <h2>Yesterday&#39;s Reconciliation</h2>
       </div>
 
@@ -137,26 +147,34 @@ export const ReconciliationPortal = () => {
           </div>
 
           <div className="rp-grid">
-            {SECTIONS.map((section) => (
-              <div key={section.title} className={`rp-section rp-section--${section.color}`}>
-                <div className="rp-section-header">
-                  <span>{section.icon}</span>
-                  <span>{section.title}</span>
-                </div>
-                <div className="rp-section-body">
-                  {section.fields.map((field) => (
-                    <div key={field.key} className="rp-row">
-                      <span className="rp-row-label">{field.label}</span>
-                      <span className="rp-row-value">
-                        {field.monetary
-                          ? fmtGBP(data[field.key])
-                          : (data[field.key] ?? '—')}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ))}
+            {SECTIONS.map((section) => {
+              const SectionIcon = section.icon;
+              return (
+                <motion.div
+                  key={section.title}
+                  className={`rp-section rp-section--${section.color}`}
+                  whileHover={{ y: -3, boxShadow: 'var(--shadow-md)' }}
+                  transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
+                >
+                  <div className="rp-section-header">
+                    <SectionIcon className="rp-section-icon" />
+                    <span>{section.title}</span>
+                  </div>
+                  <div className="rp-section-body">
+                    {section.fields.map((field) => (
+                      <div key={field.key} className="rp-row">
+                        <span className="rp-row-label">{field.label}</span>
+                        <span className="rp-row-value">
+                          {field.monetary
+                            ? fmtGBP(data[field.key])
+                            : (data[field.key] ?? '—')}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </motion.div>
+              );
+            })}
           </div>
 
           {data.adminNotes && (
@@ -167,6 +185,6 @@ export const ReconciliationPortal = () => {
           )}
         </div>
       )}
-    </div>
+    </motion.div>
   );
 };

@@ -5,33 +5,8 @@
   display: flex;
   flex-direction: column;
   gap: 1.75rem;
-  font-family: 'Plus Jakarta Sans', 'Inter', system-ui, sans-serif;
+  font-family: var(--font-heading);
 }
-
-/* ── Toast ── */
-.rpt-toast {
-  position: fixed;
-  top: 24px;
-  right: 24px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 13px 20px;
-  border-radius: 10px;
-  font-size: 0.9rem;
-  font-weight: 500;
-  z-index: 1000;
-  animation: rpt-slide-in 0.25s ease;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
-}
-
-@keyframes rpt-slide-in {
-  from { transform: translateX(110px); opacity: 0; }
-  to   { transform: translateX(0);     opacity: 1; }
-}
-
-.rpt-toast--success { background: #eff6ff; color: #1d4ed8; border: 1px solid #93c5fd; }
-.rpt-toast--error   { background: #fef2f2; color: #dc2626; border: 1px solid #fca5a5; }
 
 /* ── Back button ── */
 .rpt-back-btn {
@@ -42,13 +17,13 @@
   background: rgba(255, 255, 255, 0.1);
   color: white;
   border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   font-size: 0.95rem;
   font-weight: 600;
   cursor: pointer;
   align-self: flex-start;
   backdrop-filter: blur(10px);
-  transition: background 0.2s ease, transform 0.2s ease;
+  transition: background var(--duration-base) var(--ease-standard), transform var(--duration-base) var(--ease-standard);
 }
 
 .rpt-back-btn:hover {
@@ -64,6 +39,9 @@
 }
 
 .rpt-page-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   margin: 0 0 6px;
   font-size: 1.75rem;
   color: white;
@@ -310,9 +288,11 @@
 
 /* ── Badges ── */
 .rpt-badge {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   padding: 3px 10px;
-  border-radius: 20px;
+  border-radius: var(--radius-full);
   font-size: 0.72rem;
   font-weight: 600;
   white-space: nowrap;
@@ -332,13 +312,13 @@
 
 /* ── Detail panel ── */
 .rpt-detail-panel {
-  background: white;
-  border-radius: 16px;
+  background: var(--bg-surface);
+  border-radius: var(--radius-lg);
   padding: 2rem;
   max-width: 1100px;
   width: 100%;
   margin: 0 auto;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.18);
+  box-shadow: var(--shadow-lg);
 }
 
 .rpt-detail-toolbar {
@@ -601,7 +581,7 @@
 }
 
 .rpt-picker-btn--secondary {
-  background: #4338ca;
+  background: var(--brand-700);
   color: white;
 }
 

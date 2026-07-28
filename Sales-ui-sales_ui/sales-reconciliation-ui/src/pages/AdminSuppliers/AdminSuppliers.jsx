@@ -1,14 +1,28 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { motion } from 'framer-motion';
+import { FiArrowLeft, FiPlus, FiShoppingBag, FiBriefcase, FiTrash2 } from 'react-icons/fi';
 import { useAuth } from '../../context/AuthContext';
+import { useToast } from '../../components/ui/Toast';
+import { Button } from '../../components/ui/Button';
 import './AdminSuppliers.css';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'https://localhost:7276/api';
 
+const gridVariants = {
+  hidden: {},
+  visible: { transition: { staggerChildren: 0.04 } },
+};
+
+const rowVariants = {
+  hidden: { opacity: 0, y: 8 },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.25, ease: [0.4, 0, 0.2, 1] } },
+};
+
 export const AdminSuppliers = () => {
   const { user }  = useAuth();
   const navigate  = useNavigate();
-  const [toast, setToast]         = useState(null);
+  const { showToast: notify } = useToast();
   const [suppliers, setSuppliers] = useState([]);
   const [loading, setLoading]     = useState(true);
   const [newName, setNewName]     = useState('');
@@ -16,10 +30,7 @@ export const AdminSuppliers = () => {
   const [confirmId, setConfirmId] = useState(null); // inline delete confirm
   const [deletingId, setDeletingId] = useState(null);
 
-  const showToast = (message, type = 'success') => {
-    setToast({ message, type });
-    setTimeout(() => setToast(null), 3500);
-  };
+  const showToast = (message, type = 'success') => notify(message, type);
 
   const fetchSuppliers = useCallback(async () => {
     setLoading(true);
@@ -83,23 +94,21 @@ export const AdminSuppliers = () => {
   };
 
   return (
-    <div className="sup-page">
-
-      {toast && (
-        <div className={`sup-toast sup-toast--${toast.type}`}>
-          <span>{toast.type === 'success' ? '✓' : '✕'}</span>
-          {toast.message}
-        </div>
-      )}
+    <motion.div
+      className="sup-page"
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4, ease: [0.4, 0, 0.2, 1] }}
+    >
 
       <button className="sup-back-btn" onClick={() => navigate('/admin/dashboard')}>
-        ← Back to Dashboard
+        <FiArrowLeft /> Back to Dashboard
       </button>
 
       {/* ── Add supplier panel ── */}
       <div className="sup-panel">
         <div className="sup-panel-header">
-          <h2 className="sup-panel-title">➕ Add Supplier</h2>
+          <h2 className="sup-panel-title"><FiPlus /> Add Supplier</h2>
           <p className="sup-panel-sub">Add a new supplier to the list used when staff enter invoices</p>
         </div>
 
@@ -113,21 +122,23 @@ export const AdminSuppliers = () => {
             onKeyDown={(e) => e.key === 'Enter' && handleAdd()}
             maxLength={120}
           />
-          <button
+          <Button
+            variant="primary"
             className="sup-add-btn"
             onClick={handleAdd}
-            disabled={adding || !newName.trim()}
+            loading={adding}
+            disabled={!newName.trim()}
+            icon={<FiPlus />}
           >
-            {adding ? <span className="sup-btn-spinner" /> : null}
             {adding ? 'Adding…' : 'Add Supplier'}
-          </button>
+          </Button>
         </div>
       </div>
 
       {/* ── Existing suppliers panel ── */}
       <div className="sup-panel">
         <div className="sup-panel-header">
-          <h2 className="sup-panel-title">🏪 Existing Suppliers</h2>
+          <h2 className="sup-panel-title"><FiShoppingBag /> Existing Suppliers</h2>
           <p className="sup-panel-sub">
             {suppliers.length > 0
               ? `${suppliers.length} supplier${suppliers.length !== 1 ? 's' : ''} registered`
@@ -142,15 +153,15 @@ export const AdminSuppliers = () => {
           </div>
         ) : suppliers.length === 0 ? (
           <div className="sup-empty">
-            <div className="sup-empty-icon">🏪</div>
+            <div className="sup-empty-icon"><FiShoppingBag /></div>
             <p>No suppliers yet. Add one above.</p>
           </div>
         ) : (
-          <div className="sup-list">
+          <motion.div className="sup-list" variants={gridVariants} initial="hidden" animate="visible">
             {suppliers.map((s) => (
-              <div key={s.id} className="sup-row">
+              <motion.div key={s.id} className="sup-row" variants={rowVariants}>
                 <div className="sup-row-name">
-                  <span className="sup-row-icon">🏢</span>
+                  <span className="sup-row-icon"><FiBriefcase /></span>
                   <span>{s.name}</span>
                 </div>
 
@@ -158,19 +169,21 @@ export const AdminSuppliers = () => {
                   /* inline delete confirmation */
                   <div className="sup-confirm">
                     <span className="sup-confirm-text">Delete "{s.name}"?</span>
-                    <button
-                      className="sup-confirm-yes"
+                    <Button
+                      variant="danger"
                       onClick={() => handleDelete(s.id, s.name)}
-                      disabled={deletingId === s.id}
+                      loading={deletingId === s.id}
+                      className="sup-confirm-yes"
                     >
-                      {deletingId === s.id ? '…' : 'Yes, delete'}
-                    </button>
-                    <button
-                      className="sup-confirm-no"
+                      Yes, delete
+                    </Button>
+                    <Button
+                      variant="secondary"
                       onClick={() => setConfirmId(null)}
+                      className="sup-confirm-no"
                     >
                       Cancel
-                    </button>
+                    </Button>
                   </div>
                 ) : (
                   <button
@@ -178,15 +191,15 @@ export const AdminSuppliers = () => {
                     onClick={() => setConfirmId(s.id)}
                     title={`Delete ${s.name}`}
                   >
-                    🗑 Delete
+                    <FiTrash2 /> Delete
                   </button>
                 )}
-              </div>
+              </motion.div>
             ))}
-          </div>
+          </motion.div>
         )}
       </div>
 
-    </div>
+    </motion.div>
   );
 };

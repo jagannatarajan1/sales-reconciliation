@@ -1,6 +1,11 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { motion } from 'framer-motion';
+import {
+  FiArrowLeft, FiFileText, FiCalendar, FiBriefcase, FiUser, FiDollarSign, FiX,
+} from 'react-icons/fi';
 import { useAuth } from '../../context/AuthContext';
+import { useToast } from '../../components/ui/Toast';
 import './SupplierInvoices.css';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'https://localhost:7276/api';
@@ -55,7 +60,7 @@ function DateList({ rows, onSelect, loading, selectedDate, rangeLabel }) {
   if (rows.length === 0) {
     return (
       <div className="si-empty-panel">
-        <div className="si-empty-icon">🧾</div>
+        <div className="si-empty-icon"><FiFileText /></div>
         <h3>No Invoice Dates Found</h3>
         <p>Supplier payouts entered by staff will appear here as a date navigator.</p>
       </div>
@@ -69,21 +74,21 @@ function DateList({ rows, onSelect, loading, selectedDate, rangeLabel }) {
       )}
       <div className="si-summary-bar">
         <div className="si-summary-item">
-          <span className="si-summary-icon">📆</span>
+          <span className="si-summary-icon"><FiCalendar /></span>
           <div className="si-summary-text">
             <span className="si-summary-label">Available Days</span>
             <span className="si-summary-val">{sortedRows.length}</span>
           </div>
         </div>
         <div className="si-summary-item">
-          <span className="si-summary-icon">🧾</span>
+          <span className="si-summary-icon"><FiFileText /></span>
           <div className="si-summary-text">
             <span className="si-summary-label">Total Invoices</span>
             <span className="si-summary-val">{totalInvoices}</span>
           </div>
         </div>
         <div className="si-summary-item">
-          <span className="si-summary-icon">💰</span>
+          <span className="si-summary-icon"><FiDollarSign /></span>
           <div className="si-summary-text">
             <span className="si-summary-label">Period Total</span>
             <span className="si-summary-val si-summary-val--primary">{fmtGBP(totalValue)}</span>
@@ -91,20 +96,26 @@ function DateList({ rows, onSelect, loading, selectedDate, rangeLabel }) {
         </div>
       </div>
 
-      <div className="si-date-nav-list">
+      <motion.div
+        className="si-date-nav-list"
+        variants={{ hidden: {}, visible: { transition: { staggerChildren: 0.04 } } }}
+        initial="hidden"
+        animate="visible"
+      >
         {sortedRows.map((row) => (
-          <button
+          <motion.button
             key={row.date}
             className={`si-date-nav-item${selectedDate === row.date ? ' si-date-nav-item--active' : ''}`}
             onClick={() => onSelect(row.date)}
+            variants={{ hidden: { opacity: 0, y: 8 }, visible: { opacity: 1, y: 0, transition: { duration: 0.25, ease: [0.4, 0, 0.2, 1] } } }}
           >
             <span className="si-date-nav-date">{fmtDateMed(row.date)}</span>
             <span className="si-date-nav-meta">{row.invoiceCount} invoice{row.invoiceCount === 1 ? '' : 's'}</span>
             <span className="si-date-nav-total">{fmtGBP(row.totalValue)}</span>
             <span className="si-date-nav-arrow">→</span>
-          </button>
+          </motion.button>
         ))}
-      </div>
+      </motion.div>
     </div>
   );
 }
@@ -113,12 +124,9 @@ function DateList({ rows, onSelect, loading, selectedDate, rangeLabel }) {
 function DateDetail({ date, onBack, token }) {
   const [loading, setLoading] = useState(true);
   const [invoices, setInvoices] = useState([]);
-  const [toast, setToast] = useState(null);
+  const { showToast: notify } = useToast();
 
-  const showToast = (message, type = 'error') => {
-    setToast({ message, type });
-    setTimeout(() => setToast(null), 3500);
-  };
+  const showToast = (message, type = 'error') => notify(message, type);
 
   useEffect(() => {
     const run = async () => {
@@ -146,19 +154,12 @@ function DateDetail({ date, onBack, token }) {
 
   return (
     <div className="si-panel">
-      {toast && (
-        <div className={`si-toast si-toast--${toast.type}`}>
-          <span>{toast.type === 'success' ? '✓' : '✕'}</span>
-          {toast.message}
-        </div>
-      )}
-
       <div className="si-detail-header">
         <button className="si-back-date-btn" onClick={onBack}>
-          ← Back to all dates
+          <FiArrowLeft /> Back to all dates
         </button>
         <div className="si-detail-title-block">
-          <h2 className="si-detail-title">🧾 {fmtDateLong(date)}</h2>
+          <h2 className="si-detail-title"><FiFileText /> {fmtDateLong(date)}</h2>
           {!loading && invoices.length > 0 && (
             <div className="si-detail-meta">
               <span className="si-detail-count">{invoices.length} invoice{invoices.length !== 1 ? 's' : ''}</span>
@@ -193,7 +194,7 @@ function DateDetail({ date, onBack, token }) {
               <tr key={inv.id ?? idx} className="si-row si-row--static">
                 <td className="si-td-supplier">
                   <span className="si-supplier-name">
-                    🏢 {inv.supplierName || inv.supplier || '—'}
+                    <FiBriefcase /> {inv.supplierName || inv.supplier || '—'}
                   </span>
                 </td>
                 <td className="si-td-invoice">
@@ -204,7 +205,7 @@ function DateDetail({ date, onBack, token }) {
                 <td className="si-td-right si-amount">{fmtGBP(inv.value)}</td>
                 <td className="si-td-staff">
                   <span className="si-staff-name">
-                    👤 {inv.enteredBy || '—'}
+                    <FiUser /> {inv.enteredBy || '—'}
                   </span>
                 </td>
                 <td className="si-td-time">{fmtTime(inv.time || inv.createdAt)}</td>
@@ -228,7 +229,7 @@ function DateDetail({ date, onBack, token }) {
 export const SupplierInvoices = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [toast, setToast]           = useState(null);
+  const { showToast: notify } = useToast();
   const [loading, setLoading]       = useState(true);
   const [dateRows, setDateRows]     = useState([]);
   const [selectedDate, setSelectedDate] = useState(todayStr());
@@ -237,10 +238,7 @@ export const SupplierInvoices = () => {
   const [endDate, setEndDate] = useState('');
   const [rangeError, setRangeError] = useState('');
 
-  const showToast = (message, type = 'error') => {
-    setToast({ message, type });
-    setTimeout(() => setToast(null), 3500);
-  };
+  const showToast = (message, type = 'error') => notify(message, type);
 
   const backPath = user?.role === 'admin' ? '/admin/dashboard' : '/dashboard';
 
@@ -301,21 +299,19 @@ export const SupplierInvoices = () => {
   };
 
   return (
-    <div className="si-page">
-
-      {toast && (
-        <div className={`si-toast si-toast--${toast.type}`}>
-          <span>{toast.type === 'success' ? '✓' : '✕'}</span>
-          {toast.message}
-        </div>
-      )}
+    <motion.div
+      className="si-page"
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4, ease: [0.4, 0, 0.2, 1] }}
+    >
 
       <button className="si-back-btn" onClick={() => navigate(backPath)}>
-        ← Back to Dashboard
+        <FiArrowLeft /> Back to Dashboard
       </button>
 
       <div className="si-page-header">
-        <h1 className="si-page-title">🧾 Supplier Payout</h1>
+        <h1 className="si-page-title"><FiFileText /> Supplier Payout</h1>
         <p className="si-page-sub">
           {selectedDate
             ? `Viewing ${fmtDateLong(selectedDate)}`
@@ -326,7 +322,7 @@ export const SupplierInvoices = () => {
       <div className="si-filter-toolbar">
         <div className="si-filter-card">
           <div className="si-filter-card-head">
-            <span className="si-filter-card-icon">📅</span>
+            <span className="si-filter-card-icon"><FiCalendar /></span>
             <span className="si-filter-card-title">Specific date</span>
           </div>
           <div className="si-filter-card-body">
@@ -354,7 +350,7 @@ export const SupplierInvoices = () => {
 
         <div className="si-filter-card">
           <div className="si-filter-card-head">
-            <span className="si-filter-card-icon">🗓️</span>
+            <span className="si-filter-card-icon"><FiCalendar /></span>
             <span className="si-filter-card-title">Date range</span>
           </div>
           <div className="si-filter-card-body">
@@ -391,7 +387,7 @@ export const SupplierInvoices = () => {
         </div>
 
         <button className="si-clear-btn si-clear-btn--standalone" onClick={handleClearFilter}>
-          ✕ Clear filters
+          <FiX /> Clear filters
         </button>
       </div>
 
@@ -416,6 +412,6 @@ export const SupplierInvoices = () => {
         />
       )}
 
-    </div>
+    </motion.div>
   );
 };

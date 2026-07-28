@@ -1,6 +1,13 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { motion } from 'framer-motion';
+import {
+  FiArrowLeft, FiClipboard, FiCalendar, FiFileText, FiCreditCard, FiDollarSign,
+  FiTrendingDown, FiPackage, FiAward, FiGrid, FiBarChart2, FiCheckCircle,
+  FiXCircle, FiEdit2, FiDownload,
+} from 'react-icons/fi';
 import { useAuth } from '../../context/AuthContext';
+import { useToast } from '../../components/ui/Toast';
 import './AdminReconciliation.css';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'https://localhost:7276/api';
@@ -21,14 +28,14 @@ const fmtDateShort = (str) =>
 /* ddPoint is lowercase — matches actual API response */
 const SECTIONS = [
   {
-    title: 'Credit Card', color: 'blue', icon: '💳',
+    title: 'Credit Card', color: 'blue', icon: FiCreditCard,
     fields: [
       { label: 'Manual Card Amount', key: 'manualCardAmount', monetary: true },
       { label: 'Card Amount',        key: 'cardAmount',       monetary: true },
     ],
   },
   {
-    title: 'Cash', color: 'green', icon: '💵',
+    title: 'Cash', color: 'green', icon: FiDollarSign,
     fields: [
       { label: 'Last Safe',        key: 'lastSafe',       monetary: true },
       { label: 'Safe Drop Amount', key: 'safeDropAmount', monetary: true },
@@ -36,7 +43,7 @@ const SECTIONS = [
     ],
   },
   {
-    title: 'Deductions', color: 'orange', icon: '📉',
+    title: 'Deductions', color: 'orange', icon: FiTrendingDown,
     fields: [
       { label: 'Cashback',               key: 'cashback',             monetary: true },
       { label: 'Paypoint Payout',        key: 'paypointPayout',       monetary: true },
@@ -47,26 +54,26 @@ const SECTIONS = [
     ],
   },
   {
-    title: 'Supplier Payout', color: 'indigo', icon: '🧾',
+    title: 'Supplier Payout', color: 'indigo', icon: FiFileText,
     fields: [{ label: 'Supplier Payout', key: 'supplierInvoicesTotal', monetary: true }],
   },
   {
-    title: 'Instant Lottery', color: 'purple', icon: '📦',
+    title: 'Instant Lottery', color: 'purple', icon: FiPackage,
     fields: [
       { label: 'Total Count', key: 'instantLotteryTotalCount', monetary: false },
       { label: 'Total Sales', key: 'instantLotteryTotalSales', monetary: true  },
     ],
   },
   {
-    title: 'Lottery',  color: 'gold', icon: '🎰',
+    title: 'Lottery',  color: 'gold', icon: FiAward,
     fields: [{ label: 'Lottery Value',  key: 'lotteryValue',  monetary: true }],
   },
   {
-    title: 'Paypoint', color: 'teal', icon: '🎲',
+    title: 'Paypoint', color: 'teal', icon: FiGrid,
     fields: [{ label: 'Paypoint Value', key: 'paypointValue', monetary: true }],
   },
   {
-    title: 'Totals', color: 'rose', icon: '📊',
+    title: 'Totals', color: 'rose', icon: FiBarChart2,
     fields: [
       { label: 'Summary Total',              key: 'summaryTotal', monetary: true, readOnly: true, computed: true },
       { label: 'Z-Report Total', key: 'zReportTotal', monetary: true },
@@ -120,10 +127,12 @@ const computeSummaryTotal = (f) =>
 function EditableGrid({ form, computedCash, computedSummaryTotal, computedDifference, onChange }) {
   return (
     <div className="ar-grid">
-      {SECTIONS.map((section) => (
+      {SECTIONS.map((section) => {
+        const SectionIcon = section.icon;
+        return (
         <div key={section.title} className={`ar-section ar-section--${section.color}`}>
           <div className="ar-section-header">
-            <span>{section.icon}</span>
+            <SectionIcon />
             <span>{section.title}</span>
           </div>
           <div className="ar-section-body">
@@ -165,7 +174,8 @@ function EditableGrid({ form, computedCash, computedSummaryTotal, computedDiffer
             })}
           </div>
         </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
@@ -174,10 +184,12 @@ function EditableGrid({ form, computedCash, computedSummaryTotal, computedDiffer
 function ReadOnlyGrid({ data }) {
   return (
     <div className="ar-grid">
-      {SECTIONS.map((section) => (
+      {SECTIONS.map((section) => {
+        const SectionIcon = section.icon;
+        return (
         <div key={section.title} className={`ar-section ar-section--${section.color}`}>
           <div className="ar-section-header">
-            <span>{section.icon}</span>
+            <SectionIcon />
             <span>{section.title}</span>
           </div>
           <div className="ar-section-body">
@@ -193,7 +205,8 @@ function ReadOnlyGrid({ data }) {
             ))}
           </div>
         </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
@@ -202,7 +215,7 @@ function ReadOnlyGrid({ data }) {
 export const AdminReconciliation = () => {
   const { user }  = useAuth();
   const navigate  = useNavigate();
-  const [toast, setToast] = useState(null);
+  const { showToast: notify } = useToast();
   const [activeTab, setActiveTab] = useState('pending');
 
   /* download bill */
@@ -233,10 +246,7 @@ export const AdminReconciliation = () => {
   const [editForm, setEditForm]                 = useState({});
   const [savingEdit, setSavingEdit]             = useState(false);
 
-  const showToast = (message, type = 'success') => {
-    setToast({ message, type });
-    setTimeout(() => setToast(null), 3500);
-  };
+  const showToast = (message, type = 'success') => notify(message, type);
 
   /* ── Download bill helpers ── */
   const downloadFile = async (url, fallbackFileName) => {
@@ -554,17 +564,15 @@ export const AdminReconciliation = () => {
   const activeItem = pendingItems.find((i) => i.date === selectedDate);
 
   return (
-    <div className="ar-page">
-
-      {toast && (
-        <div className={`ar-toast ar-toast--${toast.type}`}>
-          <span className="ar-toast-icon">{toast.type === 'success' ? '✓' : '✕'}</span>
-          {toast.message}
-        </div>
-      )}
+    <motion.div
+      className="ar-page"
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4, ease: [0.4, 0, 0.2, 1] }}
+    >
 
       <button className="ar-back-btn" onClick={() => navigate('/admin/dashboard')}>
-        ← Back to Dashboard
+        <FiArrowLeft /> Back to Dashboard
       </button>
 
       <div className="ar-tabs">
@@ -572,19 +580,19 @@ export const AdminReconciliation = () => {
           className={`ar-tab ${activeTab === 'pending' ? 'ar-tab--active' : ''}`}
           onClick={() => setActiveTab('pending')}
         >
-          📋 Uncommitted Data
+          <FiClipboard /> Uncommitted Data
         </button>
         <button
           className={`ar-tab ${activeTab === 'committed' ? 'ar-tab--active' : ''}`}
           onClick={() => setActiveTab('committed')}
         >
-          📅 Committed Records
+          <FiCalendar /> Committed Records
         </button>
         <button
           className={`ar-tab ${activeTab === 'download' ? 'ar-tab--active' : ''}`}
           onClick={() => setActiveTab('download')}
         >
-          🧾 Download Bill
+          <FiFileText /> Download Bill
         </button>
       </div>
 
@@ -592,7 +600,7 @@ export const AdminReconciliation = () => {
       <div className="ar-panel">
         <div className="ar-panel-header">
           <div>
-            <h2 className="ar-panel-title">📋 Uncommitted Data</h2>
+            <h2 className="ar-panel-title"><FiClipboard /> Uncommitted Data</h2>
             <p className="ar-panel-sub">
               {pendingItems.length > 0
                 ? `${pendingItems.length} date${pendingItems.length !== 1 ? 's' : ''} awaiting admin reconciliation`
@@ -611,7 +619,7 @@ export const AdminReconciliation = () => {
           </div>
         ) : pendingItems.length === 0 ? (
           <div className="ar-empty">
-            <div className="ar-empty-icon">✅</div>
+            <div className="ar-empty-icon"><FiCheckCircle /></div>
             <h3>All Caught Up</h3>
             <p>No entries require admin reconciliation. All differences are within the £5.00 limit.</p>
           </div>
@@ -646,7 +654,10 @@ export const AdminReconciliation = () => {
                 {form.zReportTotal !== '' && form.zReportTotal !== '0' && form.zReportTotal !== 0 && (
                   <div className={`ar-diff-bar ${computedDifference <= 5 ? 'ar-diff-bar--ok' : 'ar-diff-bar--over'}`}>
                     <span>Difference: <strong>£{computedDifference.toFixed(2)}</strong></span>
-                    <span>{computedDifference <= 5 ? '✓ Within £5.00 limit' : '✗ Exceeds £5.00 limit'}</span>
+                    <span>
+                      {computedDifference <= 5 ? <FiCheckCircle /> : <FiXCircle />}
+                      {computedDifference <= 5 ? ' Within £5.00 limit' : ' Exceeds £5.00 limit'}
+                    </span>
                   </div>
                 )}
 
@@ -680,7 +691,7 @@ export const AdminReconciliation = () => {
       <div className="ar-panel">
         <div className="ar-panel-header">
           <div>
-            <h2 className="ar-panel-title">📅 Committed Records</h2>
+            <h2 className="ar-panel-title"><FiCalendar /> Committed Records</h2>
             <p className="ar-panel-sub">
               {committedDates.length > 0
                 ? `${committedDates.length} committed date${committedDates.length !== 1 ? 's' : ''} — click a date or use the picker`
@@ -692,7 +703,7 @@ export const AdminReconciliation = () => {
         <div className="ar-filter-toolbar">
           <div className="ar-filter-card">
             <div className="ar-filter-card-head">
-              <span className="ar-filter-card-icon">📅</span>
+              <span className="ar-filter-card-icon"><FiCalendar /></span>
               <span className="ar-filter-card-title">Pick a date</span>
             </div>
             <div className="ar-filter-card-body">
@@ -712,7 +723,7 @@ export const AdminReconciliation = () => {
 
           <div className="ar-filter-card">
             <div className="ar-filter-card-head">
-              <span className="ar-filter-card-icon">🗓️</span>
+              <span className="ar-filter-card-icon"><FiCalendar /></span>
               <span className="ar-filter-card-title">Date range</span>
             </div>
             <div className="ar-filter-card-body" aria-label="Filter committed records by date range">
@@ -819,7 +830,7 @@ export const AdminReconciliation = () => {
                 )}
                 {!isEditingCommitted && (
                   <button className="ar-edit-btn" onClick={startEditingCommitted}>
-                    ✎ Edit
+                    <FiEdit2 /> Edit
                   </button>
                 )}
               </div>
@@ -886,7 +897,7 @@ export const AdminReconciliation = () => {
       <div className="ar-panel">
         <div className="ar-panel-header">
           <div>
-            <h2 className="ar-panel-title">🧾 Download Bill</h2>
+            <h2 className="ar-panel-title"><FiFileText /> Download Bill</h2>
             <p className="ar-panel-sub">Download the Z-report bill received via Gmail for a specific date, or a range of dates.</p>
           </div>
         </div>
@@ -911,7 +922,7 @@ export const AdminReconciliation = () => {
                 onClick={handleDownloadBill}
                 disabled={downloadingBill || !billDate}
               >
-                {downloadingBill ? 'Downloading…' : '⬇ Download Bill'}
+                <FiDownload /> {downloadingBill ? 'Downloading…' : 'Download Bill'}
               </button>
               <button
                 className="ar-filter-clear-btn"
@@ -956,7 +967,7 @@ export const AdminReconciliation = () => {
                 onClick={handleDownloadBillsRange}
                 disabled={downloadingRange || !billFromDate || !billToDate}
               >
-                {downloadingRange ? 'Downloading…' : '⬇ Download Bills (ZIP)'}
+                <FiDownload /> {downloadingRange ? 'Downloading…' : 'Download Bills (ZIP)'}
               </button>
               <button
                 className="ar-filter-clear-btn"
@@ -971,6 +982,6 @@ export const AdminReconciliation = () => {
       </div>
       )}
 
-    </div>
+    </motion.div>
   );
 };

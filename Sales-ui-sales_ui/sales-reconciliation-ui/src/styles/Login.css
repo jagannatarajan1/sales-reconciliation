@@ -14,7 +14,7 @@
 ═══════════════════════════════════════ */
 .login-brand {
   flex: 1.1;
-  background: linear-gradient(145deg, #0f172a 0%, #1e1b4b 42%, #312e81 72%, #4c1d95 100%);
+  background: var(--bg-gradient);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -66,7 +66,7 @@
 .login-logo {
   width: 68px;
   height: 68px;
-  background: linear-gradient(135deg, #f59e0b 0%, #ef4444 100%);
+  background: var(--accent-gradient);
   border-radius: 18px;
   display: flex;
   align-items: center;

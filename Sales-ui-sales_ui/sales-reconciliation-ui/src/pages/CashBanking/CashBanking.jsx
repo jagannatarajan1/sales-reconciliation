@@ -1,6 +1,9 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { motion } from "framer-motion";
+import { FiArrowLeft, FiCheckCircle, FiAlertTriangle } from "react-icons/fi";
 import { useAuth } from "../../context/AuthContext";
+import { useToast } from "../../components/ui/Toast";
 import "./CashBanking.css";
 
 const SUMMARY_URL = `${import.meta.env.VITE_API_URL || "https://localhost:7276/api"}/Summary`;
@@ -29,7 +32,7 @@ export const CashBanking = () => {
   const [isPendingAdminReview, setIsPendingAdminReview] = useState(false);
   const [loading, setLoading]               = useState(true);
   const [saving, setSaving]                 = useState(false);
-  const [toast, setToast]                   = useState(null);
+  const { showToast } = useToast();
 
   const cash = (() => {
     const ls = parseFloat(lastSafe);
@@ -39,11 +42,6 @@ export const CashBanking = () => {
   })();
 
   const authHeaders = () => ({ Authorization: `Bearer ${user.token}` });
-
-  const showToast = (message, type = "success") => {
-    setToast({ message, type });
-    setTimeout(() => setToast(null), 3500);
-  };
 
   useEffect(() => { loadToday(); }, []);
 
@@ -125,16 +123,14 @@ export const CashBanking = () => {
   const displayDate = activeDateStr ? fmtDate(activeDateStr) : fmtDate(new Date());
 
   return (
-    <div className="cb-page">
-      {toast && (
-        <div className={`cb-toast cb-toast--${toast.type}`}>
-          <span className="cb-toast-icon">{toast.type === "success" ? "✓" : "✕"}</span>
-          {toast.message}
-        </div>
-      )}
-
+    <motion.div
+      className="cb-page"
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4, ease: [0.4, 0, 0.2, 1] }}
+    >
       <button className="cb-back-btn" onClick={() => navigate(-1)}>
-        ← Back
+        <FiArrowLeft /> Back
       </button>
 
       <div className="cb-page-content">
@@ -145,7 +141,7 @@ export const CashBanking = () => {
 
         {isYesterday && (
           <div className="date-banner">
-            <span className="date-banner__icon">{isCommitted ? '✅' : '⚠️'}</span>
+            <span className="date-banner__icon">{isCommitted ? <FiCheckCircle /> : <FiAlertTriangle />}</span>
             Showing {fmtDate(activeDateStr)} data — {isCommitted ? 'committed' : 'not yet committed'}
           </div>
         )}
@@ -222,6 +218,6 @@ export const CashBanking = () => {
           </>
         )}
       </div>
-    </div>
+    </motion.div>
   );
 };

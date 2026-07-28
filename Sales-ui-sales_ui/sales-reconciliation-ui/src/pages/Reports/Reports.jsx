@@ -1,6 +1,13 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { motion } from 'framer-motion';
+import {
+  FiArrowLeft, FiBarChart2, FiSearch, FiCheckCircle, FiUser, FiKey,
+  FiClock, FiAlertTriangle, FiCreditCard, FiDollarSign, FiTrendingDown, FiPackage,
+  FiAward, FiGrid, FiInbox, FiFileText,
+} from 'react-icons/fi';
 import { useAuth } from '../../context/AuthContext';
+import { useToast } from '../../components/ui/Toast';
 import './Reports.css';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'https://localhost:7276/api';
@@ -10,13 +17,6 @@ const fmtGBP = (val) => {
   if (val == null) return '—';
   const n = parseFloat(val);
   return isNaN(n) ? '—' : `£${n.toFixed(2)}`;
-};
-
-const fmtVariance = (val) => {
-  if (val == null) return '—';
-  const n = parseFloat(val);
-  if (isNaN(n)) return '—';
-  return `${n > 0 ? '+' : ''}£${n.toFixed(2)}`;
 };
 
 const varianceCls = (val) => {
@@ -60,24 +60,36 @@ const getDefaultEndDate = () => getInputDate(new Date());
 
 
 const SECTION_META = {
-  'Credit Card':     { color: 'blue',   icon: '💳' },
-  'Cash':            { color: 'green',  icon: '💵' },
-  'Deductions':      { color: 'orange', icon: '📉' },
-  'Instant Lottery': { color: 'purple', icon: '📦' },
-  'Lottery':         { color: 'gold',   icon: '🎰' },
-  'Paypoint':        { color: 'teal',   icon: '🎲' },
+  'Credit Card':     { color: 'blue',   icon: FiCreditCard },
+  'Cash':            { color: 'green',  icon: FiDollarSign },
+  'Deductions':      { color: 'orange', icon: FiTrendingDown },
+  'Instant Lottery': { color: 'purple', icon: FiPackage },
+  'Lottery':         { color: 'gold',   icon: FiAward },
+  'Paypoint':        { color: 'teal',   icon: FiGrid },
+};
+
+const gridVariants = {
+  hidden: {},
+  visible: { transition: { staggerChildren: 0.04 } },
+};
+
+const cardVariants = {
+  hidden: { opacity: 0, y: 10 },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.25, ease: [0.4, 0, 0.2, 1] } },
 };
 
 /* ── Summary card ───────────────────────────────────────────────────── */
 function ReportCard({ row, isSelected, onClick, compact = false }) {
   return (
-    <div
+    <motion.div
       className={`rpt-date-item${isSelected ? ' rpt-date-item--active' : ''}${compact ? ' rpt-date-item--compact' : ''}`}
       onClick={onClick}
+      variants={cardVariants}
+      whileHover={{ y: -3 }}
     >
       <span className="rpt-date-item-text">{fmtDateMed(row.date)}</span>
       <span className="rpt-date-item-hint">{isSelected ? 'Open' : 'View'}</span>
-    </div>
+    </motion.div>
   );
 }
 
@@ -100,12 +112,12 @@ function DetailPanel({ detail }) {
     <>
       <div className="rpt-detail-head">
         <div>
-          <h2 className="rpt-detail-title">🔍 Full Breakdown</h2>
+          <h2 className="rpt-detail-title"><FiSearch /> Full Breakdown</h2>
           <p className="rpt-detail-sub">{fmtDateLong(detail.date)}</p>
         </div>
         <div className="rpt-detail-badges">
           {detail.zReportAvailable
-            ? <span className="rpt-badge rpt-badge--ok">✓ Z-Report Available</span>
+            ? <span className="rpt-badge rpt-badge--ok"><FiCheckCircle /> Z-Report Available</span>
             : <span className="rpt-badge rpt-badge--na">Z-Report Unavailable</span>}
           {detail.isStaffCommitted  && <span className="rpt-badge rpt-badge--staff">Staff</span>}
           {detail.isAdminReconciled && <span className="rpt-badge rpt-badge--admin">Admin</span>}
@@ -116,47 +128,48 @@ function DetailPanel({ detail }) {
         {detail.committedByName ? (
           <div className="rpt-meta-item">
             <span className="rpt-meta-label">Committed By</span>
-            <span className="rpt-meta-value">👤 {detail.committedByName}</span>
+            <span className="rpt-meta-value"><FiUser /> {detail.committedByName}</span>
           </div>
         ) : detail.adminSubmittedByName ? (
           <div className="rpt-meta-item">
             <span className="rpt-meta-label">Committed By</span>
-            <span className="rpt-meta-value">🔑 Admin only</span>
+            <span className="rpt-meta-value"><FiKey /> Admin only</span>
           </div>
         ) : null}
         {detail.committedAt && (
           <div className="rpt-meta-item">
             <span className="rpt-meta-label">Committed At</span>
-            <span className="rpt-meta-value">🕐 {fmtDateTime(detail.committedAt)}</span>
+            <span className="rpt-meta-value"><FiClock /> {fmtDateTime(detail.committedAt)}</span>
           </div>
         )}
         {detail.adminSubmittedByName && (
           <div className="rpt-meta-item">
             <span className="rpt-meta-label">Admin Submitted By</span>
-            <span className="rpt-meta-value">🔑 {detail.adminSubmittedByName}</span>
+            <span className="rpt-meta-value"><FiKey /> {detail.adminSubmittedByName}</span>
           </div>
         )}
         {detail.adminSubmittedAt && (
           <div className="rpt-meta-item">
             <span className="rpt-meta-label">Admin Submitted At</span>
-            <span className="rpt-meta-value">🕐 {fmtDateTime(detail.adminSubmittedAt)}</span>
+            <span className="rpt-meta-value"><FiClock /> {fmtDateTime(detail.adminSubmittedAt)}</span>
           </div>
         )}
       </div>
 
       {!detail.zReportAvailable && (
         <div className="rpt-zreport-warn">
-          ⚠️ Z-Report was not available for this date — comparison columns show staff values only.
+          <FiAlertTriangle /> Z-Report was not available for this date — comparison columns show staff values only.
         </div>
       )}
 
       {/* Per-section comparison tables built directly from API fields */}
       {sections.map(({ name, rows }) => {
-        const meta = SECTION_META[name] ?? { color: 'blue', icon: '📋' };
+        const meta = SECTION_META[name] ?? { color: 'blue', icon: FiFileText };
+        const SectionIcon = meta.icon;
         return (
           <div key={name} className={`rpt-section rpt-section--${meta.color}`}>
             <div className="rpt-section-header">
-              <span>{meta.icon}</span>
+              <SectionIcon />
               <span>{name}</span>
             </div>
             <table className="rpt-compare-table">
@@ -185,7 +198,7 @@ function DetailPanel({ detail }) {
 
       {/* Totals */}
       <div className="rpt-section rpt-section--rose">
-        <div className="rpt-section-header"><span>📊</span><span>Totals</span></div>
+        <div className="rpt-section-header"><FiBarChart2 /><span>Totals</span></div>
         <table className="rpt-compare-table">
           <thead>
             <tr>
@@ -224,7 +237,7 @@ function DetailPanel({ detail }) {
 export const Reports = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [toast, setToast] = useState(null);
+  const { showToast: notify } = useToast();
 
   const [loading, setLoading]             = useState(true);
   const [reports, setReports]             = useState([]);
@@ -237,10 +250,7 @@ export const Reports = () => {
   const [rangeLoading, setRangeLoading]   = useState(false);
   const [isExporting, setIsExporting]     = useState(false);
 
-  const showToast = (message, type = 'success') => {
-    setToast({ message, type });
-    setTimeout(() => setToast(null), 3500);
-  };
+  const showToast = (message, type = 'success') => notify(message, type);
 
   useEffect(() => {
     const run = async () => {
@@ -431,21 +441,19 @@ export const Reports = () => {
   };
 
   return (
-    <div className="rpt-page">
-
-      {toast && (
-        <div className={`rpt-toast rpt-toast--${toast.type}`}>
-          <span>{toast.type === 'success' ? '✓' : '✕'}</span>
-          {toast.message}
-        </div>
-      )}
+    <motion.div
+      className="rpt-page"
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4, ease: [0.4, 0, 0.2, 1] }}
+    >
 
       <button className="rpt-back-btn" onClick={() => navigate('/admin/dashboard')}>
-        ← Back to Dashboard
+        <FiArrowLeft /> Back to Dashboard
       </button>
 
       <div className="rpt-page-header">
-        <h1 className="rpt-page-title">📊 Reconciliation Reports</h1>
+        <h1 className="rpt-page-title"><FiBarChart2 /> Reconciliation Reports</h1>
         <p className="rpt-page-sub">
           Date-wise history — staff entered values, Z-Report comparison, variance and who completed each reconciliation.
         </p>
@@ -517,18 +525,23 @@ export const Reports = () => {
       ) : selectedDate && detail ? (
         <div className="rpt-detail-panel">
           <div className="rpt-detail-toolbar">
-            <button className="rpt-back-btn" onClick={handleBackToList}>← Back to reports</button>
+            <button className="rpt-back-btn" onClick={handleBackToList}><FiArrowLeft /> Back to reports</button>
           </div>
           <DetailPanel detail={detail} />
         </div>
       ) : reports.length === 0 ? (
         <div className="rpt-empty-panel">
-          <div className="rpt-empty-icon">📭</div>
+          <div className="rpt-empty-icon"><FiInbox /></div>
           <h3>No reports found for this range</h3>
           <p>Try widening the date range or selecting a different period.</p>
         </div>
       ) : (
-        <div className="rpt-grid">
+        <motion.div
+          className="rpt-grid"
+          variants={gridVariants}
+          initial="hidden"
+          animate="visible"
+        >
           {reports.map((row) => (
             <ReportCard
               key={row.date}
@@ -538,9 +551,9 @@ export const Reports = () => {
               compact
             />
           ))}
-        </div>
+        </motion.div>
       )}
 
-    </div>
+    </motion.div>
   );
 };

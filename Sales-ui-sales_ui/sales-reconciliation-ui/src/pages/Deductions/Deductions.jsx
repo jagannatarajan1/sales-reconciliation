@@ -1,18 +1,12 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { motion } from 'framer-motion';
+import { FiArrowLeft, FiCalendar, FiAlertCircle, FiPlus, FiX } from 'react-icons/fi';
 import { useAuth } from "../../context/AuthContext";
+import { useToast } from "../../components/ui/Toast";
 import "./Deductions.css";
 
 const API = import.meta.env.VITE_API_URL || 'https://localhost:7276/api';
-
-function useToast() {
-  const [toast, setToast] = useState(null);
-  const show = (msg, type = 'success') => {
-    setToast({ msg, type });
-    setTimeout(() => setToast(null), 3000);
-  };
-  return [toast, show];
-}
 
 const authHeader = (token) => ({
   'Content-Type': 'application/json',
@@ -83,7 +77,7 @@ function DeductionsGrid({ token, showToast, isLocked }) {
   };
 
   if (loading) return <div className="ded-loading">Loading…</div>;
-  if (error)   return <div className="ded-loading" style={{ color: '#dc2626' }}>⚠ {error}</div>;
+  if (error)   return <div className="ded-loading" style={{ color: '#dc2626' }}><FiAlertCircle /> {error}</div>;
 
   return (
     <div className="ded-section">
@@ -234,7 +228,7 @@ function SupplierInvoices({ token, showToast, isLocked }) {
     rows.reduce((s, r) => s + Number(r.value || 0), 0);
 
   if (loading) return <div className="ded-loading">Loading…</div>;
-  if (error)   return <div className="ded-loading" style={{ color: '#dc2626' }}>⚠ {error}</div>;
+  if (error)   return <div className="ded-loading" style={{ color: '#dc2626' }}><FiAlertCircle /> {error}</div>;
 
   return (
     <div className="ded-section">
@@ -263,7 +257,7 @@ function SupplierInvoices({ token, showToast, isLocked }) {
                 <td>{inv.invoiceNo}</td>
                 <td>£{Number(inv.value).toFixed(2)}</td>
                 <td>
-                  <button className="ded-del-btn" onClick={() => deleteInvoice(inv.id)} disabled={isLocked}>✕</button>
+                  <button className="ded-del-btn" onClick={() => deleteInvoice(inv.id)} disabled={isLocked}><FiX /></button>
                 </td>
               </tr>
             ))}
@@ -305,7 +299,7 @@ function SupplierInvoices({ token, showToast, isLocked }) {
                   />
                 </td>
                 <td>
-                  <button className="ded-del-btn" onClick={() => removeRow(row.id)} disabled={isLocked}>✕</button>
+                  <button className="ded-del-btn" onClick={() => removeRow(row.id)} disabled={isLocked}><FiX /></button>
                 </td>
               </tr>
             ))}
@@ -320,7 +314,7 @@ function SupplierInvoices({ token, showToast, isLocked }) {
         </table>
       </div>
       <div className="ded-actions">
-        <button className="ded-add-btn" onClick={addRow} disabled={isLocked}>+ Add Row</button>
+        <button className="ded-add-btn" onClick={addRow} disabled={isLocked}><FiPlus /> Add Row</button>
         {rows.length > 0 && (
           <button className="ded-save-btn" onClick={saveRows} disabled={saving || isLocked}>
             {saving ? 'Saving…' : 'Save Invoices'}
@@ -340,7 +334,7 @@ const fmtDate = (d) =>
 export const Deductions = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const [toast, showToast] = useToast();
+  const { showToast } = useToast();
   const [activeDate, setActiveDate]   = useState(null);
   const [isCommitted, setIsCommitted] = useState(false);
   const [isPendingAdminReview, setIsPendingAdminReview] = useState(false);
@@ -357,7 +351,6 @@ export const Deductions = () => {
       .catch(() => {});
   }, [user?.token]);
 
-  const activeDateStr = activeDate ? activeDate.split('T')[0] : null;
   const isLocked = isCommitted || isPendingAdminReview;
 
   const displayDate = fmtDate(activeDate ?? new Date().toISOString());
@@ -367,19 +360,22 @@ export const Deductions = () => {
   }
 
   return (
-    <div className="ded-page">
-      <button className="ded-back-btn" onClick={() => navigate(-1)}>← Back</button>
+    <motion.div
+      className="ded-page"
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4, ease: [0.4, 0, 0.2, 1] }}
+    >
+      <button className="ded-back-btn" onClick={() => navigate(-1)}><FiArrowLeft /> Back</button>
 
       <div className="ded-content">
         <div className="ded-title-row">
           <h1 className="ded-page-title">Deductions</h1>
-          <span className="ded-date-chip">📅 {displayDate}</span>
+          <span className="ded-date-chip"><FiCalendar /> {displayDate}</span>
         </div>
         <DeductionsGrid   token={user.token} showToast={showToast} isLocked={isLocked} />
         <SupplierInvoices token={user.token} showToast={showToast} isLocked={isLocked} />
       </div>
-
-      {toast && <div className={`ded-toast ${toast.type}`}>{toast.msg}</div>}
-    </div>
+    </motion.div>
   );
 };

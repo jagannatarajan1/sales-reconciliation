@@ -7,8 +7,8 @@
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-  background: linear-gradient(145deg, #1e1b4b 0%, #312e81 45%, #4c1d95 100%);
-  font-family: 'Plus Jakarta Sans', 'Inter', system-ui, sans-serif;
+  background: var(--bg-gradient);
+  font-family: var(--font-heading);
 }
 
 /* ── Navbar ──────────────────────────────────── */
@@ -309,78 +309,9 @@
   position: absolute;
   top: 10px;
   right: 12px;
-  font-size: 0.78rem;
+  display: inline-flex;
+  color: var(--text-tertiary);
   line-height: 1;
-}
-
-/* ════════════════════════════════════════
-   Shared page styles (used by sub-pages)
-════════════════════════════════════════ */
-.page-container {
-  min-height: 100vh;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  padding: 2rem;
-}
-
-.back-button {
-  padding: 0.7rem 1.5rem;
-  background-color: white;
-  color: #667eea;
-  border: none;
-  border-radius: 5px;
-  cursor: pointer;
-  font-size: 0.95rem;
-  font-weight: 600;
-  margin-bottom: 2rem;
-  transition: all 0.3s ease;
-  font-family: inherit;
-}
-
-.back-button:hover {
-  background-color: #f0f0f0;
-  transform: translateX(-5px);
-}
-
-.page-content {
-  background: white;
-  border-radius: 15px;
-  padding: 2rem;
-  max-width: 1000px;
-  margin: 0 auto;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
-}
-
-.page-content h1 {
-  color: #667eea;
-  margin-top: 0;
-  font-size: 2rem;
-}
-
-.placeholder {
-  text-align: center;
-  padding: 3rem;
-  background-color: #f8f9fa;
-  border-radius: 10px;
-  color: #666;
-}
-
-.commit-button {
-  margin-top: 2rem;
-  padding: 1rem 2rem;
-  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-  color: white;
-  border: none;
-  border-radius: 5px;
-  cursor: pointer;
-  font-size: 1rem;
-  font-weight: 600;
-  transition: all 0.3s ease;
-  font-family: inherit;
-}
-
-.commit-button:hover {
-  transform: scale(1.05);
-  box-shadow: 0 10px 20px rgba(245, 87, 108, 0.3);
 }
 
 /* ── Responsive ──────────────────────────────── */

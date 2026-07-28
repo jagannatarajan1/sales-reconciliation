@@ -1,10 +1,11 @@
 .gmail-oauth-container {
-  background: #ffffff;
-  border-radius: 12px;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
+  background: var(--bg-surface, #ffffff);
+  border-radius: var(--radius-md, 12px);
+  box-shadow: var(--shadow-md, 0 2px 12px rgba(0, 0, 0, 0.1));
   padding: 30px;
   max-width: 800px;
   margin: 0 auto;
+  font-family: var(--font-body, inherit);
 }
 
 .gmail-oauth-header {
@@ -12,21 +13,29 @@
   justify-content: space-between;
   align-items: center;
   margin-bottom: 24px;
-  border-bottom: 2px solid #f0f0f0;
+  border-bottom: 2px solid var(--color-border, #f0f0f0);
   padding-bottom: 16px;
 }
 
 .gmail-oauth-header h2 {
   margin: 0;
-  color: #1f2937;
+  color: var(--text-primary, #1f2937);
+  font-family: var(--font-heading, inherit);
   font-size: 24px;
   font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.gmail-oauth-header-icon {
+  color: var(--brand-600, #4f46e5);
 }
 
 .close-button {
   background: none;
   border: none;
-  font-size: 24px;
+  font-size: 20px;
   cursor: pointer;
   color: #6b7280;
   padding: 0;
@@ -35,8 +44,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 6px;
-  transition: all 0.2s ease;
+  border-radius: var(--radius-sm, 6px);
+  transition: all var(--duration-fast, 0.2s) ease;
 }
 
 .close-button:hover {
@@ -97,16 +106,19 @@
 }
 
 .authorize-button {
-  background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+  background: linear-gradient(135deg, var(--brand-600, #4f46e5) 0%, #7c3aed 100%);
   color: white;
   border: none;
   padding: 14px 32px;
-  border-radius: 8px;
+  border-radius: var(--radius-sm, 8px);
   font-size: 16px;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.3s ease;
-  box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3);
+  transition: all var(--duration-base, 0.3s) ease;
+  box-shadow: var(--shadow-glow-brand, 0 4px 12px rgba(79, 70, 229, 0.3));
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .authorize-button:hover:not(:disabled) {
@@ -149,13 +161,16 @@
 .refresh-button,
 .logout-button {
   padding: 8px 16px;
-  border-radius: 6px;
+  border-radius: var(--radius-sm, 6px);
   border: 1px solid #d1d5db;
   background: white;
   font-size: 14px;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all var(--duration-fast, 0.2s) ease;
   font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .refresh-button {
@@ -257,7 +272,13 @@
   padding: 60px 40px;
   color: #9ca3af;
   background-color: #f9fafb;
-  border-radius: 8px;
+  border-radius: var(--radius-sm, 8px);
+}
+
+.empty-state-icon {
+  font-size: 32px;
+  margin-bottom: 12px;
+  color: var(--text-muted, #9ca3af);
 }
 
 /* Messages List */
@@ -369,12 +390,15 @@
   color: white;
   border: none;
   padding: 10px 24px;
-  border-radius: 6px;
+  border-radius: var(--radius-sm, 6px);
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all var(--duration-fast, 0.2s) ease;
   box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .import-button:hover:not(:disabled) {

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { motion } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
 import {
   FiShield, FiZap, FiBarChart2, FiUser, FiMail, FiLock,
@@ -53,7 +54,12 @@ export const Login = () => {
   };
 
   return (
-    <div className="login-page">
+    <motion.div
+      className="login-page"
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4, ease: [0.4, 0, 0.2, 1] }}
+    >
 
       {/* ══════════ LEFT — Brand panel ══════════ */}
       <div className="login-brand">
@@ -203,6 +209,6 @@ export const Login = () => {
         </div>
       </div>
 
-    </div>
+    </motion.div>
   );
 };

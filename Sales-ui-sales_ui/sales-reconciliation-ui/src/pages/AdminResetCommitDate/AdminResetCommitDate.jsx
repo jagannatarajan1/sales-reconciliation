@@ -1,5 +1,7 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { motion } from "framer-motion";
+import { FiArrowLeft, FiCheckCircle, FiXCircle, FiCalendar } from "react-icons/fi";
 import { useAuth } from "../../context/AuthContext";
 import "./AdminResetCommitDate.css";
 
@@ -86,13 +88,18 @@ export const AdminResetCommitDate = () => {
     d ? new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "";
 
   return (
-    <div className="arc-page">
+    <motion.div
+      className="arc-page"
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4, ease: [0.4, 0, 0.2, 1] }}
+    >
       <div className="arc-container">
         <button className="arc-back" onClick={() => navigate("/admin/dashboard")}>
-          ← Back to Dashboard
+          <FiArrowLeft /> Back to Dashboard
         </button>
 
-        <h1 className="arc-title">Reset Commit Date</h1>
+        <h1 className="arc-title"><FiCalendar className="arc-title-icon" /> Reset Commit Date</h1>
         <p className="arc-subtitle">
           Override the active working date for the whole shop. All staff will see this date
           as their current session until it's committed.
@@ -150,10 +157,11 @@ export const AdminResetCommitDate = () => {
         {/* Feedback */}
         {message && (
           <div className={`arc-message arc-message--${message.type}`}>
+            {message.type === "success" ? <FiCheckCircle /> : <FiXCircle />}
             {message.text}
           </div>
         )}
       </div>
-    </div>
+    </motion.div>
   );
 };

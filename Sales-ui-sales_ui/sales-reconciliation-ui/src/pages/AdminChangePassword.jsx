@@ -1,6 +1,9 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { motion } from 'framer-motion';
+import { FiArrowLeft, FiUsers, FiUser, FiShield, FiKey, FiUserPlus } from 'react-icons/fi';
 import { useAuth } from '../context/AuthContext';
+import { useToast } from '../components/ui/Toast';
 import '../styles/Auth.css';
 import '../styles/AdminFormPage.css';
 import './AdminChangePassword.css';
@@ -20,11 +23,8 @@ export const AdminChangePassword = () => {
 
   const [activeTab, setActiveTab] = useState('users');
 
-  const [toast, setToast] = useState(null);
-  const showToast = (message, type = 'success') => {
-    setToast({ message, type });
-    setTimeout(() => setToast(null), 3500);
-  };
+  const { showToast: notify } = useToast();
+  const showToast = (message, type = 'success') => notify(message, type);
 
   /* ── Reset password form ── */
   const [form, setForm] = useState({
@@ -326,26 +326,24 @@ export const AdminChangePassword = () => {
   };
 
   return (
-    <div className="rpu-page">
-
-      {toast && (
-        <div className={`rpu-toast rpu-toast--${toast.type}`}>
-          <span>{toast.type === 'success' ? '✓' : '✕'}</span>
-          {toast.message}
-        </div>
-      )}
+    <motion.div
+      className="rpu-page"
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4, ease: [0.4, 0, 0.2, 1] }}
+    >
 
       <button className="rpu-back-btn" onClick={() => navigate('/admin/dashboard')}>
-        ← Back to Dashboard
+        <FiArrowLeft /> Back to Dashboard
       </button>
 
       <div className="rpu-page-header">
-        <h1 className="rpu-page-title">👥 Manage Accounts</h1>
+        <h1 className="rpu-page-title"><FiUsers /> Manage Accounts</h1>
         <p className="rpu-page-sub">
           View every registered user and admin, reset a password, or control account access below.
         </p>
         <button className="rpu-add-btn" onClick={() => navigate('/admin/register')}>
-          ➕ Add New User / Admin
+          <FiUserPlus /> Add New User / Admin
         </button>
       </div>
 
@@ -354,26 +352,26 @@ export const AdminChangePassword = () => {
           className={`rpu-tab ${activeTab === 'users' ? 'rpu-tab--active' : ''}`}
           onClick={() => setActiveTab('users')}
         >
-          👤 Users
+          <FiUser /> Users
         </button>
         <button
           className={`rpu-tab ${activeTab === 'admins' ? 'rpu-tab--active' : ''}`}
           onClick={() => setActiveTab('admins')}
         >
-          🛡️ Admins
+          <FiShield /> Admins
         </button>
         <button
           className={`rpu-tab ${activeTab === 'reset' ? 'rpu-tab--active' : ''}`}
           onClick={() => setActiveTab('reset')}
         >
-          🔑 Reset Password
+          <FiKey /> Reset Password
         </button>
       </div>
 
       {activeTab === 'users' && (
         <div className="rpu-panel">
           <div className="rpu-panel-header">
-            <h2 className="rpu-panel-title">👤 Registered Users</h2>
+            <h2 className="rpu-panel-title"><FiUser /> Registered Users</h2>
             <p className="rpu-panel-sub">Staff/normal user accounts. Deactivated accounts can't log in but stay listed here for reactivation.</p>
             <input
               className="rpu-search"
@@ -391,7 +389,7 @@ export const AdminChangePassword = () => {
             </div>
           ) : filteredUserRows.length === 0 ? (
             <div className="rpu-empty">
-              <div className="rpu-empty-icon">👤</div>
+              <div className="rpu-empty-icon"><FiUser /></div>
               <p>{userSearch ? 'No users match your search.' : 'No registered users yet.'}</p>
             </div>
           ) : (
@@ -418,7 +416,7 @@ export const AdminChangePassword = () => {
       {activeTab === 'admins' && (
         <div className="rpu-panel">
           <div className="rpu-panel-header">
-            <h2 className="rpu-panel-title">🛡️ Registered Admins</h2>
+            <h2 className="rpu-panel-title"><FiShield /> Registered Admins</h2>
             <p className="rpu-panel-sub">Admin accounts. You can't deactivate or delete your own account from here.</p>
             <input
               className="rpu-search"
@@ -436,7 +434,7 @@ export const AdminChangePassword = () => {
             </div>
           ) : filteredAdminRows.length === 0 ? (
             <div className="rpu-empty">
-              <div className="rpu-empty-icon">🛡️</div>
+              <div className="rpu-empty-icon"><FiShield /></div>
               <p>{adminSearch ? 'No admins match your search.' : 'No registered admins yet.'}</p>
             </div>
           ) : (
@@ -539,6 +537,6 @@ export const AdminChangePassword = () => {
         </div>
       )}
 
-    </div>
+    </motion.div>
   );
 };

@@ -1,30 +1,35 @@
 import { useNavigate } from 'react-router-dom';
-import '../styles/Auth.css';
+import { motion } from 'framer-motion';
+import { FiUserPlus, FiArrowLeft } from 'react-icons/fi';
+import { Button } from '../components/ui/Button';
+import '../styles/AuthNotice.css';
 
 export const Register = () => {
   const navigate = useNavigate();
 
   return (
-    <div className="auth-container">
-      <div className="auth-card">
-        <div className="auth-header">
-          <h1>Registration Restricted</h1>
-          <p>Account creation is managed by administrators only</p>
+    <motion.div
+      className="notice-page"
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4, ease: [0.4, 0, 0.2, 1] }}
+    >
+      <div className="notice-card">
+        <div className="notice-icon-wrap">
+          <FiUserPlus />
         </div>
+        <h1 className="notice-title">Registration Restricted</h1>
+        <p className="notice-subtitle">Account creation is managed by administrators only</p>
 
-        <div style={{ textAlign: 'center', padding: '20px 0', color: '#555', lineHeight: 1.7 }}>
+        <div className="notice-body">
           <p>New accounts can only be created by an admin.</p>
           <p>Please contact your system administrator to get access.</p>
         </div>
 
-        <button
-          className="btn btn-primary"
-          onClick={() => navigate('/login')}
-          style={{ marginTop: '10px' }}
-        >
+        <Button variant="primary" icon={<FiArrowLeft />} onClick={() => navigate('/login')}>
           Back to Login
-        </button>
+        </Button>
       </div>
-    </div>
+    </motion.div>
   );
 };

@@ -5,33 +5,8 @@
   display: flex;
   flex-direction: column;
   gap: 1.75rem;
-  font-family: 'Plus Jakarta Sans', 'Inter', system-ui, sans-serif;
+  font-family: var(--font-heading);
 }
-
-/* ── Toast ── */
-.si-toast {
-  position: fixed;
-  top: 24px;
-  right: 24px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 13px 20px;
-  border-radius: 10px;
-  font-size: 0.9rem;
-  font-weight: 500;
-  z-index: 1000;
-  animation: si-slide-in 0.25s ease;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
-}
-
-@keyframes si-slide-in {
-  from { transform: translateX(110px); opacity: 0; }
-  to   { transform: translateX(0);     opacity: 1; }
-}
-
-.si-toast--success { background: #eff6ff; color: #1d4ed8; border: 1px solid #93c5fd; }
-.si-toast--error   { background: #fef2f2; color: #dc2626; border: 1px solid #fca5a5; }
 
 /* ── Back buttons ── */
 .si-back-btn {
@@ -42,13 +17,13 @@
   background: rgba(255, 255, 255, 0.1);
   color: white;
   border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   font-size: 0.95rem;
   font-weight: 600;
   cursor: pointer;
   align-self: flex-start;
   backdrop-filter: blur(10px);
-  transition: background 0.2s ease, transform 0.2s ease;
+  transition: background var(--duration-base) var(--ease-standard), transform var(--duration-base) var(--ease-standard);
 }
 
 .si-back-btn:hover {
@@ -84,6 +59,9 @@
 }
 
 .si-page-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   margin: 0 0 5px;
   font-size: 1.75rem;
   color: white;
@@ -143,10 +121,10 @@
 
 /* ── Panel (white card) ── */
 .si-panel {
-  background: white;
-  border-radius: 16px;
+  background: var(--bg-surface);
+  border-radius: var(--radius-lg);
   overflow: hidden;
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
+  box-shadow: var(--shadow-md);
   max-width: 960px;
   width: 100%;
   align-self: center;
@@ -233,7 +211,7 @@
 
 .si-apply-btn {
   border: none;
-  background: linear-gradient(135deg, #4f46e5, #6d28d9);
+  background: linear-gradient(135deg, var(--brand-600), #6d28d9);
   color: white;
 }
 
@@ -605,9 +583,12 @@
 }
 
 .si-detail-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   margin: 0 0 6px;
   font-size: 1.1rem;
-  color: #1f2937;
+  color: var(--text-primary);
 }
 
 .si-detail-meta {
@@ -632,8 +613,11 @@
 .si-td-supplier { max-width: 220px; }
 
 .si-supplier-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   font-weight: 600;
-  color: #1f2937;
+  color: var(--text-primary);
   font-size: 0.9rem;
 }
 
@@ -651,6 +635,9 @@
 .si-td-staff {}
 
 .si-staff-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   font-size: 0.85rem;
   color: #4b5563;
 }

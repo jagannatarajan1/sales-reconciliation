@@ -1,6 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import axios from 'axios';
+import { motion } from 'framer-motion';
+import {
+  FiX, FiRefreshCw, FiLogOut, FiMail, FiInbox, FiUpload,
+} from 'react-icons/fi';
 import '../styles/GmailOAuth.css';
 
 const GMAIL_CLIENT_ID = import.meta.env.VITE_GMAIL_CLIENT_ID || 'YOUR_GMAIL_CLIENT_ID';
@@ -197,12 +201,17 @@ export const GmailOAuth = ({ onSuccessfulImport, onClose }) => {
   };
 
   return (
-    <div className="gmail-oauth-container">
+    <motion.div
+      className="gmail-oauth-container"
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
+    >
       <div className="gmail-oauth-header">
-        <h2>Gmail Integration</h2>
+        <h2><FiMail className="gmail-oauth-header-icon" /> Gmail Integration</h2>
         {onClose && (
-          <button className="close-button" onClick={onClose}>
-            ✕
+          <button className="close-button" onClick={onClose} aria-label="Close">
+            <FiX />
           </button>
         )}
       </div>
@@ -210,7 +219,9 @@ export const GmailOAuth = ({ onSuccessfulImport, onClose }) => {
       {error && (
         <div className="error-banner">
           <p>{error}</p>
-          <button onClick={() => setError(null)} className="close-error">×</button>
+          <button onClick={() => setError(null)} className="close-error" aria-label="Dismiss error">
+            <FiX />
+          </button>
         </div>
       )}
 
@@ -223,6 +234,7 @@ export const GmailOAuth = ({ onSuccessfulImport, onClose }) => {
               disabled={loading}
               className="authorize-button"
             >
+              <FiMail />
               {loading ? 'Authorizing...' : 'Authorize Gmail'}
             </button>
           </div>
@@ -237,13 +249,13 @@ export const GmailOAuth = ({ onSuccessfulImport, onClose }) => {
                 disabled={loading}
                 className="refresh-button"
               >
-                🔄 Refresh
+                <FiRefreshCw /> Refresh
               </button>
               <button
                 onClick={handleLogout}
                 className="logout-button"
               >
-                Logout Gmail
+                <FiLogOut /> Logout Gmail
               </button>
             </div>
           </div>
@@ -270,6 +282,7 @@ export const GmailOAuth = ({ onSuccessfulImport, onClose }) => {
             </div>
           ) : messages.length === 0 ? (
             <div className="empty-state">
+              <FiInbox className="empty-state-icon" />
               <p>No messages found in your Gmail account.</p>
             </div>
           ) : (
@@ -328,6 +341,7 @@ export const GmailOAuth = ({ onSuccessfulImport, onClose }) => {
                   }
                   className="import-button"
                 >
+                  <FiUpload />
                   {importing ? 'Importing...' : `Import ${selectedMessages.length} Message${selectedMessages.length !== 1 ? 's' : ''}`}
                 </button>
               </div>
@@ -335,6 +349,6 @@ export const GmailOAuth = ({ onSuccessfulImport, onClose }) => {
           )}
         </div>
       )}
-    </div>
+    </motion.div>
   );
 };

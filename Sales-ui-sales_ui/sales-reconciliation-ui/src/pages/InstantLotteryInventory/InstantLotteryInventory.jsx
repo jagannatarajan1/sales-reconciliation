@@ -1,7 +1,16 @@
-import React, { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { motion } from "framer-motion";
+import {
+  FiArrowLeft,
+  FiCalendar,
+  FiCheckCircle,
+  FiAlertTriangle,
+  FiAlertCircle,
+} from "react-icons/fi";
 import "./InstantLottertInventory.css";
 import { useAuth } from "../../context/AuthContext";
+import { useToast } from "../../components/ui/Toast";
 
 const API_BASE = `${import.meta.env.VITE_API_URL || "https://localhost:7276/api"}/LotteryInstant`;
 const SCRATCH_CARD_ORDER_KEY = "scratch-card-display-order";
@@ -40,15 +49,6 @@ const getOrderedItems = (items) => {
 // backend, which rejects non-integer values with a raw JSON conversion error.
 const toIntString = (v) => v.replace(/[^0-9]/g, "");
 
-/* ── Toast hook ── */
-function useToast() {
-  const [toast, setToast] = useState(null);
-  const show = (msg, type = "success") => {
-    setToast({ msg, type });
-    setTimeout(() => setToast(null), 3000);
-  };
-  return [toast, show];
-}
 /* ══════════════════════════════════
    A. TODAY'S INVENTORY
 ══════════════════════════════════ */
@@ -60,27 +60,35 @@ function TodayInventory({ token, showToast, userRole, isLocked }) {
 
   const fetchInventory = useCallback(async () => {
     try {
-      setLoading(true); setError("");
+      setLoading(true);
+      setError("");
       const res = await fetch(`${API_BASE}/today`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) throw new Error("Failed to fetch inventory");
       const data = await res.json();
-      setInventory(getOrderedItems(data.map(item => ({
-        inventoryId: item.id, // id>0 means today's row is already saved; 0 means unsaved
-        lotteryId: item.lotteryId,
-        scratchCardNo: item.scratchCardNo,
-        price: item.price,
-        openNo: item.openNo,
-        // The backend has no way to represent "not yet entered" for Close No other
-        // than 0 (it's a non-nullable int, and 0 is never a realistic real close
-        // reading for a sequential ticket counter), so treat it as blank here too.
-        closeNo: item.closeNo || "",
-        totalSold: item.totalSold || 0,
-        sales: item.sales || 0,
-      }))));
-    } catch (e) { setError(e.message || "Something went wrong"); }
-    finally { setLoading(false); }
+      setInventory(
+        getOrderedItems(
+          data.map((item) => ({
+            inventoryId: item.id, // id>0 means today's row is already saved; 0 means unsaved
+            lotteryId: item.lotteryId,
+            scratchCardNo: item.scratchCardNo,
+            price: item.price,
+            openNo: item.openNo,
+            // The backend has no way to represent "not yet entered" for Close No other
+            // than 0 (it's a non-nullable int, and 0 is never a realistic real close
+            // reading for a sequential ticket counter), so treat it as blank here too.
+            closeNo: item.closeNo || "",
+            totalSold: item.totalSold || 0,
+            sales: item.sales || 0,
+          })),
+        ),
+      );
+    } catch (e) {
+      setError(e.message || "Something went wrong");
+    } finally {
+      setLoading(false);
+    }
   }, [token]);
 
   useEffect(() => {
@@ -95,7 +103,10 @@ function TodayInventory({ token, showToast, userRole, isLocked }) {
     window.addEventListener("scratch-card-order-updated", handleOrderChanged);
     window.addEventListener("storage", handleOrderChanged);
     return () => {
-      window.removeEventListener("scratch-card-order-updated", handleOrderChanged);
+      window.removeEventListener(
+        "scratch-card-order-updated",
+        handleOrderChanged,
+      );
       window.removeEventListener("storage", handleOrderChanged);
     };
   }, [fetchInventory]);
@@ -124,7 +135,8 @@ function TodayInventory({ token, showToast, userRole, isLocked }) {
   const handleClose = (i, v) => {
     const rows = [...inventory];
     rows[i].closeNo = v;
-    rows[i].totalSold = v === "" ? 0 : Math.abs(Number(v) - Number(rows[i].openNo));
+    rows[i].totalSold =
+      v === "" ? 0 : Math.abs(Number(v) - Number(rows[i].openNo));
     rows[i].sales = rows[i].totalSold * Number(rows[i].price);
     setInventory(rows);
   };
@@ -132,14 +144,16 @@ function TodayInventory({ token, showToast, userRole, isLocked }) {
   const saveInventory = async () => {
     try {
       setSaving(true);
-      const isCleared = item => item.closeNo === "" || item.closeNo === null;
+      const isCleared = (item) => item.closeNo === "" || item.closeNo === null;
 
       // Rows with a Close No to save.
-      const toSave = inventory.filter(item => !isCleared(item));
+      const toSave = inventory.filter((item) => !isCleared(item));
       // Rows that already have a saved record for today but were just cleared —
       // delete the record so they go back to their pre-save (blank) state, instead
       // of being silently skipped and then reappearing unchanged on refetch.
-      const toDelete = inventory.filter(item => isCleared(item) && item.inventoryId);
+      const toDelete = inventory.filter(
+        (item) => isCleared(item) && item.inventoryId,
+      );
 
       if (!toSave.length && !toDelete.length) {
         showToast("Enter Close No for at least one row", "error");
@@ -149,7 +163,10 @@ function TodayInventory({ token, showToast, userRole, isLocked }) {
       for (const item of toSave) {
         const res = await fetch(API_BASE, {
           method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
           body: JSON.stringify({
             lotteryId: item.lotteryId,
             inventoryDate: new Date(),
@@ -170,11 +187,14 @@ function TodayInventory({ token, showToast, userRole, isLocked }) {
 
       showToast("Inventory saved successfully");
       fetchInventory();
-    } catch (e) { showToast(e.message, "error"); }
-    finally { setSaving(false); }
+    } catch (e) {
+      showToast(e.message, "error");
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const grandSold  = inventory.reduce((s, r) => s + Number(r.totalSold || 0), 0);
+  const grandSold = inventory.reduce((s, r) => s + Number(r.totalSold || 0), 0);
   const grandSales = inventory.reduce((s, r) => s + Number(r.sales || 0), 0);
 
   return (
@@ -195,8 +215,14 @@ function TodayInventory({ token, showToast, userRole, isLocked }) {
         </div>
       </div>
 
-      {loading && <div className="loading-container">Loading today's inventory…</div>}
-      {error   && <div className="error-container">⚠ {error}</div>}
+      {loading && (
+        <div className="loading-container">Loading today's inventory…</div>
+      )}
+      {error && (
+        <div className="error-container">
+          <FiAlertCircle /> {error}
+        </div>
+      )}
 
       {!loading && !error && (
         <>
@@ -214,55 +240,117 @@ function TodayInventory({ token, showToast, userRole, isLocked }) {
               </thead>
               <tbody>
                 {inventory.length === 0 ? (
-                  <tr><td colSpan={6} className="no-data">No active lotteries found.</td></tr>
-                ) : inventory.map((item, i) => (
-                  <tr key={item.lotteryId}>
-                    <td>{item.scratchCardNo}</td>
-                    <td>
-                      <input className="close-input" type="number" step="0.01" min="0"
-                        value={item.price}
-                        readOnly={userRole === 'user'}
-                        onChange={userRole === 'user' ? undefined : e => handlePrice(i, e.target.value)}
-                        style={userRole === 'user' ? { background: '#f9fafb', color: '#6b7280', cursor: 'default' } : undefined}
-                        title={userRole === 'user' ? 'Auto-set from yesterday\'s close' : undefined}
-                      />
+                  <tr>
+                    <td colSpan={6} className="no-data">
+                      No active lotteries found.
                     </td>
-                    <td>
-                      <input className="close-input" type="number" min="0"
-                        value={item.openNo}
-                        readOnly={userRole === 'user'}
-                        onChange={userRole === 'user' ? undefined : e => handleOpen(i, e.target.value)}
-                        style={userRole === 'user' ? { background: '#f9fafb', color: '#6b7280', cursor: 'default' } : undefined}
-                        title={userRole === 'user' ? 'Auto-set from yesterday\'s close' : undefined}
-                      />
-                    </td>
-                    <td>
-                      <input className="close-input" type="number" min="0"
-                        value={item.closeNo} placeholder="Enter close"
-                        readOnly={isLocked}
-                        onChange={isLocked ? undefined : e => handleClose(i, e.target.value)} />
-                    </td>
-                    <td>
-                      <span className={`badge ${item.totalSold > 0 ? "badge-green" : "badge-gray"}`}>
-                        {item.totalSold}
-                      </span>
-                    </td>
-                    <td>£{Number(item.sales).toFixed(2)}</td>
                   </tr>
-                ))}
+                ) : (
+                  inventory.map((item, i) => (
+                    <tr key={item.lotteryId}>
+                      <td>{item.scratchCardNo}</td>
+                      <td>
+                        <input
+                          className="close-input"
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={item.price}
+                          readOnly={userRole === "user"}
+                          onChange={
+                            userRole === "user"
+                              ? undefined
+                              : (e) => handlePrice(i, e.target.value)
+                          }
+                          style={
+                            userRole === "user"
+                              ? {
+                                  background: "#f9fafb",
+                                  color: "#6b7280",
+                                  cursor: "default",
+                                }
+                              : undefined
+                          }
+                          title={
+                            userRole === "user"
+                              ? "Auto-set from yesterday's close"
+                              : undefined
+                          }
+                        />
+                      </td>
+                      <td>
+                        <input
+                          className="close-input"
+                          type="number"
+                          min="0"
+                          value={item.openNo}
+                          readOnly={userRole === "user"}
+                          onChange={
+                            userRole === "user"
+                              ? undefined
+                              : (e) => handleOpen(i, e.target.value)
+                          }
+                          style={
+                            userRole === "user"
+                              ? {
+                                  background: "#f9fafb",
+                                  color: "#6b7280",
+                                  cursor: "default",
+                                }
+                              : undefined
+                          }
+                          title={
+                            userRole === "user"
+                              ? "Auto-set from yesterday's close"
+                              : undefined
+                          }
+                        />
+                      </td>
+                      <td>
+                        <input
+                          className="close-input"
+                          type="number"
+                          min="0"
+                          value={item.closeNo}
+                          placeholder="Enter close"
+                          readOnly={isLocked}
+                          onChange={
+                            isLocked
+                              ? undefined
+                              : (e) => handleClose(i, e.target.value)
+                          }
+                        />
+                      </td>
+                      <td>
+                        <span
+                          className={`badge ${item.totalSold > 0 ? "badge-green" : "badge-gray"}`}
+                        >
+                          {item.totalSold}
+                        </span>
+                      </td>
+                      <td>£{Number(item.sales).toFixed(2)}</td>
+                    </tr>
+                  ))
+                )}
               </tbody>
               <tfoot>
                 <tr>
-                  <td colSpan={4} className="grand-total-label">Grand Total</td>
+                  <td colSpan={4} className="grand-total-label">
+                    Grand Total
+                  </td>
                   <td>{grandSold}</td>
-                  <td>₹{grandSales.toFixed(2)}</td>
+                  <td>£{grandSales.toFixed(2)}</td>
                 </tr>
               </tfoot>
             </table>
           </div>
 
           <div className="button-container">
-            <button className="save-button" onClick={saveInventory} disabled={saving || isLocked}>
+            <button
+              className="save-button"
+              onClick={saveInventory}
+              disabled={saving || isLocked}
+            >
               {saving ? "Saving…" : "Save Inventory"}
             </button>
           </div>
@@ -280,8 +368,8 @@ const SUMMARY_URL = `${import.meta.env.VITE_API_URL || "https://localhost:7276/a
 export const InstantLotteryInventory = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const [toast, showToast]          = useToast();
-  const [activeDate, setActiveDate]   = useState(null);
+  const { showToast } = useToast();
+  const [activeDate, setActiveDate] = useState(null);
   const [isCommitted, setIsCommitted] = useState(false);
   const [isPendingAdminReview, setIsPendingAdminReview] = useState(false);
 
@@ -289,7 +377,7 @@ export const InstantLotteryInventory = () => {
     fetch(`${SUMMARY_URL}/today`, {
       headers: { Authorization: `Bearer ${user.token}` },
     })
-      .then((r) => r.ok ? r.json() : null)
+      .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
         if (d?.date) setActiveDate(d.date);
         setIsCommitted(d?.isCommitted ?? false);
@@ -298,39 +386,58 @@ export const InstantLotteryInventory = () => {
       .catch(() => {});
   }, [user.token]);
 
-  const todayStr      = new Date().toISOString().split("T")[0];
+  const todayStr = new Date().toISOString().split("T")[0];
   const activeDateStr = activeDate ? activeDate.split("T")[0] : null;
-  const isYesterday   = activeDateStr && activeDateStr !== todayStr;
-  const isLocked      = isCommitted || isPendingAdminReview;
-  const fmtDate = (d) => new Date(d).toLocaleDateString("en-GB", {
-    day: "2-digit", month: "short", year: "numeric",
-  });
+  const isYesterday = activeDateStr && activeDateStr !== todayStr;
+  const isLocked = isCommitted || isPendingAdminReview;
+  const fmtDate = (d) =>
+    new Date(d).toLocaleDateString("en-GB", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    });
 
   return (
-    <div className="page-container">
-      <button className="back-button" onClick={() => navigate(-1)}>← Back</button>
+    <motion.div
+      className="page-container"
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4, ease: [0.4, 0, 0.2, 1] }}
+    >
+      <button className="back-button" onClick={() => navigate(-1)}>
+        <FiArrowLeft /> Back
+      </button>
 
       <div className="page-content">
         <div className="page-header">
           <div className="page-title-row">
-            <h1>Instant Lottery <span>Inventory</span></h1>
+            <h1>
+              Instant Lottery <span>Inventory</span>
+            </h1>
             <span className="page-date-chip">
-              📅 {fmtDate(activeDateStr ?? new Date().toISOString())}
+              <FiCalendar />{" "}
+              {fmtDate(activeDateStr ?? new Date().toISOString())}
             </span>
           </div>
         </div>
 
         {isYesterday && (
           <div className="date-banner">
-            <span className="date-banner__icon">{isCommitted ? '✅' : '⚠️'}</span>
-            Showing {fmtDate(activeDateStr)} data — {isCommitted ? 'committed' : 'not yet committed'}
+            <span className="date-banner__icon">
+              {isCommitted ? <FiCheckCircle /> : <FiAlertTriangle />}
+            </span>
+            Showing {fmtDate(activeDateStr)} data —{" "}
+            {isCommitted ? "committed" : "not yet committed"}
           </div>
         )}
 
-        <TodayInventory token={user.token} showToast={showToast} userRole={user.role} isLocked={isLocked} />
+        <TodayInventory
+          token={user.token}
+          showToast={showToast}
+          userRole={user.role}
+          isLocked={isLocked}
+        />
       </div>
-
-      {toast && <div className={`lii-toast ${toast.type}`}>{toast.msg}</div>}
-    </div>
+    </motion.div>
   );
 };

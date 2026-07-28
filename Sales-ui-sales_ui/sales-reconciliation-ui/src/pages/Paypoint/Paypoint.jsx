@@ -1,6 +1,9 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { motion } from "framer-motion";
+import { FiArrowLeft, FiCalendar, FiCheckCircle, FiAlertTriangle } from "react-icons/fi";
 import { useAuth } from "../../context/AuthContext";
+import { useToast } from "../../components/ui/Toast";
 import "./Paypoint.css";
 
 const API_BASE    = import.meta.env.VITE_API_URL || "https://localhost:7276/api";
@@ -19,14 +22,9 @@ export const Paypoint = () => {
   const [isPendingAdminReview, setIsPendingAdminReview] = useState(false);
   const [loading, setLoading]           = useState(true);
   const [saving, setSaving]             = useState(false);
-  const [toast, setToast]               = useState(null);
+  const { showToast } = useToast();
 
   const authHeaders = () => ({ Authorization: `Bearer ${user.token}` });
-
-  const showToast = (message, type = "success") => {
-    setToast({ message, type });
-    setTimeout(() => setToast(null), 3500);
-  };
 
   useEffect(() => {
     fetchAll();
@@ -113,28 +111,27 @@ export const Paypoint = () => {
   }
 
   return (
-    <div className="page-container">
-      {toast && (
-        <div className={`paypoint-toast paypoint-toast--${toast.type}`}>
-          {toast.type === "success" ? "✓" : "✕"} {toast.message}
-        </div>
-      )}
-
+    <motion.div
+      className="page-container"
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4, ease: [0.4, 0, 0.2, 1] }}
+    >
       <button className="back-button" onClick={() => navigate(-1)}>
-        ← Back
+        <FiArrowLeft /> Back
       </button>
 
       <div className="page-content">
         <div className="page-title-row">
           <h1 className="page-title">Paypoint Management</h1>
           <span className="page-date-chip">
-            📅 {fmtDate(activeDateStr ?? new Date().toISOString())}
+            <FiCalendar /> {fmtDate(activeDateStr ?? new Date().toISOString())}
           </span>
         </div>
 
         {isYesterday && (
           <div className="date-banner">
-            <span className="date-banner__icon">{isCommitted ? '✅' : '⚠️'}</span>
+            <span className="date-banner__icon">{isCommitted ? <FiCheckCircle /> : <FiAlertTriangle />}</span>
             Showing {fmtDate(activeDateStr)} data — {isCommitted ? 'committed' : 'not yet committed'}
           </div>
         )}
@@ -156,6 +153,6 @@ export const Paypoint = () => {
           </button>
         </div>
       </div>
-    </div>
+    </motion.div>
   );
 };

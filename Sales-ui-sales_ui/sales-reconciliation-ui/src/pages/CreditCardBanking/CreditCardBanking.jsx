@@ -1,6 +1,9 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { motion } from "framer-motion";
+import { FiArrowLeft, FiCheckCircle, FiAlertTriangle } from "react-icons/fi";
 import { useAuth } from "../../context/AuthContext";
+import { useToast } from "../../components/ui/Toast";
 import "./CreditCardBanking.css";
 
 const SUMMARY_URL = `${import.meta.env.VITE_API_URL || "https://localhost:7276/api"}/Summary`;
@@ -31,14 +34,9 @@ export const CreditCardBanking = () => {
   const [isPendingAdminReview, setIsPendingAdminReview] = useState(false);
   const [loading, setLoading]         = useState(true);
   const [saving, setSaving]       = useState(false);
-  const [toast, setToast]         = useState(null);
+  const { showToast } = useToast();
 
   const authHeaders = () => ({ Authorization: `Bearer ${user.token}` });
-
-  const showToast = (message, type = "success") => {
-    setToast({ message, type });
-    setTimeout(() => setToast(null), 3500);
-  };
 
   useEffect(() => { loadToday(); }, []);
 
@@ -121,16 +119,14 @@ export const CreditCardBanking = () => {
   const displayDate = activeDateStr ? fmtDate(activeDateStr) : fmtDate(new Date());
 
   return (
-    <div className="ccb-page">
-      {toast && (
-        <div className={`ccb-toast ccb-toast--${toast.type}`}>
-          <span className="ccb-toast-icon">{toast.type === "success" ? "✓" : "✕"}</span>
-          {toast.message}
-        </div>
-      )}
-
+    <motion.div
+      className="ccb-page"
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4, ease: [0.4, 0, 0.2, 1] }}
+    >
       <button className="ccb-back-btn" onClick={() => navigate(-1)}>
-        ← Back
+        <FiArrowLeft /> Back
       </button>
 
       <div className="ccb-page-content">
@@ -141,7 +137,7 @@ export const CreditCardBanking = () => {
 
         {isYesterday && (
           <div className="date-banner">
-            <span className="date-banner__icon">{isCommitted ? '✅' : '⚠️'}</span>
+            <span className="date-banner__icon">{isCommitted ? <FiCheckCircle /> : <FiAlertTriangle />}</span>
             Showing {fmtDate(activeDateStr)} data — {isCommitted ? 'committed' : 'not yet committed'}
           </div>
         )}
@@ -207,6 +203,6 @@ export const CreditCardBanking = () => {
           </>
         )}
       </div>
-    </div>
+    </motion.div>
   );
 };

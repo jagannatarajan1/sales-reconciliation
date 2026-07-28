@@ -1,10 +1,10 @@
 /* Deductions.css */
 .ded-page {
   min-height: 100vh;
-  background: linear-gradient(145deg, #1e1b4b 0%, #312e81 45%, #4c1d95 100%);
+  background: var(--bg-gradient);
   padding: 2rem 1.5rem 60px;
-  font-family: 'Plus Jakarta Sans', 'Inter', system-ui, sans-serif;
-  color: #1e293b;
+  font-family: var(--font-heading);
+  color: var(--text-primary);
 }
 
 /* ── Back button (glass) ────────────────────────────────── */
@@ -180,67 +180,52 @@
 }
 
 .ded-add-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   padding: 10px 20px;
-  background: #eef2ff;
-  color: #4f46e5;
+  background: var(--brand-50);
+  color: var(--brand-600);
   border: 1.5px solid rgba(99, 102, 241, 0.3);
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
   font-size: 13px;
   font-weight: 700;
-  transition: all 0.2s;
+  transition: all var(--duration-base) var(--ease-standard);
 }
 
-.ded-add-btn:hover { background: #e0e7ff; }
+.ded-add-btn:hover { background: var(--brand-100); }
 
 .ded-save-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   padding: 10px 28px;
-  background: linear-gradient(135deg, #667eea, #764ba2);
+  background: linear-gradient(135deg, var(--brand-600), var(--brand-500));
   color: white;
   border: none;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
   font-size: 14px;
   font-weight: 700;
-  box-shadow: 0 4px 14px rgba(102, 126, 234, 0.4);
-  transition: all 0.2s;
+  box-shadow: var(--shadow-glow-brand);
+  transition: all var(--duration-base) var(--ease-standard);
 }
 
 .ded-save-btn:hover:not(:disabled) {
   transform: translateY(-1px);
-  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.5);
+  box-shadow: 0 6px 20px rgba(79, 70, 229, 0.5);
 }
 
 .ded-save-btn:disabled { opacity: 0.55; cursor: not-allowed; }
 
-.ded-loading { text-align: center; padding: 40px; color: #94a3b8; font-size: 14px; }
-
-.ded-toast {
-  position: fixed;
-  bottom: 28px;
-  right: 28px;
-  padding: 13px 20px;
-  border-radius: 10px;
-  font-size: 13px;
-  font-weight: 600;
-  z-index: 9999;
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
-  animation: toastIn 0.3s ease;
-}
-
-.ded-toast.success {
-  background: #ecfdf5;
-  border: 1px solid rgba(5, 150, 105, 0.3);
-  color: #059669;
-}
-
-.ded-toast.error {
-  background: #fef2f2;
-  border: 1px solid rgba(220, 38, 38, 0.3);
-  color: #dc2626;
-}
-
-@keyframes toastIn {
-  from { opacity: 0; transform: translateY(10px); }
-  to   { opacity: 1; transform: translateY(0); }
+.ded-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  text-align: center;
+  padding: 40px;
+  color: #94a3b8;
+  font-size: 14px;
 }

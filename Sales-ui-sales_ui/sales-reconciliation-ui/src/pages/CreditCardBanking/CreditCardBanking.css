@@ -1,10 +1,10 @@
 /* ── Page shell ─────────────────────────────────────────── */
 .ccb-page {
   min-height: 100vh;
-  background: linear-gradient(145deg, #1e1b4b 0%, #312e81 45%, #4c1d95 100%);
+  background: var(--bg-gradient);
   padding: 2rem;
   box-sizing: border-box;
-  font-family: 'Plus Jakarta Sans', 'Inter', system-ui, sans-serif;
+  font-family: var(--font-heading);
 }
 
 /* ── Back button (glass) ────────────────────────────────── */
@@ -69,14 +69,23 @@
 
 /* ── Date warning banner ────────────────────────────────── */
 .date-banner {
-  background: #fffbeb;
-  border: 1px solid #fde68a;
-  color: #92400e;
-  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--color-warning-bg);
+  border: 1px solid var(--color-warning-border);
+  color: var(--color-warning);
+  border-radius: var(--radius-sm);
   padding: 10px 16px;
   font-size: 0.88rem;
   font-weight: 500;
   margin-bottom: 1.4rem;
+}
+
+.date-banner__icon {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
 }
 
 /* ── Loading ────────────────────────────────────────────── */
@@ -187,20 +196,20 @@
   gap: 8px;
   width: 100%;
   padding: 0.85rem;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, var(--brand-600) 0%, var(--brand-500) 100%);
   color: white;
   border: none;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   font-size: 1rem;
   font-weight: 700;
   cursor: pointer;
-  box-shadow: 0 4px 14px rgba(102, 126, 234, 0.4);
-  transition: transform 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
+  box-shadow: var(--shadow-glow-brand);
+  transition: transform var(--duration-base) var(--ease-standard), box-shadow var(--duration-base) var(--ease-standard);
 }
 
 .ccb-submit-btn:hover:not(:disabled) {
   transform: translateY(-2px);
-  box-shadow: 0 8px 20px rgba(102, 126, 234, 0.5);
+  box-shadow: 0 8px 20px rgba(79, 70, 229, 0.5);
 }
 
 .ccb-submit-btn:disabled {
@@ -216,62 +225,6 @@
   border-radius: 50%;
   animation: ccb-spin 0.7s linear infinite;
   display: inline-block;
-}
-
-/* ── Toast ──────────────────────────────────────────────── */
-.ccb-toast {
-  position: fixed;
-  top: 24px;
-  right: 24px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 13px 20px;
-  border-radius: 10px;
-  font-size: 0.9rem;
-  font-weight: 500;
-  z-index: 1000;
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
-  animation: ccb-slide-in 0.25s ease;
-}
-
-.ccb-toast-icon {
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 0.8rem;
-  font-weight: 700;
-  flex-shrink: 0;
-}
-
-.ccb-toast--success {
-  background: #eff6ff;
-  color: #1d4ed8;
-  border: 1px solid #93c5fd;
-}
-
-.ccb-toast--success .ccb-toast-icon {
-  background: #2563eb;
-  color: white;
-}
-
-.ccb-toast--error {
-  background: #fef2f2;
-  color: #dc2626;
-  border: 1px solid #fca5a5;
-}
-
-.ccb-toast--error .ccb-toast-icon {
-  background: #dc2626;
-  color: white;
-}
-
-@keyframes ccb-slide-in {
-  from { opacity: 0; transform: translateX(16px); }
-  to   { opacity: 1; transform: translateX(0); }
 }
 
 /* ── Responsive ─────────────────────────────────────────── */

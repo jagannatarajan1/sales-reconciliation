@@ -1,6 +1,11 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { motion } from 'framer-motion';
+import {
+  FiArrowLeft, FiRotateCcw, FiClipboard, FiPlus, FiX,
+} from 'react-icons/fi';
 import { useAuth } from '../../context/AuthContext';
+import { useToast } from '../../components/ui/Toast';
 import './ScratchCards.css';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'https://localhost:7276/api';
@@ -101,7 +106,7 @@ function OpenValuePopover({ cardId, onSet, onClose, busy }) {
       </div>
 
       <button className="sc-popover-cancel" onClick={onClose} disabled={busy}>
-        ✕
+        <FiX />
       </button>
     </div>
   );
@@ -111,7 +116,7 @@ function OpenValuePopover({ cardId, onSet, onClose, busy }) {
 export const ScratchCards = () => {
   const { user }  = useAuth();
   const navigate  = useNavigate();
-  const [toast, setToast]       = useState(null);
+  const { showToast } = useToast();
   const [cards, setCards]       = useState([]);
   const [loading, setLoading]   = useState(true);
 
@@ -126,11 +131,6 @@ export const ScratchCards = () => {
   const [newPrice,  setNewPrice]  = useState('');
   const [adding, setAdding]       = useState(false);
   const [draggedCardId, setDraggedCardId] = useState(null);
-
-  const showToast = (message, type = 'success') => {
-    setToast({ message, type });
-    setTimeout(() => setToast(null), 3500);
-  };
 
   const fetchCards = useCallback(async (options = {}) => {
     const { silent = false } = options;
@@ -285,22 +285,20 @@ export const ScratchCards = () => {
   const isAdmin = user?.role === 'admin';
 
   return (
-    <div className="sc-page">
-
-      {toast && (
-        <div className={`sc-toast sc-toast--${toast.type}`}>
-          <span>{toast.type === 'success' ? '✓' : '✕'}</span>
-          {toast.message}
-        </div>
-      )}
+    <motion.div
+      className="sc-page"
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4, ease: [0.4, 0, 0.2, 1] }}
+    >
 
       <button className="sc-back-btn" onClick={() => navigate('/admin/dashboard')}>
-        ← Back to Dashboard
+        <FiArrowLeft /> Back to Dashboard
       </button>
 
       {/* ── Page title ── */}
       <div className="sc-page-header">
-        <h1 className="sc-page-title">🎰 Reset Scratch Cards</h1>
+        <h1 className="sc-page-title"><FiRotateCcw /> Reset Scratch Cards</h1>
         <p className="sc-page-sub">
           Manage scratch card status and set forced open values for the staff lottery portal.
         </p>
@@ -309,7 +307,7 @@ export const ScratchCards = () => {
       {/* ── Section 1: Existing scratch cards ── */}
       <div className="sc-panel">
         <div className="sc-panel-header">
-          <h2 className="sc-panel-title">📋 Existing Scratch Cards</h2>
+          <h2 className="sc-panel-title"><FiClipboard /> Existing Scratch Cards</h2>
           <p className="sc-panel-sub">
             Inactive cards are hidden from staff but manageable here. Open Value resets automatically after staff saves. Drag a row onto another row to swap their positions.
           </p>
@@ -322,7 +320,7 @@ export const ScratchCards = () => {
           </div>
         ) : cards.length === 0 ? (
           <div className="sc-empty">
-            <div className="sc-empty-icon">🎰</div>
+            <div className="sc-empty-icon"><FiRotateCcw /></div>
             <p>No scratch cards yet. Add one below.</p>
           </div>
         ) : (
@@ -433,7 +431,7 @@ export const ScratchCards = () => {
       {/* ── Section 2: Add new scratch card ── */}
       <div className="sc-panel">
         <div className="sc-panel-header">
-          <h2 className="sc-panel-title">➕ Add New Scratch Card</h2>
+          <h2 className="sc-panel-title"><FiPlus /> Add New Scratch Card</h2>
           <p className="sc-panel-sub">New cards are active by default and visible to staff immediately.</p>
         </div>
 
@@ -469,11 +467,11 @@ export const ScratchCards = () => {
             onClick={handleAdd}
             disabled={adding || !newCardNo.trim() || !newPrice}
           >
-            {adding ? <><span className="sc-btn-spinner" /> Adding…</> : '➕ Add Scratch Card'}
+            {adding ? <><span className="sc-btn-spinner" /> Adding…</> : <><FiPlus /> Add Scratch Card</>}
           </button>
         </div>
       </div>
 
-    </div>
+    </motion.div>
   );
 };

@@ -1,10 +1,10 @@
 /* ── Page shell ─────────────────────────────────────────── */
 .commit-page {
   min-height: 100vh;
-  background: linear-gradient(145deg, #1e1b4b 0%, #312e81 45%, #4c1d95 100%);
+  background: var(--bg-gradient);
   padding: 2rem;
   box-sizing: border-box;
-  font-family: 'Plus Jakarta Sans', 'Inter', system-ui, sans-serif;
+  font-family: var(--font-heading);
 }
 
 /* ── Back button (glass) ────────────────────────────────── */
@@ -349,6 +349,9 @@
 
 /* ── API error message ──────────────────────────────────── */
 .commit-error-msg {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   background: #fef2f2;
   border: 1px solid #fca5a5;
   color: #dc2626;
@@ -374,6 +377,10 @@
   font-weight: 700;
 }
 
+.commit-done-badge svg {
+  flex-shrink: 0;
+}
+
 .commit-done-time {
   font-size: 0.82rem;
   font-weight: 400;
@@ -383,6 +390,9 @@
 
 /* ── Email sent badge ───────────────────────────────────── */
 .commit-email-sent {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   background: #eff6ff;
   border: 1.5px solid #93c5fd;
   color: #1d4ed8;

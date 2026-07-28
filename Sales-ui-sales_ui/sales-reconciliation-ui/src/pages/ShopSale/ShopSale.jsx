@@ -1,5 +1,7 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { motion } from "framer-motion";
+import { FiArrowLeft, FiRefreshCw, FiAlertCircle, FiCheckCircle } from "react-icons/fi";
 import { useAuth } from "../../context/AuthContext";
 import "./ShopSale.css";
 
@@ -135,11 +137,16 @@ const ShopSale = () => {
     : "Latest report imported from Gmail";
 
   return (
-    <div className="shop-sale-page">
+    <motion.div
+      className="shop-sale-page"
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4, ease: [0.4, 0, 0.2, 1] }}
+    >
       <div className="report-container">
 
         <button className="back-button" onClick={() => navigate(-1)}>
-          ← Back
+          <FiArrowLeft /> Back
         </button>
 
         <div className="report-header">
@@ -164,7 +171,7 @@ const ShopSale = () => {
           </div>
 
           <button className="refresh-btn" onClick={handleRefresh}>
-            Refresh Report
+            <FiRefreshCw /> Refresh Report
           </button>
         </div>
 
@@ -176,12 +183,12 @@ const ShopSale = () => {
 
         {!loading && isCommitted && (
           <div className="committed-notice">
-            {committedMessage}
+            <FiCheckCircle /> {committedMessage}
           </div>
         )}
 
         {!loading && error && (
-          <div className="error-container">{error}</div>
+          <div className="error-container"><FiAlertCircle /> {error}</div>
         )}
 
         {!loading && !isCommitted && !error && emailBody && (
@@ -192,12 +199,12 @@ const ShopSale = () => {
 
         {!loading && !isCommitted && !error && !emailBody && (
           <div className="error-container">
-            No Z-report email found. Please ensure the plain-text Z-report has been received.
+            <FiAlertCircle /> No Z-report email found. Please ensure the plain-text Z-report has been received.
           </div>
         )}
 
       </div>
-    </div>
+    </motion.div>
   );
 };
 

@@ -1,37 +1,12 @@
 .sc-page {
   min-height: 100vh;
-  background: linear-gradient(145deg, #0f172a 0%, #1e1b4b 40%, #312e81 100%);
+  background: var(--bg-gradient);
   padding: 2rem;
   display: flex;
   flex-direction: column;
   gap: 1.75rem;
-  font-family: 'Plus Jakarta Sans', 'Inter', system-ui, sans-serif;
+  font-family: var(--font-heading);
 }
-
-/* ── Toast ── */
-.sc-toast {
-  position: fixed;
-  top: 24px;
-  right: 24px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 13px 20px;
-  border-radius: 10px;
-  font-size: 0.9rem;
-  font-weight: 500;
-  z-index: 1000;
-  animation: sc-slide-in 0.25s ease;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
-}
-
-@keyframes sc-slide-in {
-  from { transform: translateX(110px); opacity: 0; }
-  to   { transform: translateX(0);     opacity: 1; }
-}
-
-.sc-toast--success { background: #eff6ff; color: #1d4ed8; border: 1px solid #93c5fd; }
-.sc-toast--error   { background: #fef2f2; color: #dc2626; border: 1px solid #fca5a5; }
 
 /* ── Back button ── */
 .sc-back-btn {
@@ -64,6 +39,9 @@
 }
 
 .sc-page-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   margin: 0 0 5px;
   font-size: 1.75rem;
   color: white;
@@ -93,6 +71,9 @@
 }
 
 .sc-panel-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   margin: 0 0 4px;
   font-size: 1.05rem;
   color: #1f2937;

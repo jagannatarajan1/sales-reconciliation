@@ -1,6 +1,11 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import { motion } from 'framer-motion';
+import {
+  FiUserPlus, FiKey, FiBarChart2, FiTrendingUp, FiRotateCcw,
+  FiShoppingBag, FiFileText, FiCalendar, FiMail,
+} from 'react-icons/fi';
 import '../styles/AdminDashboard.css';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'https://localhost:7276/api';
@@ -23,7 +28,7 @@ const getInitials = (nameOrEmail = '') =>
 
 const cards = [
   {
-    icon: '👤',
+    icon: FiUserPlus,
     title: 'Register User / Admin',
     desc: 'Create a new user or admin account',
     label: 'Register Account',
@@ -31,7 +36,7 @@ const cards = [
     color: '#3b82f6',
   },
   {
-    icon: '🔑',
+    icon: FiKey,
     title: 'Reset Password',
     desc: 'Change the password for any account',
     label: 'Reset Password',
@@ -39,7 +44,7 @@ const cards = [
     color: '#8b5cf6',
   },
   {
-    icon: '📊',
+    icon: FiBarChart2,
     title: 'Sales Reconciliation',
     desc: 'Review and submit pending staff reconciliations',
     label: 'Pending Reconciliation',
@@ -47,7 +52,7 @@ const cards = [
     color: '#10b981',
   },
   {
-    icon: '📈',
+    icon: FiTrendingUp,
     title: 'Reports',
     desc: 'Date-wise history, Z-Report comparison and variance',
     label: 'View Reports',
@@ -55,7 +60,7 @@ const cards = [
     color: '#f59e0b',
   },
   {
-    icon: '🎰',
+    icon: FiRotateCcw,
     title: 'Reset Scratch Cards',
     desc: 'Manage scratch card status and forced open values',
     label: 'Reset Scratch Cards',
@@ -63,7 +68,7 @@ const cards = [
     color: '#ec4899',
   },
   {
-    icon: '🏪',
+    icon: FiShoppingBag,
     title: 'Suppliers',
     desc: 'Add and remove suppliers for staff invoice entry',
     label: 'Manage Suppliers',
@@ -71,7 +76,7 @@ const cards = [
     color: '#06b6d4',
   },
   {
-    icon: '🧾',
+    icon: FiFileText,
     title: 'Supplier Payout',
     desc: 'Date-wise view of all invoices entered by staff',
     label: 'View Invoices',
@@ -79,7 +84,7 @@ const cards = [
     color: '#14b8a6',
   },
   {
-    icon: '📅',
+    icon: FiCalendar,
     title: 'Reset Commit Date',
     desc: 'Override the active working date for staff users',
     label: 'Reset Commit Date',
@@ -87,7 +92,7 @@ const cards = [
     color: '#ef4444',
   },
   {
-    icon: '📧',
+    icon: FiMail,
     title: 'Connect Gmail',
     desc: 'Connect the shop mailbox so daily Z-report emails show up automatically',
     label: 'Connect Gmail',
@@ -96,6 +101,16 @@ const cards = [
     external: true,
   },
 ];
+
+const gridVariants = {
+  hidden: {},
+  visible: { transition: { staggerChildren: 0.05 } },
+};
+
+const cardVariants = {
+  hidden: { opacity: 0, y: 16 },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.3, ease: [0.4, 0, 0.2, 1] } },
+};
 
 export const AdminDashboard = () => {
   const { user, logout } = useAuth();
@@ -178,25 +193,36 @@ export const AdminDashboard = () => {
         </div>
 
         {/* Card grid */}
-        <div className="adm-grid">
-          {cards.map((card) => (
-            <button
-              key={card.title}
-              className="adm-card"
-              style={{ '--adm-accent': card.color, '--adm-accent-bg': card.color + '18' }}
-              onClick={() => (card.external ? handleConnectGmail() : navigate(card.path))}
-            >
-              <div className="adm-card-icon-wrap">
-                <span className="adm-card-icon">{card.icon}</span>
-              </div>
-              <div className="adm-card-body">
-                <div className="adm-card-name">{card.title}</div>
-                <div className="adm-card-desc">{gmailCardDesc(card)}</div>
-              </div>
-              <span className="adm-card-arrow">→</span>
-            </button>
-          ))}
-        </div>
+        <motion.div
+          className="adm-grid"
+          variants={gridVariants}
+          initial="hidden"
+          animate="visible"
+        >
+          {cards.map((card) => {
+            const Icon = card.icon;
+            return (
+              <motion.button
+                key={card.title}
+                className="adm-card"
+                style={{ '--adm-accent': card.color, '--adm-accent-bg': card.color + '18' }}
+                onClick={() => (card.external ? handleConnectGmail() : navigate(card.path))}
+                variants={cardVariants}
+                whileHover={{ y: -6 }}
+                whileTap={{ scale: 0.98 }}
+              >
+                <div className="adm-card-icon-wrap">
+                  <Icon className="adm-card-icon" size={22} />
+                </div>
+                <div className="adm-card-body">
+                  <div className="adm-card-name">{card.title}</div>
+                  <div className="adm-card-desc">{gmailCardDesc(card)}</div>
+                </div>
+                <span className="adm-card-arrow">→</span>
+              </motion.button>
+            );
+          })}
+        </motion.div>
 
       </div>
     </div>
