@@ -15,6 +15,7 @@ export function attachUser(req: Request, _res: Response, next: NextFunction) {
       const decoded = jwt.verify(token, jwtSecret) as jwt.JwtPayload;
       req.userId = parseInt(decoded.userId as string, 10);
       req.userRole = decoded.role as string;
+      req.userName = decoded.name as string;
     } catch {
       // Invalid token, user will not be attached
     }

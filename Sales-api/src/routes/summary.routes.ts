@@ -1,5 +1,7 @@
 import { Router } from "express";
 import { prisma } from "../lib/prisma.js";
+import { getActiveDate, dateOnly } from "../lib/activeDate.js";
+import { computeDailyTotals } from "../lib/dailyTotals.js";
 import * as gmailService from "../services/gmail.service.js";
 
 export const summaryRouter = Router();
@@ -15,11 +17,6 @@ const EDITABLE_KEYS = [
   "paypointValue",
 ] as const;
 
-function todayDateOnly() {
-  const now = new Date();
-  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
-}
-
 function toNumber(value: unknown): number {
   const n = Number(value);
   return Number.isFinite(n) ? n : 0;
@@ -30,14 +27,23 @@ summaryRouter.get("/today", async (req, res) => {
     return res.status(401).json({ message: "User not authenticated" });
   }
 
-  const date = todayDateOnly();
-  const record = await prisma.dailySummary.findUnique({
-    where: { date },
-    include: { creditCardEntries: true },
-  });
+  const date = await getActiveDate();
+  const [record, totals, reconciliation] = await Promise.all([
+    prisma.dailySummary.findUnique({ where: { date }, include: { creditCardEntries: true } }),
+    computeDailyTotals(date),
+    prisma.reconciliationRecord.findUnique({ where: { date } }),
+  ]);
 
   if (!record) {
-    return res.json({ date, hasTodayData: false, isCommitted: false, isPendingAdminReview: false });
+    return res.json({
+      date,
+      hasTodayData: false,
+      isCommitted: false,
+      isPendingAdminReview: false,
+      supplierInvoicesTotal: totals.supplierInvoicesTotal,
+      instantLotteryTotalCount: totals.instantLotteryTotalCount,
+      instantLotteryTotalSales: totals.instantLotteryTotalSales,
+    });
   }
 
   res.json({
@@ -45,6 +51,7 @@ summaryRouter.get("/today", async (req, res) => {
     hasTodayData: true,
     isCommitted: record.isCommitted,
     isPendingAdminReview: record.isPendingAdminReview,
+    committedAt: reconciliation?.committedAt ?? null,
     lastSafe: record.lastSafe,
     safeDropAmount: record.safeDropAmount,
     cashback: record.cashback,
@@ -55,6 +62,9 @@ summaryRouter.get("/today", async (req, res) => {
     ddPoint: record.ddPoint,
     lotteryValue: record.lotteryValue,
     paypointValue: record.paypointValue,
+    supplierInvoicesTotal: totals.supplierInvoicesTotal,
+    instantLotteryTotalCount: totals.instantLotteryTotalCount,
+    instantLotteryTotalSales: totals.instantLotteryTotalSales,
     creditCardEntries: record.creditCardEntries.map((e) => ({
       id: e.creditCardEntryId,
       manualCardAmount: e.manualCardAmount,
@@ -69,11 +79,11 @@ summaryRouter.put("/", async (req, res) => {
     return res.status(401).json({ message: "User not authenticated" });
   }
 
-  const date = todayDateOnly();
+  const date = await getActiveDate();
   const body = req.body ?? {};
 
   const existing = await prisma.dailySummary.findUnique({ where: { date } });
-  if (existing?.isCommitted || existing?.isPendingAdminReview) {
+  if (existing?.isCommitted) {
     return res.status(409).json({ message: "Today has already been committed and can no longer be edited." });
   }
 
@@ -125,7 +135,12 @@ summaryRouter.get("/zreport-email", async (req, res) => {
     return res.status(401).json({ message: "User not authenticated" });
   }
 
-  const targetDate = new Date();
+  const targetDate = await getActiveDate();
+  const summary = await prisma.dailySummary.findUnique({ where: { date: targetDate } });
+  if (summary?.isCommitted) {
+    return res.json({ isCommitted: true, targetDate, message: "Today's values are already committed. Next Z-report available tomorrow." });
+  }
+
   const email = await getZReportForDate(targetDate);
   if (!email) {
     return res.status(400).json({ message: "No Z-report email found for this date." });
@@ -139,11 +154,93 @@ summaryRouter.get("/zreport-email/by-date", async (req, res) => {
     return res.status(401).json({ message: "User not authenticated" });
   }
 
-  const targetDate = new Date(req.query.date as string);
+  const targetDate = dateOnly(req.query.date as string);
   const email = await getZReportForDate(targetDate);
   if (!email) {
     return res.status(400).json({ message: "No Z-report email found for this date." });
   }
 
   res.json({ isCommitted: false, targetDate, email });
+});
+
+summaryRouter.post("/commit", async (req, res) => {
+  if (req.userId == null) {
+    return res.status(401).json({ message: "User not authenticated" });
+  }
+
+  const date = await getActiveDate();
+  const existing = await prisma.dailySummary.findUnique({ where: { date } });
+  if (existing?.isCommitted) {
+    return res.status(409).json({ message: "Today's values are already committed." });
+  }
+
+  const totals = await computeDailyTotals(date);
+  const committedAt = new Date();
+
+  await prisma.dailySummary.upsert({
+    where: { date },
+    create: { date, isCommitted: true },
+    update: { isCommitted: true },
+  });
+
+  const record = await prisma.reconciliationRecord.upsert({
+    where: { date },
+    create: {
+      date,
+      ...totals,
+      isStaffCommitted: true,
+      committedByUserId: req.userId,
+      committedByName: req.userName ?? null,
+      committedAt,
+    },
+    update: {
+      ...totals,
+      isStaffCommitted: true,
+      committedByUserId: req.userId,
+      committedByName: req.userName ?? null,
+      committedAt,
+    },
+  });
+
+  res.json({ message: "Committed successfully", committedAt: record.committedAt });
+});
+
+summaryRouter.get("/reconciliation/portal", async (req, res) => {
+  if (req.userId == null) {
+    return res.status(401).json({ message: "User not authenticated" });
+  }
+
+  const active = await getActiveDate();
+  const yesterday = new Date(active);
+  yesterday.setUTCDate(yesterday.getUTCDate() - 1);
+
+  const record = await prisma.reconciliationRecord.findUnique({ where: { date: yesterday } });
+  if (!record) {
+    return res.json({ hasReconciliation: false });
+  }
+
+  res.json({
+    hasReconciliation: true,
+    date: record.date,
+    submittedAt: record.adminSubmittedAt ?? record.committedAt,
+    manualCardAmount: record.manualCardAmount,
+    cardAmount: record.cardAmount,
+    lastSafe: record.lastSafe,
+    safeDropAmount: record.safeDropAmount,
+    cash: Number(record.lastSafe) + Number(record.safeDropAmount),
+    cashback: record.cashback,
+    paypointPayout: record.paypointPayout,
+    instantLotteryPayout: record.instantLotteryPayout,
+    lotteryPayout: record.lotteryPayout,
+    newsVoucher: record.newsVoucher,
+    ddPoint: record.ddPoint,
+    instantLotteryTotalCount: record.instantLotteryTotalCount,
+    instantLotteryTotalSales: record.instantLotteryTotalSales,
+    lotteryValue: record.lotteryValue,
+    paypointValue: record.paypointValue,
+    summaryTotal: record.summaryTotal,
+    zReportTotal: record.zReportTotal,
+    difference: record.difference,
+    adminNotes: record.adminNotes,
+  });
 });

@@ -44,7 +44,7 @@ const SECTIONS = [
       { label: 'Instant Lottery Payout', key: 'instantLotteryPayout', monetary: true },
       { label: 'Lottery Payout', key: 'lotteryPayout', monetary: true },
       { label: 'News Voucher', key: 'newsVoucher', monetary: true },
-      { label: 'DD Point', key: 'dDPoint', monetary: true },
+      { label: 'DD Point', key: 'ddPoint', monetary: true },
     ],
   },
   {

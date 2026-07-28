@@ -68,6 +68,132 @@ model CreditCardEntry {
   dailySummary   DailySummary @relation(fields: [dailySummaryId], references: [dailySummaryId], onDelete: Cascade)
 }
 
+model Deduction {
+  deductionId Int      @id @default(autoincrement())
+  date        DateTime @unique @db.Date
+
+  cashback             Decimal @default(0) @db.Decimal(18, 2)
+  paypointPayout       Decimal @default(0) @db.Decimal(18, 2)
+  instantLotteryPayout Decimal @default(0) @db.Decimal(18, 2)
+  lotteryPayout        Decimal @default(0) @db.Decimal(18, 2)
+  newsVoucher          Decimal @default(0) @db.Decimal(18, 2)
+  ddPoint              Decimal @default(0) @db.Decimal(18, 2)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+}
+
+model Supplier {
+  supplierId Int      @id @default(autoincrement())
+  name       String
+  createdAt  DateTime @default(now())
+
+  invoices SupplierInvoice[]
+}
+
+model SupplierInvoice {
+  supplierInvoiceId Int      @id @default(autoincrement())
+  date              DateTime @db.Date
+  supplierId        Int?
+  supplierName      String
+  invoiceNo         String
+  value             Decimal  @db.Decimal(18, 2)
+  enteredByUserId   Int?
+  enteredByName     String?
+  createdAt         DateTime @default(now())
+
+  supplier Supplier? @relation(fields: [supplierId], references: [supplierId], onDelete: SetNull)
+}
+
+model ScratchCard {
+  scratchCardId Int      @id @default(autoincrement())
+  scratchCardNo String
+  price         Decimal  @default(0) @db.Decimal(18, 2)
+  isActive      Boolean  @default(true)
+  forcedOpenNo  Int?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @default(now()) @updatedAt
+
+  inventoryEntries InstantLotteryInventoryEntry[]
+}
+
+model InstantLotteryInventoryEntry {
+  inventoryId   Int      @id @default(autoincrement())
+  scratchCardId Int
+  date          DateTime @db.Date
+  openNo        Int      @default(0)
+  closeNo       Int      @default(0)
+  totalSold     Int      @default(0)
+  sales         Decimal  @default(0) @db.Decimal(18, 2)
+  createdDate   DateTime @default(now())
+
+  scratchCard ScratchCard @relation(fields: [scratchCardId], references: [scratchCardId], onDelete: Cascade)
+
+  @@unique([scratchCardId, date])
+}
+
+model LotteryRecord {
+  lotteryRecordId Int      @id @default(autoincrement())
+  date            DateTime @unique @db.Date
+  lotteryValue    Decimal  @default(0) @db.Decimal(18, 2)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @default(now()) @updatedAt
+}
+
+model PaypointRecord {
+  paypointRecordId Int      @id @default(autoincrement())
+  date             DateTime @unique @db.Date
+  paypointValue    Decimal  @default(0) @db.Decimal(18, 2)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @default(now()) @updatedAt
+}
+
+model ReconciliationRecord {
+  reconciliationRecordId Int      @id @default(autoincrement())
+  date                   DateTime @unique @db.Date
+
+  manualCardAmount         Decimal @default(0) @db.Decimal(18, 2)
+  cardAmount               Decimal @default(0) @db.Decimal(18, 2)
+  lastSafe                 Decimal @default(0) @db.Decimal(18, 2)
+  safeDropAmount           Decimal @default(0) @db.Decimal(18, 2)
+  cashback                 Decimal @default(0) @db.Decimal(18, 2)
+  paypointPayout           Decimal @default(0) @db.Decimal(18, 2)
+  instantLotteryPayout     Decimal @default(0) @db.Decimal(18, 2)
+  lotteryPayout            Decimal @default(0) @db.Decimal(18, 2)
+  newsVoucher              Decimal @default(0) @db.Decimal(18, 2)
+  ddPoint                  Decimal @default(0) @db.Decimal(18, 2)
+  supplierInvoicesTotal    Decimal @default(0) @db.Decimal(18, 2)
+  instantLotteryTotalCount Int     @default(0)
+  instantLotteryTotalSales Decimal @default(0) @db.Decimal(18, 2)
+  lotteryValue             Decimal @default(0) @db.Decimal(18, 2)
+  paypointValue            Decimal @default(0) @db.Decimal(18, 2)
+
+  summaryTotal Decimal @default(0) @db.Decimal(18, 2)
+  zReportTotal Decimal @default(0) @db.Decimal(18, 2)
+  difference   Decimal @default(0) @db.Decimal(18, 2)
+  adminNotes   String?
+
+  isStaffCommitted  Boolean @default(false)
+  isAdminReconciled Boolean @default(false)
+
+  committedByUserId Int?
+  committedByName   String?
+  committedAt       DateTime?
+
+  adminSubmittedByUserId Int?
+  adminSubmittedByName   String?
+  adminSubmittedAt       DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+}
+
+model ActiveDateOverride {
+  id         Int       @id @default(1)
+  activeDate DateTime? @db.Date
+  setAt      DateTime?
+}
+
 model GmailConnection {
   gmailConnectionId    Int       @id @default(autoincrement())
   emailAddress         String
