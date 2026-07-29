@@ -4,6 +4,7 @@ import { dateOnly } from "../lib/activeDate.js";
 import { computeDailyTotals } from "../lib/dailyTotals.js";
 import { parseDepartmentTotal } from "../lib/departmentTotal.js";
 import { renderZReportBillPdf } from "../lib/pdf.js";
+import { sendCommitNotificationEmail } from "../lib/commitEmail.js";
 import { buildZip } from "../lib/zip.js";
 import * as gmailService from "../services/gmail.service.js";
 
@@ -173,6 +174,14 @@ adminReconciliationRouter.post("/submit", async (req, res) => {
     where: { date },
     create: { date, ...data, isStaffCommitted: existing?.isStaffCommitted ?? false },
     update: data,
+  });
+
+  await sendCommitNotificationEmail({
+    dateStr: date.toISOString().split("T")[0],
+    summaryTotal,
+    zReportTotal,
+    difference,
+    adminNotes,
   });
 
   res.json({ message: "Reconciliation submitted successfully" });

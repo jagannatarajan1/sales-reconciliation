@@ -24,7 +24,7 @@ export function buildConsentUrl(state: string): string {
     client_id: process.env.GMAIL_CLIENT_ID ?? "",
     redirect_uri: process.env.GMAIL_REDIRECT_URI ?? "",
     response_type: "code",
-    scope: "https://www.googleapis.com/auth/gmail.readonly",
+    scope: "https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.send",
     access_type: "offline",
     prompt: "consent",
     state,
@@ -206,4 +206,31 @@ export async function findZReportEmail(targetDate: Date): Promise<ZReportEmailDt
   const emailDate = message.internalDate ? new Date(parseInt(message.internalDate, 10)) : startOfDay;
 
   return { date: emailDate, body };
+}
+
+function encodeBase64Url(data: string): string {
+  return Buffer.from(data, "utf-8").toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+export async function sendEmail(to: string, subject: string, body: string): Promise<boolean> {
+  const accessToken = await getValidAccessToken();
+  if (!accessToken) return false;
+
+  const connection = await getActiveConnection();
+  const from = connection?.emailAddress ?? "";
+
+  const message = [`From: ${from}`, `To: ${to}`, `Subject: ${subject}`, "Content-Type: text/plain; charset=utf-8", "", body].join(
+    "\r\n"
+  );
+
+  const response = await fetch(`${GMAIL_API_BASE}/messages/send`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ raw: encodeBase64Url(message) }),
+  });
+
+  return response.ok;
 }

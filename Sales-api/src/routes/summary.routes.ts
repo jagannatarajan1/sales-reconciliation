@@ -3,6 +3,7 @@ import { prisma } from "../lib/prisma.js";
 import { getActiveDate, dateOnly } from "../lib/activeDate.js";
 import { computeDailyTotals } from "../lib/dailyTotals.js";
 import { parseDepartmentTotal } from "../lib/departmentTotal.js";
+import { sendCommitNotificationEmail } from "../lib/commitEmail.js";
 import * as gmailService from "../services/gmail.service.js";
 
 export const summaryRouter = Router();
@@ -212,6 +213,13 @@ summaryRouter.post("/commit", async (req, res) => {
       committedByName: req.userName ?? null,
       committedAt,
     },
+  });
+
+  await sendCommitNotificationEmail({
+    dateStr: date.toISOString().split("T")[0],
+    summaryTotal: totals.summaryTotal,
+    zReportTotal,
+    difference,
   });
 
   res.json({ message: "Committed successfully", committedAt: record.committedAt });
