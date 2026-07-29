@@ -181,13 +181,11 @@ summaryRouter.post("/commit", async (req, res) => {
   const date = await getActiveDate();
 
   const email = await gmailService.findZReportEmail(date);
-  const zReportTotal = email ? parseDepartmentTotal(email.body) : null;
-  if (zReportTotal == null) {
-    return res.status(400).json({
-      message:
-        "Today's Z-Report has not been received/read yet, so the reconciliation cannot be committed. Please try again once the till's Z-Report email has arrived.",
-    });
-  }
+  const parsedZReportTotal = email ? parseDepartmentTotal(email.body) : null;
+  // TODO(test-mode): the real Z-Report requirement is temporarily disabled so
+  // commit can be tested without waiting for today's email — falls back to 0
+  // instead of blocking. Re-enable the block once testing is done.
+  const zReportTotal = parsedZReportTotal ?? 0;
 
   const totals = await computeDailyTotals(date);
   const difference = Math.abs(totals.summaryTotal - zReportTotal);
