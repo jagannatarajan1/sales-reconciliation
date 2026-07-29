@@ -1,8 +1,11 @@
+import { Prisma } from "@prisma/client";
 import { Router } from "express";
 import { prisma } from "../lib/prisma.js";
 import { dateOnly } from "../lib/activeDate.js";
+import { parseDepartmentTotal } from "../lib/departmentTotal.js";
 import { renderReconciliationReportPdf } from "../lib/pdf.js";
 import { buildZip } from "../lib/zip.js";
+import * as gmailService from "../services/gmail.service.js";
 
 export const reportsRouter = Router();
 
@@ -87,6 +90,24 @@ reportsRouter.get("/:date", async (req, res) => {
   const record = await prisma.reconciliationRecord.findUnique({ where: { date } });
   if (!record) return res.status(404).json({ message: "No report found for this date." });
 
+  // Re-check the real email for this historical date rather than blindly
+  // trusting whatever was stored at commit time (which could have been a
+  // manual guess before this parsing was built).
+  let zReportAvailable = false;
+  let zReportTotal: number | Prisma.Decimal = record.zReportTotal;
+  let totalVariance: number | Prisma.Decimal = record.difference;
+  try {
+    const email = await gmailService.findZReportEmail(date);
+    const parsed = email ? parseDepartmentTotal(email.body) : null;
+    if (parsed != null) {
+      zReportAvailable = true;
+      zReportTotal = parsed;
+      totalVariance = Math.round(Math.abs(Number(record.summaryTotal) - parsed) * 100) / 100;
+    }
+  } catch {
+    // Fall back to the stored record's values below.
+  }
+
   const fields = [
     { section: "Credit Card", field: "Manual Card Amount", staffValue: record.manualCardAmount },
     { section: "Credit Card", field: "Card Amount", staffValue: record.cardAmount },
@@ -106,7 +127,7 @@ reportsRouter.get("/:date", async (req, res) => {
 
   res.json({
     date: record.date.toISOString().split("T")[0],
-    zReportAvailable: false,
+    zReportAvailable,
     isStaffCommitted: record.isStaffCommitted,
     isAdminReconciled: record.isAdminReconciled,
     committedByName: record.committedByName,
@@ -115,8 +136,8 @@ reportsRouter.get("/:date", async (req, res) => {
     adminSubmittedAt: record.adminSubmittedAt,
     fields,
     staffTotal: record.summaryTotal,
-    zReportTotal: record.zReportTotal,
-    totalVariance: record.difference,
+    zReportTotal,
+    totalVariance,
     adminNotes: record.adminNotes,
   });
 });

@@ -173,6 +173,7 @@ export const Summary = () => {
   const { showToast } = useToast();
   const [isCommitted, setIsCommitted] = useState(false);
   const [isPendingAdminReview, setIsPendingAdminReview] = useState(false);
+  const [departmentTotal, setDepartmentTotal] = useState(null);
 
   const isLocked = isCommitted || isPendingAdminReview;
 
@@ -201,6 +202,9 @@ export const Summary = () => {
         setDate(data.date ?? "");
         setIsCommitted(data.isCommitted ?? false);
         setIsPendingAdminReview(data.isPendingAdminReview ?? false);
+        setDepartmentTotal(
+          typeof data.departmentTotal === "number" ? data.departmentTotal : null,
+        );
 
         if (!data.hasTodayData) {
           // Fresh day — no data entered yet for the active date.
@@ -340,6 +344,14 @@ export const Summary = () => {
     paypointNum +
     supplierNum;
   const liveSummaryTotal = incomeNum + deductionsNum;
+
+  // Staff total vs. the till's own reported total, when today's Z-Report
+  // email has been read (see /Summary/today's departmentTotal field).
+  const hasDepartmentTotal = typeof departmentTotal === "number";
+  const variance = hasDepartmentTotal
+    ? liveSummaryTotal - departmentTotal
+    : null;
+  const varianceInTolerance = hasDepartmentTotal && Math.abs(variance) <= 5;
 
   const fmt = (n) => `£${n.toFixed(2)}`;
 
@@ -576,6 +588,30 @@ export const Summary = () => {
               <div className="summary-total-panel__row">
                 <span>Total Deductions</span>
                 <span>{fmt(deductionsNum)}</span>
+              </div>
+              <div className="summary-total-panel__row">
+                <span>Staff Total</span>
+                <span>{fmt(liveSummaryTotal)}</span>
+              </div>
+              <div className="summary-total-panel__row">
+                <span>Department Total</span>
+                <span className={hasDepartmentTotal ? "" : "summary-total-panel__row--muted"}>
+                  {hasDepartmentTotal ? fmt(departmentTotal) : "Not yet received"}
+                </span>
+              </div>
+              <div className="summary-total-panel__row">
+                <span>Variance</span>
+                <span
+                  className={
+                    !hasDepartmentTotal
+                      ? "summary-total-panel__row--muted"
+                      : varianceInTolerance
+                        ? "summary-total-panel__row--ok"
+                        : "summary-total-panel__row--warn"
+                  }
+                >
+                  {hasDepartmentTotal ? fmt(variance) : "—"}
+                </span>
               </div>
             </div>
             <div className="summary-total-panel__net">

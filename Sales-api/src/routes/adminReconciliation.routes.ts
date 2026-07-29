@@ -2,6 +2,7 @@ import { Router } from "express";
 import { prisma } from "../lib/prisma.js";
 import { dateOnly } from "../lib/activeDate.js";
 import { computeDailyTotals } from "../lib/dailyTotals.js";
+import { parseDepartmentTotal } from "../lib/departmentTotal.js";
 import { renderZReportBillPdf } from "../lib/pdf.js";
 import { buildZip } from "../lib/zip.js";
 import * as gmailService from "../services/gmail.service.js";
@@ -25,24 +26,70 @@ function toNumber(value: unknown): number {
   return Number.isFinite(n) ? n : 0;
 }
 
+const VARIANCE_TOLERANCE = 5;
+
 adminReconciliationRouter.get("/pending", async (req, res) => {
   if (!requireAdmin(req, res)) return;
 
-  const [allDays, reconciled] = await Promise.all([
+  const [allDays, records] = await Promise.all([
     prisma.dailySummary.findMany({ orderBy: { date: "desc" } }),
-    prisma.reconciliationRecord.findMany({ select: { date: true } }),
+    prisma.reconciliationRecord.findMany(),
   ]);
-  const reconciledDates = new Set(reconciled.map((r) => r.date.toISOString()));
-  const uncommitted = allDays.filter((day) => !reconciledDates.has(day.date.toISOString()));
+  const recordsByDate = new Map(records.map((r) => [r.date.toISOString(), r]));
 
   const items = [];
-  for (const day of uncommitted) {
-    const totals = await computeDailyTotals(day.date);
+  for (const day of allDays) {
+    const record = recordsByDate.get(day.date.toISOString());
+
+    // No committed record at all -> always pending.
+    if (!record) {
+      const totals = await computeDailyTotals(day.date);
+      let zReportTotal = 0;
+      try {
+        const email = await gmailService.findZReportEmail(day.date);
+        const parsed = email ? parseDepartmentTotal(email.body) : null;
+        if (parsed != null) zReportTotal = parsed;
+      } catch {
+        // Best-effort pre-fill only — fall back to 0 so the admin can still
+        // type the value in by hand, exactly as before.
+      }
+      const difference = Math.abs(totals.summaryTotal - zReportTotal);
+
+      items.push({
+        date: day.date.toISOString().split("T")[0],
+        ...totals,
+        zReportTotal,
+        difference,
+      });
+      continue;
+    }
+
+    // A record exists — it only keeps showing up here if it hasn't been
+    // signed off by admin yet AND its variance is over tolerance. Anything
+    // within tolerance, or already admin-reconciled, drops off the list.
+    if (record.isAdminReconciled) continue;
+    if (Math.abs(Number(record.difference)) <= VARIANCE_TOLERANCE) continue;
+
     items.push({
-      date: day.date.toISOString().split("T")[0],
-      ...totals,
-      zReportTotal: 0,
-      difference: 0,
+      date: record.date.toISOString().split("T")[0],
+      manualCardAmount: record.manualCardAmount,
+      cardAmount: record.cardAmount,
+      lastSafe: record.lastSafe,
+      safeDropAmount: record.safeDropAmount,
+      cashback: record.cashback,
+      paypointPayout: record.paypointPayout,
+      instantLotteryPayout: record.instantLotteryPayout,
+      lotteryPayout: record.lotteryPayout,
+      newsVoucher: record.newsVoucher,
+      ddPoint: record.ddPoint,
+      supplierInvoicesTotal: record.supplierInvoicesTotal,
+      instantLotteryTotalCount: record.instantLotteryTotalCount,
+      instantLotteryTotalSales: record.instantLotteryTotalSales,
+      lotteryValue: record.lotteryValue,
+      paypointValue: record.paypointValue,
+      summaryTotal: record.summaryTotal,
+      zReportTotal: record.zReportTotal,
+      difference: record.difference,
     });
   }
 

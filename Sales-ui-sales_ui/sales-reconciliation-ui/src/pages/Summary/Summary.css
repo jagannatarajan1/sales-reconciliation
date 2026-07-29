@@ -311,6 +311,21 @@
   color: #fca5a5;
 }
 
+/* ── Department Total / Variance rows (Z-Report comparison) ── */
+.summary-total-panel__row--ok {
+  color: #16a34a;
+  font-weight: 700;
+}
+
+.summary-total-panel__row--warn {
+  color: #dc2626;
+  font-weight: 700;
+}
+
+.summary-total-panel__row--muted {
+  color: #9ca3af;
+}
+
 /* ── Footer / Save ──────────────────────────────────────── */
 .summary-footer {
   display: flex;

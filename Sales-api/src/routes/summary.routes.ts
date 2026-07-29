@@ -2,6 +2,7 @@ import { Router } from "express";
 import { prisma } from "../lib/prisma.js";
 import { getActiveDate, dateOnly } from "../lib/activeDate.js";
 import { computeDailyTotals } from "../lib/dailyTotals.js";
+import { parseDepartmentTotal } from "../lib/departmentTotal.js";
 import * as gmailService from "../services/gmail.service.js";
 
 export const summaryRouter = Router();
@@ -34,6 +35,18 @@ summaryRouter.get("/today", async (req, res) => {
     prisma.reconciliationRecord.findUnique({ where: { date } }),
   ]);
 
+  // Best-effort live comparison against today's Z-Report, if it has arrived
+  // yet. This must never fail/error the whole endpoint — Summary has to keep
+  // loading even before the day's report shows up in the inbox.
+  let departmentTotal: number | null = null;
+  try {
+    const email = await gmailService.findZReportEmail(date);
+    if (email) departmentTotal = parseDepartmentTotal(email.body);
+  } catch {
+    departmentTotal = null;
+  }
+  const variance = departmentTotal != null ? Math.round((totals.summaryTotal - departmentTotal) * 100) / 100 : null;
+
   if (!record) {
     return res.json({
       date,
@@ -43,6 +56,7 @@ summaryRouter.get("/today", async (req, res) => {
       supplierInvoicesTotal: totals.supplierInvoicesTotal,
       instantLotteryTotalCount: totals.instantLotteryTotalCount,
       instantLotteryTotalSales: totals.instantLotteryTotalSales,
+      ...(departmentTotal != null ? { departmentTotal, variance } : {}),
     });
   }
 
@@ -71,6 +85,7 @@ summaryRouter.get("/today", async (req, res) => {
       cardAmount: e.cardAmount,
       createdDate: e.createdDate,
     })),
+    ...(departmentTotal != null ? { departmentTotal, variance } : {}),
   });
 });
 
@@ -164,7 +179,18 @@ summaryRouter.post("/commit", async (req, res) => {
   }
 
   const date = await getActiveDate();
+
+  const email = await gmailService.findZReportEmail(date);
+  const zReportTotal = email ? parseDepartmentTotal(email.body) : null;
+  if (zReportTotal == null) {
+    return res.status(400).json({
+      message:
+        "Today's Z-Report has not been received/read yet, so the reconciliation cannot be committed. Please try again once the till's Z-Report email has arrived.",
+    });
+  }
+
   const totals = await computeDailyTotals(date);
+  const difference = Math.abs(totals.summaryTotal - zReportTotal);
   const committedAt = new Date();
 
   const record = await prisma.reconciliationRecord.upsert({
@@ -172,6 +198,8 @@ summaryRouter.post("/commit", async (req, res) => {
     create: {
       date,
       ...totals,
+      zReportTotal,
+      difference,
       isStaffCommitted: true,
       committedByUserId: req.userId,
       committedByName: req.userName ?? null,
@@ -179,6 +207,8 @@ summaryRouter.post("/commit", async (req, res) => {
     },
     update: {
       ...totals,
+      zReportTotal,
+      difference,
       isStaffCommitted: true,
       committedByUserId: req.userId,
       committedByName: req.userName ?? null,
