@@ -3,6 +3,7 @@ export interface RegisterRequest {
   password: string;
   name: string;
   role?: string;
+  permissions?: string[];
 }
 
 export interface LoginRequest {
@@ -15,6 +16,7 @@ export interface UserDto {
   email: string;
   name: string;
   role: string;
+  permissions: string[];
   createdAt: Date;
   isActive: boolean;
 }

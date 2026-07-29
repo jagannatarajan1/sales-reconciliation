@@ -9,11 +9,17 @@ function mapToUserDto(user: User): UserDto {
     email: user.email,
     name: user.name,
     role: user.role,
+    permissions: user.permissions ?? [],
     createdAt: user.createdAt,
     isActive: user.isActive,
   };
 }
 
+// NOTE: this is only reachable via POST /api/auth/register, which now requires
+// an authenticated caller holding the "userManagement" permission (see
+// auth.routes.ts / lib/permissions.ts). There is no public self-service
+// registration path anymore — role/permissions here are set by a trusted admin,
+// not by an anonymous caller.
 export async function register(request: RegisterRequest): Promise<UserDto | null> {
   const existingUser = await prisma.user.findUnique({ where: { email: request.email } });
   if (existingUser) return null;
@@ -24,6 +30,7 @@ export async function register(request: RegisterRequest): Promise<UserDto | null
       passwordHash: await hashPassword(request.password),
       name: request.name,
       role: request.role ?? "user",
+      permissions: request.permissions ?? [],
       isActive: true,
     },
   });

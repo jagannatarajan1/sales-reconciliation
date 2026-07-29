@@ -6,19 +6,12 @@ import { parseDepartmentTotal } from "../lib/departmentTotal.js";
 import { renderReconciliationReportPdf } from "../lib/pdf.js";
 import { buildZip } from "../lib/zip.js";
 import * as gmailService from "../services/gmail.service.js";
+import { requirePermission } from "../lib/permissions.js";
 
 export const reportsRouter = Router();
 
 function requireAdmin(req: import("express").Request, res: import("express").Response): boolean {
-  if (req.userId == null) {
-    res.status(401).json({ message: "User not authenticated" });
-    return false;
-  }
-  if (req.userRole !== "admin") {
-    res.status(403).json({ message: "Admin access required." });
-    return false;
-  }
-  return true;
+  return requirePermission(req, res, "reports");
 }
 
 reportsRouter.get("/", async (req, res) => {

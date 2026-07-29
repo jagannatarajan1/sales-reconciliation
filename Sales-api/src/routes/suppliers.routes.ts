@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { prisma } from "../lib/prisma.js";
 import { getActiveDate, dateOnly } from "../lib/activeDate.js";
+import { writeAuditLog } from "../lib/auditLog.js";
 
 export const suppliersRouter = Router();
 
@@ -80,6 +81,15 @@ suppliersRouter.post("/invoices", async (req, res) => {
     },
   });
 
+  void writeAuditLog({
+    userId: req.userId,
+    userName: req.userName,
+    action: "supplier_invoice_create",
+    entity: "SupplierInvoice",
+    entityId: created.supplierInvoiceId,
+    newValue: { supplierName: created.supplierName, invoiceNo: created.invoiceNo, value: created.value },
+  });
+
   res.json({
     id: created.supplierInvoiceId,
     supplierName: created.supplierName,
@@ -91,7 +101,20 @@ suppliersRouter.post("/invoices", async (req, res) => {
 suppliersRouter.delete("/invoices/:id", async (req, res) => {
   if (req.userId == null) return res.status(401).json({ message: "User not authenticated" });
 
+  const existing = await prisma.supplierInvoice.findUnique({ where: { supplierInvoiceId: Number(req.params.id) } });
   await prisma.supplierInvoice.delete({ where: { supplierInvoiceId: Number(req.params.id) } }).catch(() => null);
+
+  void writeAuditLog({
+    userId: req.userId,
+    userName: req.userName,
+    action: "supplier_invoice_delete",
+    entity: "SupplierInvoice",
+    entityId: req.params.id,
+    previousValue: existing
+      ? { supplierName: existing.supplierName, invoiceNo: existing.invoiceNo, value: existing.value }
+      : null,
+  });
+
   res.json({ message: "Invoice deleted" });
 });
 
@@ -111,12 +134,33 @@ suppliersRouter.post("/", async (req, res) => {
   }
 
   const created = await prisma.supplier.create({ data: { name: String(name).trim() } });
+
+  void writeAuditLog({
+    userId: req.userId,
+    userName: req.userName,
+    action: "supplier_create",
+    entity: "Supplier",
+    entityId: created.supplierId,
+    newValue: { name: created.name },
+  });
+
   res.json({ id: created.supplierId, name: created.name });
 });
 
 suppliersRouter.delete("/:id", async (req, res) => {
   if (req.userId == null) return res.status(401).json({ message: "User not authenticated" });
 
+  const existing = await prisma.supplier.findUnique({ where: { supplierId: Number(req.params.id) } });
   await prisma.supplier.delete({ where: { supplierId: Number(req.params.id) } }).catch(() => null);
+
+  void writeAuditLog({
+    userId: req.userId,
+    userName: req.userName,
+    action: "supplier_delete",
+    entity: "Supplier",
+    entityId: req.params.id,
+    previousValue: existing ? { name: existing.name } : null,
+  });
+
   res.json({ message: "Supplier deleted" });
 });

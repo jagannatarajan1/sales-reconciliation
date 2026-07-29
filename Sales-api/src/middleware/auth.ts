@@ -16,6 +16,7 @@ export function attachUser(req: Request, _res: Response, next: NextFunction) {
       req.userId = parseInt(decoded.userId as string, 10);
       req.userRole = decoded.role as string;
       req.userName = decoded.name as string;
+      req.userPermissions = Array.isArray(decoded.permissions) ? (decoded.permissions as string[]) : [];
     } catch {
       // Invalid token, user will not be attached
     }

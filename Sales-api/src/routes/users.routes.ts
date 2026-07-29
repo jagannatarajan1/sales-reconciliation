@@ -1,12 +1,11 @@
 import { Router } from "express";
 import * as userService from "../services/user.service.js";
+import { requirePermission, hasPermission } from "../lib/permissions.js";
 
 export const usersRouter = Router();
 
 usersRouter.get("/", async (req, res) => {
-  if (req.userRole !== "admin") {
-    return res.status(403).end();
-  }
+  if (!requirePermission(req, res, "userManagement")) return;
 
   const pageNumber = parseInt((req.query.pageNumber as string) ?? "1", 10);
   const pageSize = parseInt((req.query.pageSize as string) ?? "10", 10);
@@ -21,7 +20,7 @@ usersRouter.get("/:id", async (req, res) => {
   }
 
   const id = parseInt(req.params.id, 10);
-  if (req.userId !== id && req.userRole !== "admin") {
+  if (req.userId !== id && !hasPermission(req, "userManagement")) {
     return res.status(403).end();
   }
 

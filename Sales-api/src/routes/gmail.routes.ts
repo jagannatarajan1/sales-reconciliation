@@ -1,6 +1,7 @@
 import { createHmac, randomUUID, timingSafeEqual } from "crypto";
 import { Router } from "express";
 import * as gmailService from "../services/gmail.service.js";
+import { requirePermission } from "../lib/permissions.js";
 
 export const gmailRouter = Router();
 
@@ -40,19 +41,14 @@ function tryValidateSignedState(state: string): number | null {
 }
 
 gmailRouter.get("/connect", (req, res) => {
-  if (req.userId == null) {
-    return res.status(401).json({ message: "User not authenticated" });
-  }
-  if (req.userRole !== "admin") {
-    return res.status(403).end();
-  }
+  if (!requirePermission(req, res, "reports")) return;
 
   // The browser reaches this page via a plain link click (so it can then be
   // sent on to Google's own page), which means it can't carry the app's login
   // token as a header. So instead of redirecting straight to Google here, we
   // hand the link back as JSON to an authenticated fetch call, and the page
   // itself does the actual full-page navigation to Google.
-  const state = createSignedState(req.userId);
+  const state = createSignedState(req.userId as number);
   res.json({ url: gmailService.buildConsentUrl(state) });
 });
 
@@ -85,12 +81,7 @@ gmailRouter.get("/callback", async (req, res) => {
 });
 
 gmailRouter.get("/status", async (req, res) => {
-  if (req.userId == null) {
-    return res.status(401).json({ message: "User not authenticated" });
-  }
-  if (req.userRole !== "admin") {
-    return res.status(403).end();
-  }
+  if (!requirePermission(req, res, "reports")) return;
 
   res.json(await gmailService.getStatus());
 });

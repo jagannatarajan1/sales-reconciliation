@@ -2,6 +2,8 @@ import "dotenv/config";
 import "express-async-errors";
 import cors from "cors";
 import express from "express";
+import helmet from "helmet";
+import rateLimit from "express-rate-limit";
 import { errorHandler } from "./middleware/errorHandler.js";
 import { attachUser } from "./middleware/auth.js";
 import { authRouter } from "./routes/auth.routes.js";
@@ -21,11 +23,41 @@ import { reportsRouter } from "./routes/reports.routes.js";
 
 const app = express();
 
+// Render (and most PaaS hosts) sit behind a reverse proxy. Without this,
+// express-rate-limit (and anything else reading req.ip) sees every visitor
+// as the proxy's single IP, either rate-limiting everyone as one client or
+// nobody correctly. Harmless locally where there is no proxy.
+app.set("trust proxy", 1);
+
+app.use(helmet());
+
 const allowedOrigins = (process.env.CORS_ALLOWED_ORIGINS ?? "").split(",").filter(Boolean);
 app.use(cors({ origin: allowedOrigins, credentials: true }));
 
-app.use(express.json());
+app.use(express.json({ limit: "1mb" }));
 app.use(attachUser);
+
+// Strict limiter on login only: real users mistyping a password a few times
+// should never be affected, but scripted password guessing gets shut down.
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { message: "Too many login attempts. Please try again later." },
+});
+app.use("/api/auth/login", loginLimiter);
+
+// General limiter across all API traffic: generous for normal use, well
+// below what a scripted flood would generate.
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 300,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { message: "Too many requests. Please try again later." },
+});
+app.use("/api", apiLimiter);
 
 app.use("/api/auth", authRouter);
 app.use("/api/users", usersRouter);

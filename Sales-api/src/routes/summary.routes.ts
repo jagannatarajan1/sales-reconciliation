@@ -5,6 +5,7 @@ import { computeDailyTotals } from "../lib/dailyTotals.js";
 import { parseDepartmentTotal } from "../lib/departmentTotal.js";
 import { sendCommitNotificationEmail } from "../lib/commitEmail.js";
 import * as gmailService from "../services/gmail.service.js";
+import { writeAuditLog } from "../lib/auditLog.js";
 
 export const summaryRouter = Router();
 
@@ -213,6 +214,15 @@ summaryRouter.post("/commit", async (req, res) => {
       committedByName: req.userName ?? null,
       committedAt,
     },
+  });
+
+  void writeAuditLog({
+    userId: req.userId,
+    userName: req.userName,
+    action: "staff_commit",
+    entity: "ReconciliationRecord",
+    entityId: date.toISOString().split("T")[0],
+    newValue: { ...totals, zReportTotal, difference },
   });
 
   await sendCommitNotificationEmail({

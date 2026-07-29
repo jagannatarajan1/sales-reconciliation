@@ -1,18 +1,12 @@
 import { Router } from "express";
 import { prisma } from "../lib/prisma.js";
+import { requirePermission } from "../lib/permissions.js";
+import { writeAuditLog } from "../lib/auditLog.js";
 
 export const adminLotteryRouter = Router();
 
 function requireAdmin(req: import("express").Request, res: import("express").Response): boolean {
-  if (req.userId == null) {
-    res.status(401).json({ message: "User not authenticated" });
-    return false;
-  }
-  if (req.userRole !== "admin") {
-    res.status(403).json({ message: "Admin access required." });
-    return false;
-  }
-  return true;
+  return requirePermission(req, res, "scratchCards");
 }
 
 function toCard(card: { scratchCardId: number; scratchCardNo: string; price: unknown; isActive: boolean; forcedOpenNo: number | null }) {
@@ -43,6 +37,16 @@ adminLotteryRouter.post("/scratch-cards", async (req, res) => {
   const created = await prisma.scratchCard.create({
     data: { scratchCardNo: String(scratchCardNo).trim(), price: Number(price) || 0 },
   });
+
+  void writeAuditLog({
+    userId: req.userId,
+    userName: req.userName,
+    action: "scratch_card_create",
+    entity: "ScratchCard",
+    entityId: created.scratchCardId,
+    newValue: toCard(created),
+  });
+
   res.json(toCard(created));
 });
 
@@ -67,12 +71,34 @@ adminLotteryRouter.put("/scratch-cards/:id/toggle", async (req, res) => {
     where: { scratchCardId: card.scratchCardId },
     data: { isActive: !card.isActive },
   });
+
+  void writeAuditLog({
+    userId: req.userId,
+    userName: req.userName,
+    action: "scratch_card_toggle",
+    entity: "ScratchCard",
+    entityId: updated.scratchCardId,
+    previousValue: toCard(card),
+    newValue: toCard(updated),
+  });
+
   res.json(toCard(updated));
 });
 
 adminLotteryRouter.delete("/scratch-cards/:id", async (req, res) => {
   if (!requireAdmin(req, res)) return;
 
+  const existing = await prisma.scratchCard.findUnique({ where: { scratchCardId: Number(req.params.id) } });
   await prisma.scratchCard.delete({ where: { scratchCardId: Number(req.params.id) } }).catch(() => null);
+
+  void writeAuditLog({
+    userId: req.userId,
+    userName: req.userName,
+    action: "scratch_card_delete",
+    entity: "ScratchCard",
+    entityId: req.params.id,
+    previousValue: existing ? toCard(existing) : null,
+  });
+
   res.json({ message: "Scratch card deleted successfully" });
 });

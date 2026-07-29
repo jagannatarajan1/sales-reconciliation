@@ -7,19 +7,13 @@ import { renderZReportBillPdf } from "../lib/pdf.js";
 import { sendCommitNotificationEmail } from "../lib/commitEmail.js";
 import { buildZip } from "../lib/zip.js";
 import * as gmailService from "../services/gmail.service.js";
+import { requirePermission } from "../lib/permissions.js";
+import { writeAuditLog } from "../lib/auditLog.js";
 
 export const adminReconciliationRouter = Router();
 
 function requireAdmin(req: import("express").Request, res: import("express").Response): boolean {
-  if (req.userId == null) {
-    res.status(401).json({ message: "User not authenticated" });
-    return false;
-  }
-  if (req.userRole !== "admin") {
-    res.status(403).json({ message: "Admin access required." });
-    return false;
-  }
-  return true;
+  return requirePermission(req, res, "commitHistory");
 }
 
 function toNumber(value: unknown): number {
@@ -174,6 +168,16 @@ adminReconciliationRouter.post("/submit", async (req, res) => {
     where: { date },
     create: { date, ...data, isStaffCommitted: existing?.isStaffCommitted ?? false },
     update: data,
+  });
+
+  void writeAuditLog({
+    userId: req.userId,
+    userName: req.userName,
+    action: "admin_reconciliation_submit",
+    entity: "ReconciliationRecord",
+    entityId: date.toISOString().split("T")[0],
+    previousValue: existing ?? null,
+    newValue: data,
   });
 
   await sendCommitNotificationEmail({

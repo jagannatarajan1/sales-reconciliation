@@ -8,6 +8,7 @@ export interface JwtUser {
   email: string;
   role: string;
   name: string;
+  permissions: string[];
 }
 
 export async function hashPassword(password: string): Promise<string> {
@@ -30,6 +31,7 @@ export function generateJwtToken(user: JwtUser): string {
       email: user.email,
       role: user.role,
       name: user.name,
+      permissions: user.permissions ?? [],
     },
     secret,
     {

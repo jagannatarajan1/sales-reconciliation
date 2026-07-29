@@ -12,13 +12,33 @@ model User {
   email        String   @unique
   passwordHash String
   name         String
-  role         String   @default("user") // user or admin
+  role         String   @default("user") // user, admin, or superadmin
+  permissions  String[] @default([])
   createdAt    DateTime @default(now())
   updatedAt    DateTime @default(now()) @updatedAt
   isActive     Boolean  @default(true)
 
   orders           Order[]
   gmailConnections GmailConnection[]
+}
+
+model Staff {
+  staffId   Int      @id @default(autoincrement())
+  name      String
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+}
+
+model AuditLog {
+  auditLogId    Int      @id @default(autoincrement())
+  userId        Int?
+  userName      String?
+  action        String
+  entity        String?
+  entityId      String?
+  previousValue String?
+  newValue      String?
+  createdAt     DateTime @default(now())
 }
 
 model Order {
