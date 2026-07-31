@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   FiArrowLeft, FiFileText, FiCalendar, FiBriefcase, FiUser, FiDollarSign, FiX,
-  FiDownload, FiPrinter, FiPieChart,
+  FiDownload, FiPrinter, FiPieChart, FiLock, FiUnlock,
 } from 'react-icons/fi';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../components/ui/Toast';
@@ -122,12 +122,26 @@ function DateList({ rows, onSelect, loading, selectedDate, rangeLabel }) {
 }
 
 /* ── Date-detail view ───────────────────────────────────────────────── */
-function DateDetail({ date, onBack, token }) {
+// §2 — canManageLock gates the reopen/lock toggle to the same permission the
+// backend PUT /suppliers/invoices/reopen/:date checks (commitHistory or
+// superadmin) — see the SupplierInvoices root component below.
+function DateDetail({ date, onBack, token, canManageLock }) {
   const [loading, setLoading] = useState(true);
   const [invoices, setInvoices] = useState([]);
+  const [lockStatus, setLockStatus] = useState(null);
+  const [togglingLock, setTogglingLock] = useState(false);
   const { showToast: notify } = useToast();
 
   const showToast = (message, type = 'error') => notify(message, type);
+
+  const loadLockStatus = () => {
+    fetch(`${API_BASE}/suppliers/invoices/lock-status?date=${encodeURIComponent(date)}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then(res => (res.ok ? res.json() : null))
+      .then(data => { if (data) setLockStatus(data); })
+      .catch(() => {});
+  };
 
   useEffect(() => {
     const run = async () => {
@@ -149,7 +163,27 @@ function DateDetail({ date, onBack, token }) {
       }
     };
     run();
+    loadLockStatus();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [date, token]);
+
+  const handleToggleLock = async () => {
+    setTogglingLock(true);
+    try {
+      const res = await fetch(`${API_BASE}/suppliers/invoices/reopen/${encodeURIComponent(date)}`, {
+        method: 'PUT',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.message || 'Failed to update lock status');
+      setLockStatus(prev => ({ ...prev, supplierInvoicesReopened: data.supplierInvoicesReopened, editable: !prev.isStaffCommitted || data.supplierInvoicesReopened }));
+      notify(data.message || 'Updated', 'success');
+    } catch (e) {
+      showToast(e.message || 'Failed to update lock status');
+    } finally {
+      setTogglingLock(false);
+    }
+  };
 
   const dayTotal = invoices.reduce((acc, inv) => acc + parseFloat(inv.value || 0), 0);
 
@@ -169,6 +203,22 @@ function DateDetail({ date, onBack, token }) {
           )}
         </div>
       </div>
+
+      {lockStatus?.isStaffCommitted && (
+        <div className={`si-lock-banner ${lockStatus.editable ? 'si-lock-banner--open' : 'si-lock-banner--locked'}`}>
+          {lockStatus.editable ? <FiUnlock /> : <FiLock />}
+          <span>
+            {lockStatus.editable
+              ? 'This date is committed but has been reopened — supplier invoices are editable.'
+              : 'This date has been committed — supplier invoices are read-only for staff.'}
+          </span>
+          {canManageLock && (
+            <button className="si-lock-toggle-btn" onClick={handleToggleLock} disabled={togglingLock}>
+              {togglingLock ? 'Working…' : lockStatus.editable ? 'Lock Again' : 'Reopen for Editing'}
+            </button>
+          )}
+        </div>
+      )}
 
       {loading ? (
         <div className="si-center">
@@ -413,6 +463,11 @@ export const SupplierInvoices = () => {
 
   const backPath = user?.role === 'admin' ? '/admin/dashboard' : '/dashboard';
 
+  // §2 — matches the backend's requirePermission(req, res, "commitHistory")
+  // gate on PUT /suppliers/invoices/reopen/:date.
+  const canManageLock = user?.role === 'superadmin'
+    || (user?.role === 'admin' && Array.isArray(user?.permissions) && user.permissions.includes('commitHistory'));
+
   const fetchDates = useCallback(async (options = {}) => {
     const { silent = false } = options;
     setLoading(true);
@@ -555,6 +610,7 @@ export const SupplierInvoices = () => {
             date={selectedDate}
             onBack={() => setSelectedDate(null)}
             token={user.token}
+            canManageLock={canManageLock}
           />
         ) : (
           <DateList

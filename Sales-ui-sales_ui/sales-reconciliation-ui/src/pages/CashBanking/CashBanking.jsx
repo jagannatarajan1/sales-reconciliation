@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { FiArrowLeft, FiCheckCircle, FiAlertTriangle } from "react-icons/fi";
+import { FiArrowLeft, FiCheckCircle, FiAlertTriangle, FiEdit2, FiX } from "react-icons/fi";
 import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../components/ui/Toast";
 import "./CashBanking.css";
@@ -32,6 +32,7 @@ export const CashBanking = () => {
   const [isPendingAdminReview, setIsPendingAdminReview] = useState(false);
   const [loading, setLoading]               = useState(true);
   const [saving, setSaving]                 = useState(false);
+  const [isEditing, setIsEditing]           = useState(false);
   const { showToast } = useToast();
 
   const cash = (() => {
@@ -102,6 +103,7 @@ export const CashBanking = () => {
       });
       if (res.ok) {
         showToast("Saved successfully");
+        setIsEditing(false);
       } else {
         const err = await res.text();
         showToast(`Save failed: ${err}`, "error");
@@ -113,10 +115,18 @@ export const CashBanking = () => {
     }
   };
 
+  // Cancel discards any unsaved changes by re-fetching from the server
+  // rather than merely hiding the fields.
+  const handleCancelEdit = () => {
+    setIsEditing(false);
+    loadToday();
+  };
+
   const todayStr = new Date().toISOString().split("T")[0];
   const activeDateStr = activeDate ? activeDate.split("T")[0] : null;
   const isYesterday = activeDateStr && activeDateStr !== todayStr;
   const isLocked = isCommitted || isPendingAdminReview;
+  const fieldsDisabled = isLocked || !isEditing;
   const fmtDate = (d) => new Date(d).toLocaleDateString("en-GB", {
     day: "2-digit", month: "short", year: "numeric",
   });
@@ -136,7 +146,14 @@ export const CashBanking = () => {
       <div className="cb-page-content">
         <div className="cb-page-header">
           <h1>Cash Banking</h1>
-          <span className="cb-date-badge">{displayDate}</span>
+          <div className="cb-header-actions">
+            <span className="cb-date-badge">{displayDate}</span>
+            {!isLocked && !isEditing && (
+              <button type="button" className="cb-edit-btn" onClick={() => setIsEditing(true)}>
+                <FiEdit2 /> Edit
+              </button>
+            )}
+          </div>
         </div>
 
         {isYesterday && (
@@ -164,8 +181,8 @@ export const CashBanking = () => {
                   placeholder="Enter Last Safe amount"
                   value={lastSafe}
                   className="cb-input"
-                  readOnly={isLocked}
-                  onChange={isLocked ? undefined : (e) => setLastSafe(e.target.value)}
+                  readOnly={fieldsDisabled}
+                  onChange={fieldsDisabled ? undefined : (e) => setLastSafe(e.target.value)}
                 />
               </div>
             </div>
@@ -181,8 +198,8 @@ export const CashBanking = () => {
                   placeholder="Enter Safe Drop Amount"
                   value={safeDropAmount}
                   className="cb-input"
-                  readOnly={isLocked}
-                  onChange={isLocked ? undefined : (e) => setSafeDropAmount(e.target.value)}
+                  readOnly={fieldsDisabled}
+                  onChange={fieldsDisabled ? undefined : (e) => setSafeDropAmount(e.target.value)}
                 />
               </div>
             </div>
@@ -204,17 +221,24 @@ export const CashBanking = () => {
               <p className="cb-total-note">Auto-calculated: Last Safe + Safe Drop Amount</p>
             </div>
 
-            <button
-              className="cb-submit-btn"
-              onClick={handleSave}
-              disabled={saving || isLocked}
-            >
-              {saving ? (
-                <><span className="cb-btn-spinner" /> Saving…</>
-              ) : (
-                "Save"
-              )}
-            </button>
+            {isEditing && !isLocked && (
+              <div className="cb-actions-row">
+                <button
+                  className="cb-submit-btn"
+                  onClick={handleSave}
+                  disabled={saving}
+                >
+                  {saving ? (
+                    <><span className="cb-btn-spinner" /> Saving…</>
+                  ) : (
+                    "Save"
+                  )}
+                </button>
+                <button className="cb-cancel-btn" onClick={handleCancelEdit} disabled={saving}>
+                  <FiX /> Cancel
+                </button>
+              </div>
+            )}
           </>
         )}
       </div>

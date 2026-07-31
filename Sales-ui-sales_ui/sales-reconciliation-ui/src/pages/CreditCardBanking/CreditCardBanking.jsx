@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { FiArrowLeft, FiCheckCircle, FiAlertTriangle } from "react-icons/fi";
+import { FiArrowLeft, FiCheckCircle, FiAlertTriangle, FiEdit2, FiX } from "react-icons/fi";
 import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../components/ui/Toast";
 import "./CreditCardBanking.css";
@@ -34,6 +34,7 @@ export const CreditCardBanking = () => {
   const [isPendingAdminReview, setIsPendingAdminReview] = useState(false);
   const [loading, setLoading]         = useState(true);
   const [saving, setSaving]       = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
   const { showToast } = useToast();
 
   const authHeaders = () => ({ Authorization: `Bearer ${user.token}` });
@@ -98,6 +99,7 @@ export const CreditCardBanking = () => {
       if (res.ok) {
         showToast("Saved successfully");
         await loadToday();
+        setIsEditing(false);
       } else {
         const err = await res.text();
         showToast(`Save failed: ${err}`, "error");
@@ -109,10 +111,17 @@ export const CreditCardBanking = () => {
     }
   };
 
+  // Cancel discards unsaved changes by re-fetching from the server.
+  const handleCancelEdit = () => {
+    setIsEditing(false);
+    loadToday();
+  };
+
   const todayStr = new Date().toISOString().split("T")[0];
   const activeDateStr = activeDate ? activeDate.split("T")[0] : null;
   const isYesterday = activeDateStr && activeDateStr !== todayStr;
   const isLocked = isCommitted || isPendingAdminReview;
+  const fieldsDisabled = isLocked || !isEditing;
   const fmtDate = (d) => new Date(d).toLocaleDateString("en-GB", {
     day: "2-digit", month: "short", year: "numeric",
   });
@@ -132,7 +141,14 @@ export const CreditCardBanking = () => {
       <div className="ccb-page-content">
         <div className="ccb-page-header">
           <h1>Credit Card Banking</h1>
-          <span className="ccb-date-badge">{displayDate}</span>
+          <div className="ccb-header-actions">
+            <span className="ccb-date-badge">{displayDate}</span>
+            {!isLocked && !isEditing && (
+              <button type="button" className="ccb-edit-btn" onClick={() => setIsEditing(true)}>
+                <FiEdit2 /> Edit
+              </button>
+            )}
+          </div>
         </div>
 
         {isYesterday && (
@@ -164,8 +180,8 @@ export const CreditCardBanking = () => {
                       placeholder="Enter Manual Card Amount"
                       value={row.manualCardAmount}
                       className="ccb-input"
-                      readOnly={isLocked}
-                      onChange={isLocked ? undefined : (e) => handleChange(i, "manualCardAmount", e.target.value)}
+                      readOnly={fieldsDisabled}
+                      onChange={fieldsDisabled ? undefined : (e) => handleChange(i, "manualCardAmount", e.target.value)}
                     />
                   </div>
                 </div>
@@ -181,25 +197,32 @@ export const CreditCardBanking = () => {
                       placeholder="Enter Card Amount"
                       value={row.cardAmount}
                       className="ccb-input"
-                      readOnly={isLocked}
-                      onChange={isLocked ? undefined : (e) => handleChange(i, "cardAmount", e.target.value)}
+                      readOnly={fieldsDisabled}
+                      onChange={fieldsDisabled ? undefined : (e) => handleChange(i, "cardAmount", e.target.value)}
                     />
                   </div>
                 </div>
               </div>
             ))}
 
-            <button
-              className="ccb-submit-btn"
-              onClick={handleSave}
-              disabled={saving || isLocked}
-            >
-              {saving ? (
-                <><span className="ccb-btn-spinner" /> Saving…</>
-              ) : (
-                "Save"
-              )}
-            </button>
+            {isEditing && !isLocked && (
+              <div className="ccb-actions-row">
+                <button
+                  className="ccb-submit-btn"
+                  onClick={handleSave}
+                  disabled={saving}
+                >
+                  {saving ? (
+                    <><span className="ccb-btn-spinner" /> Saving…</>
+                  ) : (
+                    "Save"
+                  )}
+                </button>
+                <button className="ccb-cancel-btn" onClick={handleCancelEdit} disabled={saving}>
+                  <FiX /> Cancel
+                </button>
+              </div>
+            )}
           </>
         )}
       </div>

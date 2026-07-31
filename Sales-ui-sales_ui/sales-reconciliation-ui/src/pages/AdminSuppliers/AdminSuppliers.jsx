@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { FiArrowLeft, FiPlus, FiShoppingBag, FiBriefcase, FiTrash2 } from 'react-icons/fi';
+import { FiArrowLeft, FiPlus, FiShoppingBag, FiBriefcase, FiTrash2, FiEdit2, FiCheck, FiX } from 'react-icons/fi';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../components/ui/Toast';
 import { Button } from '../../components/ui/Button';
@@ -29,6 +29,9 @@ export const AdminSuppliers = () => {
   const [adding, setAdding]       = useState(false);
   const [confirmId, setConfirmId] = useState(null); // inline delete confirm
   const [deletingId, setDeletingId] = useState(null);
+  const [editingId, setEditingId] = useState(null); // §11 — inline supplier edit
+  const [editName, setEditName] = useState('');
+  const [savingEditId, setSavingEditId] = useState(null);
 
   const showToast = (message, type = 'success') => notify(message, type);
 
@@ -72,6 +75,47 @@ export const AdminSuppliers = () => {
       showToast('Failed to add supplier', 'error');
     } finally {
       setAdding(false);
+    }
+  };
+
+  // §11 — edit an existing supplier's name via PUT /Suppliers/:id.
+  const startEdit = (s) => {
+    setEditingId(s.id);
+    setEditName(s.name);
+    setConfirmId(null);
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+    setEditName('');
+  };
+
+  const saveEdit = async (id) => {
+    if (!editName.trim()) {
+      showToast('Supplier name cannot be empty', 'error');
+      return;
+    }
+    setSavingEditId(id);
+    try {
+      const res = await fetch(`${API_BASE}/Suppliers/${id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${user.token}`,
+        },
+        body: JSON.stringify({ name: editName.trim() }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message || 'Failed to update supplier');
+      }
+      showToast(`Supplier updated to "${editName.trim()}"`);
+      cancelEdit();
+      fetchSuppliers();
+    } catch (e) {
+      showToast(e.message || 'Failed to update supplier', 'error');
+    } finally {
+      setSavingEditId(null);
     }
   };
 
@@ -160,39 +204,70 @@ export const AdminSuppliers = () => {
           <motion.div className="sup-list" variants={gridVariants} initial="hidden" animate="visible">
             {suppliers.map((s) => (
               <motion.div key={s.id} className="sup-row" variants={rowVariants}>
-                <div className="sup-row-name">
-                  <span className="sup-row-icon"><FiBriefcase /></span>
-                  <span>{s.name}</span>
-                </div>
-
-                {confirmId === s.id ? (
-                  /* inline delete confirmation */
-                  <div className="sup-confirm">
-                    <span className="sup-confirm-text">Delete "{s.name}"?</span>
-                    <Button
-                      variant="danger"
-                      onClick={() => handleDelete(s.id, s.name)}
-                      loading={deletingId === s.id}
-                      className="sup-confirm-yes"
-                    >
-                      Yes, delete
+                {editingId === s.id ? (
+                  <div className="sup-edit-row">
+                    <input
+                      className="sup-input sup-edit-input"
+                      type="text"
+                      value={editName}
+                      onChange={(e) => setEditName(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && saveEdit(s.id)}
+                      maxLength={120}
+                      autoFocus
+                    />
+                    <Button variant="primary" onClick={() => saveEdit(s.id)} loading={savingEditId === s.id} icon={<FiCheck />}>
+                      Save
                     </Button>
-                    <Button
-                      variant="secondary"
-                      onClick={() => setConfirmId(null)}
-                      className="sup-confirm-no"
-                    >
+                    <Button variant="secondary" onClick={cancelEdit} disabled={savingEditId === s.id} icon={<FiX />}>
                       Cancel
                     </Button>
                   </div>
                 ) : (
-                  <button
-                    className="sup-delete-btn"
-                    onClick={() => setConfirmId(s.id)}
-                    title={`Delete ${s.name}`}
-                  >
-                    <FiTrash2 /> Delete
-                  </button>
+                  <>
+                    <div className="sup-row-name">
+                      <span className="sup-row-icon"><FiBriefcase /></span>
+                      <span>{s.name}</span>
+                    </div>
+
+                    {confirmId === s.id ? (
+                      /* inline delete confirmation */
+                      <div className="sup-confirm">
+                        <span className="sup-confirm-text">Delete "{s.name}"?</span>
+                        <Button
+                          variant="danger"
+                          onClick={() => handleDelete(s.id, s.name)}
+                          loading={deletingId === s.id}
+                          className="sup-confirm-yes"
+                        >
+                          Yes, delete
+                        </Button>
+                        <Button
+                          variant="secondary"
+                          onClick={() => setConfirmId(null)}
+                          className="sup-confirm-no"
+                        >
+                          Cancel
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="sup-row-actions">
+                        <button
+                          className="sup-edit-btn"
+                          onClick={() => startEdit(s)}
+                          title={`Edit ${s.name}`}
+                        >
+                          <FiEdit2 /> Edit
+                        </button>
+                        <button
+                          className="sup-delete-btn"
+                          onClick={() => setConfirmId(s.id)}
+                          title={`Delete ${s.name}`}
+                        >
+                          <FiTrash2 /> Delete
+                        </button>
+                      </div>
+                    )}
+                  </>
                 )}
               </motion.div>
             ))}

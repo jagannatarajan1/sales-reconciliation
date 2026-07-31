@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { FiArrowLeft, FiCalendar, FiCheckCircle, FiAlertTriangle } from "react-icons/fi";
+import { FiArrowLeft, FiCalendar, FiCheckCircle, FiAlertTriangle, FiEdit2, FiX } from "react-icons/fi";
 import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../components/ui/Toast";
 import "./Lottery.css";
@@ -22,6 +22,7 @@ export const Lottery = () => {
   const [isPendingAdminReview, setIsPendingAdminReview] = useState(false);
   const [loading, setLoading]         = useState(true);
   const [saving, setSaving]           = useState(false);
+  const [isEditing, setIsEditing]     = useState(false);
   const { showToast } = useToast();
 
   const authHeaders = () => ({ Authorization: `Bearer ${user.token}` });
@@ -87,6 +88,7 @@ export const Lottery = () => {
       setEditingId(result.id);
       setLotteryValue(result.lotteryValue ? String(result.lotteryValue) : "");
       showToast(editingId ? "Lottery updated successfully" : "Lottery saved successfully");
+      setIsEditing(false);
     } catch {
       showToast("Something went wrong", "error");
     } finally {
@@ -94,10 +96,17 @@ export const Lottery = () => {
     }
   };
 
+  // Cancel discards unsaved changes by re-fetching from the server.
+  const handleCancelEdit = () => {
+    setIsEditing(false);
+    fetchAll();
+  };
+
   const todayStr      = new Date().toISOString().split("T")[0];
   const activeDateStr = activeDate ? activeDate.split("T")[0] : null;
   const isYesterday   = activeDateStr && activeDateStr !== todayStr;
   const isLocked      = isCommitted || isPendingAdminReview;
+  const fieldsDisabled = isLocked || !isEditing;
   const fmtDate = (d) => new Date(d).toLocaleDateString("en-GB", {
     day: "2-digit", month: "short", year: "numeric",
   });
@@ -124,9 +133,16 @@ export const Lottery = () => {
       <div className="page-content">
         <div className="page-title-row">
           <h1 className="page-title">Lottery Management</h1>
-          <span className="page-date-chip">
-            <FiCalendar /> {fmtDate(activeDateStr ?? new Date().toISOString())}
-          </span>
+          <div className="page-header-actions">
+            <span className="page-date-chip">
+              <FiCalendar /> {fmtDate(activeDateStr ?? new Date().toISOString())}
+            </span>
+            {!isLocked && !isEditing && (
+              <button type="button" className="page-edit-btn" onClick={() => setIsEditing(true)}>
+                <FiEdit2 /> Edit
+              </button>
+            )}
+          </div>
         </div>
 
         {isYesterday && (
@@ -143,14 +159,21 @@ export const Lottery = () => {
               type="number"
               placeholder="Enter Lottery Value"
               value={lotteryValue}
-              readOnly={isLocked}
-              onChange={isLocked ? undefined : (e) => setLotteryValue(e.target.value)}
+              readOnly={fieldsDisabled}
+              onChange={fieldsDisabled ? undefined : (e) => setLotteryValue(e.target.value)}
             />
           </div>
 
-          <button className="save-btn" onClick={handleSave} disabled={saving || isLocked}>
-            {saving ? "Saving…" : editingId ? "Update Value" : "Save Value"}
-          </button>
+          {isEditing && !isLocked && (
+            <div className="form-actions-row">
+              <button className="save-btn" onClick={handleSave} disabled={saving}>
+                {saving ? "Saving…" : editingId ? "Save" : "Save Value"}
+              </button>
+              <button className="cancel-btn" onClick={handleCancelEdit} disabled={saving}>
+                <FiX /> Cancel
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </motion.div>

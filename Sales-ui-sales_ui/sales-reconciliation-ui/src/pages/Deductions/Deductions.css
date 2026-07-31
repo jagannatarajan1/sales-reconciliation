@@ -89,6 +89,95 @@
   background: #eef2ff;
 }
 
+/* ── Edit mode (§8) + supplier invoice lock (§2) ────────── */
+.ded-section-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-right: 16px;
+  border-bottom: 1px solid #e2e8f7;
+  background: #eef2ff;
+}
+
+.ded-section-header-row .ded-section-title {
+  border-bottom: none;
+  flex: 1;
+}
+
+.ded-edit-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  background: white;
+  color: #4f46e5;
+  border: 1.5px solid rgba(99, 102, 241, 0.3);
+  border-radius: 20px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.ded-edit-btn:hover { background: var(--brand-50); }
+
+.ded-cancel-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 20px;
+  background: transparent;
+  color: #475569;
+  border: 1.5px solid #cbd5e1;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.ded-cancel-btn:hover:not(:disabled) { background: #f1f5f9; }
+.ded-cancel-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+.ded-lock-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 12px 20px 0;
+  padding: 10px 14px;
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
+  color: #9a3412;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.ded-icon-btn {
+  padding: 5px 8px;
+  border-radius: 6px;
+  border: 1.5px solid #e2e8f7;
+  background: #f8faff;
+  color: #475569;
+  cursor: pointer;
+  font-size: 13px;
+  margin-right: 6px;
+  transition: all 0.15s;
+}
+
+.ded-icon-btn:hover:not(:disabled) { background: #eef2ff; }
+.ded-icon-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+.ded-icon-btn--ok {
+  border-color: rgba(5, 150, 105, 0.3);
+  background: #ecfdf5;
+  color: #059669;
+}
+.ded-icon-btn--ok:hover:not(:disabled) { background: #d1fae5; }
+
+.ded-locked-hint {
+  color: #9a3412;
+  font-size: 14px;
+}
+
 .ded-table-wrap { overflow-x: auto; }
 
 .ded-table {

@@ -11,6 +11,8 @@ import {
   FiBarChart2,
   FiArrowLeft,
   FiUsers,
+  FiEdit2,
+  FiX,
 } from "react-icons/fi";
 import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../components/ui/Toast";
@@ -191,7 +193,14 @@ export const Summary = () => {
   const [shift, setShift] = useState("");
   const [staffNotes, setStaffNotes] = useState("");
 
+  // ── Explicit edit mode (§8) — page opens read-only; the pencil "Edit"
+  // button reveals Save/Cancel and makes the saved-data fields editable.
+  // Cancel re-fetches from the server (loadToday) to discard any unsaved
+  // in-progress changes rather than just hiding the fields.
+  const [isEditing, setIsEditing] = useState(false);
+
   const isLocked = isCommitted || isPendingAdminReview;
+  const fieldsDisabled = isLocked || !isEditing;
 
   const authHeaders = () => ({ Authorization: `Bearer ${user.token}` });
 
@@ -238,6 +247,11 @@ export const Summary = () => {
         setDepartmentTotal(
           typeof data.departmentTotal === "number" ? data.departmentTotal : null,
         );
+        // Staff Notes (C-revised) — persisted per-day on DailySummary, loaded
+        // here so it round-trips through Save like every other field. Only
+        // overwritten from the server on load; typing then hitting Save is
+        // still what actually persists it.
+        setStaffNotes(data.staffNotes ?? "");
 
         if (!data.hasTodayData) {
           // Fresh day — no data entered yet for the active date.
@@ -314,6 +328,7 @@ export const Summary = () => {
       ),
       lastSafe: parseFloat(safeData.lastSafe) || 0,
       safeDropAmount: parseFloat(safeData.safeDropAmount) || 0,
+      staffNotes: staffNotes.trim(),
       creditCardEntries: ccEntries.map((row) => ({
         id: row.id,
         manualCardAmount: parseFloat(row.manualCardAmount) || 0,
@@ -331,6 +346,7 @@ export const Summary = () => {
 
       if (res.ok) {
         showToast("Summary saved successfully");
+        setIsEditing(false);
       } else {
         const err = await res.text();
         showToast(`Save failed: ${err}`, "error");
@@ -340,6 +356,15 @@ export const Summary = () => {
     } finally {
       setSaving(false);
     }
+  };
+
+  // ── Cancel edit ───────────────────────────────────────────
+  // Discards any unsaved in-progress changes by re-fetching the last-saved
+  // values from the server (rather than merely hiding the fields), then
+  // returns the page to read-only.
+  const handleCancelEdit = () => {
+    setIsEditing(false);
+    loadToday();
   };
 
   // ── Proceed to Commit ────────────────────────────────────
@@ -443,7 +468,19 @@ export const Summary = () => {
             <p className="summary-subtitle">Daily reconciliation overview</p>
           </div>
         </div>
-        <div className="summary-date-chip">{displayDate}</div>
+        <div className="summary-header-actions">
+          <div className="summary-date-chip">{displayDate}</div>
+          {!isLocked && !isEditing && (
+            <button
+              type="button"
+              className="summary-edit-toggle-btn"
+              onClick={() => setIsEditing(true)}
+              title="Edit this summary"
+            >
+              <FiEdit2 /> Edit
+            </button>
+          )}
+        </div>
       </div>
 
       {loading ? (
@@ -499,9 +536,9 @@ export const Summary = () => {
                                 placeholder="Enter Manual Card Amount"
                                 value={row.manualCardAmount}
                                 className="summary-input"
-                                readOnly={isLocked}
+                                readOnly={fieldsDisabled}
                                 onChange={
-                                  isLocked
+                                  fieldsDisabled
                                     ? undefined
                                     : (e) =>
                                         handleCCChange(
@@ -527,9 +564,9 @@ export const Summary = () => {
                                 placeholder="Enter Card Amount"
                                 value={row.cardAmount}
                                 className="summary-input"
-                                readOnly={isLocked}
+                                readOnly={fieldsDisabled}
                                 onChange={
-                                  isLocked
+                                  fieldsDisabled
                                     ? undefined
                                     : (e) =>
                                         handleCCChange(
@@ -578,10 +615,10 @@ export const Summary = () => {
                                 field.placeholder ?? `Enter ${field.label}`
                               }
                               value={fieldValue(field.key)}
-                              disabled={field.readOnly || isLocked}
+                              disabled={field.readOnly || fieldsDisabled}
                               className="summary-input"
                               onChange={
-                                field.readOnly || isLocked
+                                field.readOnly || fieldsDisabled
                                   ? undefined
                                   : (e) =>
                                       handleChange(field.key, e.target.value)
@@ -732,7 +769,7 @@ export const Summary = () => {
                   rows={3}
                   placeholder="Anything the admin should know about today…"
                   value={staffNotes}
-                  disabled={isLocked}
+                  disabled={fieldsDisabled}
                   onChange={(e) => setStaffNotes(e.target.value)}
                 />
               </div>
@@ -740,25 +777,34 @@ export const Summary = () => {
           </div>
 
           <div className="summary-footer">
-            <button
-              className="summary-save-btn"
-              onClick={handleSave}
-              disabled={saving || isLocked}
-            >
-              {saving ? (
-                <>
-                  <span className="btn-spinner" /> Saving…
-                </>
-              ) : isLocked ? (
-                isCommitted ? (
-                  "Already Committed"
-                ) : (
-                  "Locked — Awaiting Admin Review"
-                )
-              ) : (
-                "Save Summary"
-              )}
-            </button>
+            {isLocked ? (
+              <button className="summary-save-btn" disabled>
+                {isCommitted ? "Already Committed" : "Locked — Awaiting Admin Review"}
+              </button>
+            ) : isEditing ? (
+              <>
+                <button
+                  className="summary-save-btn"
+                  onClick={handleSave}
+                  disabled={saving}
+                >
+                  {saving ? (
+                    <>
+                      <span className="btn-spinner" /> Saving…
+                    </>
+                  ) : (
+                    "Save Summary"
+                  )}
+                </button>
+                <button
+                  className="summary-cancel-btn"
+                  onClick={handleCancelEdit}
+                  disabled={saving}
+                >
+                  <FiX /> Cancel
+                </button>
+              </>
+            ) : null}
             <button
               className="summary-commit-btn"
               onClick={handleProceedToCommit}

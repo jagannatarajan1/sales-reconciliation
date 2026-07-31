@@ -78,6 +78,7 @@ summaryRouter.get("/today", async (req, res) => {
     ddPoint: record.ddPoint,
     lotteryValue: record.lotteryValue,
     paypointValue: record.paypointValue,
+    staffNotes: record.staffNotes,
     supplierInvoicesTotal: totals.supplierInvoicesTotal,
     instantLotteryTotalCount: totals.instantLotteryTotalCount,
     instantLotteryTotalSales: totals.instantLotteryTotalSales,
@@ -102,11 +103,16 @@ summaryRouter.put("/", async (req, res) => {
   const fieldData = Object.fromEntries(EDITABLE_KEYS.map((k) => [k, toNumber(body[k])]));
   const lastSafe = toNumber(body.lastSafe);
   const safeDropAmount = toNumber(body.safeDropAmount);
+  // staffNotes (C-revised) — a string, not one of the numeric EDITABLE_KEYS,
+  // so it's handled separately here. Persisted per-day on DailySummary
+  // (distinct from ReconciliationRecord.staffNotes, which is the immutable
+  // snapshot written once at commit time).
+  const staffNotes = typeof body.staffNotes === "string" && body.staffNotes.trim() ? body.staffNotes.trim() : null;
 
   const record = await prisma.dailySummary.upsert({
     where: { date },
-    create: { date, ...fieldData, lastSafe, safeDropAmount },
-    update: { ...fieldData, lastSafe, safeDropAmount },
+    create: { date, ...fieldData, lastSafe, safeDropAmount, staffNotes },
+    update: { ...fieldData, lastSafe, safeDropAmount, staffNotes },
   });
 
   const incomingEntries: Array<{ id?: number; manualCardAmount: unknown; cardAmount: unknown }> =

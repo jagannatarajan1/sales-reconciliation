@@ -577,6 +577,48 @@
   flex-wrap: wrap;
 }
 
+/* §2 — supplier invoice commit lock banner */
+.si-lock-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 1rem 1.5rem 0;
+  padding: 10px 16px;
+  border-radius: var(--radius-sm);
+  font-size: 0.85rem;
+  font-weight: 600;
+  flex-wrap: wrap;
+}
+
+.si-lock-banner--locked {
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
+  color: #9a3412;
+}
+
+.si-lock-banner--open {
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+  color: #047857;
+}
+
+.si-lock-banner span { flex: 1; }
+
+.si-lock-toggle-btn {
+  padding: 6px 14px;
+  border-radius: 20px;
+  border: 1.5px solid currentColor;
+  background: transparent;
+  color: inherit;
+  font-weight: 700;
+  font-size: 0.8rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.si-lock-toggle-btn:hover:not(:disabled) { background: rgba(0, 0, 0, 0.05); }
+.si-lock-toggle-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
 .si-detail-title-block {
   flex: 1;
   min-width: 0;

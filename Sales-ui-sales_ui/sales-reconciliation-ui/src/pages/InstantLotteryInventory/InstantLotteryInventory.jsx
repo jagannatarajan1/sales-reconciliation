@@ -7,6 +7,8 @@ import {
   FiCheckCircle,
   FiAlertTriangle,
   FiAlertCircle,
+  FiEdit2,
+  FiX,
 } from "react-icons/fi";
 import "./InstantLottertInventory.css";
 import { useAuth } from "../../context/AuthContext";
@@ -57,6 +59,7 @@ function TodayInventory({ token, showToast, userRole, isLocked }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
 
   const fetchInventory = useCallback(async () => {
     try {
@@ -186,6 +189,7 @@ function TodayInventory({ token, showToast, userRole, isLocked }) {
       }
 
       showToast("Inventory saved successfully");
+      setIsEditing(false);
       fetchInventory();
     } catch (e) {
       showToast(e.message, "error");
@@ -193,6 +197,14 @@ function TodayInventory({ token, showToast, userRole, isLocked }) {
       setSaving(false);
     }
   };
+
+  // Cancel discards unsaved changes by re-fetching from the server.
+  const cancelEdit = () => {
+    setIsEditing(false);
+    fetchInventory();
+  };
+
+  const fieldsDisabled = isLocked || !isEditing;
 
   const grandSold = inventory.reduce((s, r) => s + Number(r.totalSold || 0), 0);
   const grandSales = inventory.reduce((s, r) => s + Number(r.sales || 0), 0);
@@ -213,6 +225,11 @@ function TodayInventory({ token, showToast, userRole, isLocked }) {
           <div className="stat-label">Total Sales</div>
           <div className="stat-value green">£{grandSales.toFixed(2)}</div>
         </div>
+        {!isLocked && !isEditing && (
+          <button type="button" className="ili-edit-btn" onClick={() => setIsEditing(true)}>
+            <FiEdit2 /> Edit
+          </button>
+        )}
       </div>
 
       {loading && (
@@ -246,7 +263,9 @@ function TodayInventory({ token, showToast, userRole, isLocked }) {
                     </td>
                   </tr>
                 ) : (
-                  inventory.map((item, i) => (
+                  inventory.map((item, i) => {
+                    const priceOpenReadOnly = userRole === "user" || fieldsDisabled;
+                    return (
                     <tr key={item.lotteryId}>
                       <td>{item.scratchCardNo}</td>
                       <td>
@@ -256,9 +275,9 @@ function TodayInventory({ token, showToast, userRole, isLocked }) {
                           step="0.01"
                           min="0"
                           value={item.price}
-                          readOnly={userRole === "user"}
+                          readOnly={priceOpenReadOnly}
                           onChange={
-                            userRole === "user"
+                            priceOpenReadOnly
                               ? undefined
                               : (e) => handlePrice(i, e.target.value)
                           }
@@ -284,9 +303,9 @@ function TodayInventory({ token, showToast, userRole, isLocked }) {
                           type="number"
                           min="0"
                           value={item.openNo}
-                          readOnly={userRole === "user"}
+                          readOnly={priceOpenReadOnly}
                           onChange={
-                            userRole === "user"
+                            priceOpenReadOnly
                               ? undefined
                               : (e) => handleOpen(i, e.target.value)
                           }
@@ -313,9 +332,9 @@ function TodayInventory({ token, showToast, userRole, isLocked }) {
                           min="0"
                           value={item.closeNo}
                           placeholder="Enter close"
-                          readOnly={isLocked}
+                          readOnly={fieldsDisabled}
                           onChange={
-                            isLocked
+                            fieldsDisabled
                               ? undefined
                               : (e) => handleClose(i, e.target.value)
                           }
@@ -330,7 +349,7 @@ function TodayInventory({ token, showToast, userRole, isLocked }) {
                       </td>
                       <td>£{Number(item.sales).toFixed(2)}</td>
                     </tr>
-                  ))
+                  );})
                 )}
               </tbody>
               <tfoot>
@@ -345,15 +364,20 @@ function TodayInventory({ token, showToast, userRole, isLocked }) {
             </table>
           </div>
 
-          <div className="button-container">
-            <button
-              className="save-button"
-              onClick={saveInventory}
-              disabled={saving || isLocked}
-            >
-              {saving ? "Saving…" : "Save Inventory"}
-            </button>
-          </div>
+          {isEditing && !isLocked && (
+            <div className="button-container">
+              <button
+                className="save-button"
+                onClick={saveInventory}
+                disabled={saving}
+              >
+                {saving ? "Saving…" : "Save Inventory"}
+              </button>
+              <button className="ili-cancel-btn" onClick={cancelEdit} disabled={saving}>
+                <FiX /> Cancel
+              </button>
+            </div>
+          )}
         </>
       )}
     </>

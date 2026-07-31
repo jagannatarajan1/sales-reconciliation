@@ -5,6 +5,7 @@ import { FiArrowLeft, FiTrash2 } from "react-icons/fi";
 import "./SafeDrop.css";
 import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../components/ui/Toast";
+import { ConfirmDialog } from "../../components/ui/ConfirmDialog";
 
 const BASE_URL = `${import.meta.env.VITE_API_URL || "https://localhost:7276/api"}/SafeDrop`;
 
@@ -17,6 +18,8 @@ export const SafeDrop = () => {
   const [lastSafe, setLastSafe] = useState("");
   const [safeDropAmount, setSafeDropAmount] = useState("");
   const [loading, setLoading] = useState(true);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const cash =
     lastSafe !== "" && safeDropAmount !== ""
@@ -96,12 +99,7 @@ export const SafeDrop = () => {
 
   const handleDelete = async () => {
     if (!record) return;
-
-    const confirmDelete = window.confirm(
-      "Are you sure you want to delete today's Safe Drop record?"
-    );
-    if (!confirmDelete) return;
-
+    setDeleting(true);
     try {
       const response = await fetch(`${BASE_URL}/today`, {
         method: "DELETE",
@@ -112,11 +110,16 @@ export const SafeDrop = () => {
         setRecord(null);
         setLastSafe("");
         setSafeDropAmount("");
+        showToast("Safe Drop record deleted");
       } else {
         showToast("Delete failed", "error");
       }
     } catch (error) {
       console.error("Delete error:", error);
+      showToast("Network error deleting", "error");
+    } finally {
+      setDeleting(false);
+      setConfirmDelete(false);
     }
   };
 
@@ -197,7 +200,7 @@ export const SafeDrop = () => {
                       </button>
 
                       {record && (
-                        <button className="delete-btn" onClick={handleDelete}>
+                        <button className="delete-btn" onClick={() => setConfirmDelete(true)}>
                           <FiTrash2 />
                         </button>
                       )}
@@ -220,6 +223,17 @@ export const SafeDrop = () => {
           </>
         )}
       </div>
+
+      <ConfirmDialog
+        open={confirmDelete}
+        title="Delete Safe Drop record?"
+        message="Are you sure you want to delete today's Safe Drop record?"
+        confirmLabel="Delete"
+        variant="danger"
+        loading={deleting}
+        onConfirm={handleDelete}
+        onCancel={() => setConfirmDelete(false)}
+      />
     </motion.div>
   );
 };

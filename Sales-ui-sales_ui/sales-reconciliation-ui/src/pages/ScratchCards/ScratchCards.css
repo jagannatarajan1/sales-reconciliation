@@ -206,6 +206,15 @@
   font-size: 0.9rem;
 }
 
+/* §10 — Opening / Current / Remaining stock, always visible */
+.sc-td-stock {
+  min-width: 80px;
+  font-family: 'Courier New', monospace;
+  font-weight: 600;
+  color: #334155;
+  font-size: 0.9rem;
+}
+
 /* Actions cell */
 .sc-td-actions { min-width: 260px; }
 

@@ -6,6 +6,7 @@ import {
 } from 'react-icons/fi';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../components/ui/Toast';
+import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
 import './ScratchCards.css';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'https://localhost:7276/api';
@@ -125,6 +126,7 @@ export const ScratchCards = () => {
   const [settingId, setSettingId]   = useState(null);
   const [togglingId, setTogglingId] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState(null);
 
   /* Add-form state */
   const [newCardNo, setNewCardNo] = useState('');
@@ -222,8 +224,6 @@ export const ScratchCards = () => {
 
   /* ── Delete scratch card ── */
   const handleDelete = async (id) => {
-    if (!window.confirm('Are you sure you want to delete this scratch card?')) return;
-
     setDeletingId(id);
     try {
       const res = await fetch(`${API_BASE}/admin/lottery/scratch-cards/${id}`, {
@@ -253,6 +253,7 @@ export const ScratchCards = () => {
       showToast(error.message || 'Failed to delete scratch card', 'error');
     } finally {
       setDeletingId(null);
+      setConfirmDeleteId(null);
     }
   };
 
@@ -298,9 +299,9 @@ export const ScratchCards = () => {
 
       {/* ── Page title ── */}
       <div className="sc-page-header">
-        <h1 className="sc-page-title"><FiRotateCcw /> Reset Scratch Cards</h1>
+        <h1 className="sc-page-title"><FiRotateCcw /> Scratch Cards</h1>
         <p className="sc-page-sub">
-          Manage scratch card status and set forced open values for the staff lottery portal.
+          Manage scratch card status, stock, and set forced open values for the staff lottery portal.
         </p>
       </div>
 
@@ -332,6 +333,9 @@ export const ScratchCards = () => {
                   <th>Price</th>
                   <th>Status</th>
                   <th>Open Value</th>
+                  <th>Opening Stock</th>
+                  <th>Current Stock</th>
+                  <th>Remaining Stock</th>
                   <th>Actions</th>
                 </tr>
               </thead>
@@ -372,6 +376,11 @@ export const ScratchCards = () => {
                         : <span className="sc-openval-none">—</span>}
                     </td>
 
+                    {/* §10 — Opening / Current / Remaining stock, always visible */}
+                    <td className="sc-td-stock">{card.openingStock ?? 0}</td>
+                    <td className="sc-td-stock">{card.currentStock ?? 0}</td>
+                    <td className="sc-td-stock">{card.remainingStock ?? card.packSize ?? 0}</td>
+
                     {/* Actions */}
                     <td className="sc-td-actions">
                       <div className="sc-actions-wrap">
@@ -411,7 +420,7 @@ export const ScratchCards = () => {
                         {isAdmin && (
                           <button
                             className="sc-action-btn sc-action-btn--delete"
-                            onClick={() => handleDelete(card.id)}
+                            onClick={() => setConfirmDeleteId(card.id)}
                             disabled={deletingId === card.id}
                           >
                             {deletingId === card.id ? '…' : 'Delete'}
@@ -471,6 +480,17 @@ export const ScratchCards = () => {
           </button>
         </div>
       </div>
+
+      <ConfirmDialog
+        open={confirmDeleteId != null}
+        title="Delete scratch card?"
+        message="Are you sure you want to delete this scratch card? This cannot be undone."
+        confirmLabel="Delete"
+        variant="danger"
+        loading={deletingId === confirmDeleteId}
+        onConfirm={() => handleDelete(confirmDeleteId)}
+        onCancel={() => setConfirmDeleteId(null)}
+      />
 
     </motion.div>
   );

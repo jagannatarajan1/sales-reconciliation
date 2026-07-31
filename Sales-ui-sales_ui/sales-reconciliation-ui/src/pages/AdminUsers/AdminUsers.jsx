@@ -8,6 +8,7 @@ import {
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../components/ui/Toast';
 import { Button } from '../../components/ui/Button';
+import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
 import './AdminUsers.css';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'https://localhost:7276/api';
@@ -60,6 +61,7 @@ export const AdminUsers = () => {
   const [resetting, setResetting] = useState(false);
 
   const [busyId, setBusyId] = useState(null);
+  const [confirmDeleteTarget, setConfirmDeleteTarget] = useState(null);
 
   const authHeaders = () => ({ Authorization: `Bearer ${user.token}` });
 
@@ -182,7 +184,6 @@ export const AdminUsers = () => {
       showToast('You cannot delete your own account', 'error');
       return;
     }
-    if (!window.confirm(`Delete "${u.name}"? This account will no longer be able to log in.`)) return;
 
     setBusyId(u.userId);
     try {
@@ -200,6 +201,7 @@ export const AdminUsers = () => {
       showToast(e.message || 'Delete failed', 'error');
     } finally {
       setBusyId(null);
+      setConfirmDeleteTarget(null);
     }
   };
 
@@ -308,7 +310,7 @@ export const AdminUsers = () => {
                     className="au-icon-btn au-icon-btn--danger"
                     title="Delete"
                     disabled={busyId === u.userId || u.userId === user.id}
-                    onClick={() => handleDelete(u)}
+                    onClick={() => setConfirmDeleteTarget(u)}
                   >
                     <FiTrash2 />
                   </button>
@@ -447,6 +449,17 @@ export const AdminUsers = () => {
           </motion.div>
         </div>
       )}
+
+      <ConfirmDialog
+        open={confirmDeleteTarget != null}
+        title="Delete user?"
+        message={confirmDeleteTarget ? `Delete "${confirmDeleteTarget.name}"? This account will no longer be able to log in.` : ''}
+        confirmLabel="Delete"
+        variant="danger"
+        loading={busyId === confirmDeleteTarget?.userId}
+        onConfirm={() => handleDelete(confirmDeleteTarget)}
+        onCancel={() => setConfirmDeleteTarget(null)}
+      />
     </motion.div>
   );
 };

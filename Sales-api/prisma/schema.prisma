@@ -69,6 +69,8 @@ model DailySummary {
   lastSafe             Decimal @default(0) @db.Decimal(18, 2)
   safeDropAmount       Decimal @default(0) @db.Decimal(18, 2)
 
+  staffNotes String?
+
   isCommitted          Boolean @default(false)
   isPendingAdminReview Boolean @default(false)
 
@@ -131,6 +133,11 @@ model ScratchCard {
   price         Decimal  @default(0) @db.Decimal(18, 2)
   isActive      Boolean  @default(true)
   forcedOpenNo  Int?
+  // §10 — ScratchCard has no stock concept today; packSize is the minimal
+  // field needed to derive an always-visible Opening/Current/Remaining
+  // stock display from the existing InstantLotteryInventoryEntry open/close
+  // numbers (Remaining = packSize - tickets sold since the pack opened).
+  packSize      Int      @default(100)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @default(now()) @updatedAt
 
@@ -199,6 +206,14 @@ model ReconciliationRecord {
 
   isStaffCommitted  Boolean @default(false)
   isAdminReconciled Boolean @default(false)
+
+  // §2 — narrow, specific, admin-reversible flag: when a day is
+  // isStaffCommitted, supplier invoices for that date become read-only
+  // (see Sales-api/src/routes/suppliers.routes.ts). This flag — and only
+  // this flag — reopens them for editing again. It is NOT a reintroduction
+  // of the old isCommitted-blocks-everything pattern: it has zero effect on
+  // Summary/Deductions/Lottery/Paypoint, which remain unaffected by commit.
+  supplierInvoicesReopened Boolean @default(false)
 
   committedByUserId Int?
   committedByName   String?

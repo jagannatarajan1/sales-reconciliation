@@ -55,6 +55,7 @@ adminReconciliationRouter.get("/pending", async (req, res) => {
         ...totals,
         zReportTotal,
         difference,
+        staffNotes: day.staffNotes ?? null,
       });
       continue;
     }
@@ -85,6 +86,7 @@ adminReconciliationRouter.get("/pending", async (req, res) => {
       summaryTotal: record.summaryTotal,
       zReportTotal: record.zReportTotal,
       difference: record.difference,
+      staffNotes: record.staffNotes ?? null,
     });
   }
 

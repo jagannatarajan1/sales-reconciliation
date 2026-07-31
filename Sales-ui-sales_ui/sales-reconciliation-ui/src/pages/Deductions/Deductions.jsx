@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { FiArrowLeft, FiCalendar, FiAlertCircle, FiPlus, FiX } from 'react-icons/fi';
+import { FiArrowLeft, FiCalendar, FiAlertCircle, FiPlus, FiX, FiEdit2, FiCheck, FiLock } from 'react-icons/fi';
 import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../components/ui/Toast";
 import "./Deductions.css";
@@ -40,19 +40,26 @@ function DeductionsGrid({ token, showToast, isLocked }) {
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [isEditing, setIsEditing] = useState(false);
 
-  useEffect(() => {
+  const load = () => {
     if (!token) { setLoading(false); return; }
+    setLoading(true);
     fetch(`${API}/Deduction/today`, { headers: authHeader(token) })
       .then(safeJson) // ✅ replaces r => r.status === 404 || !r.ok ? null : r.json()
       .then(data => {
-        if (data) setValues(Object.fromEntries(FIELDS.map(f => [f.key, data[f.key] ? String(data[f.key]) : ''])));
+        setValues(data
+          ? Object.fromEntries(FIELDS.map(f => [f.key, data[f.key] ? String(data[f.key]) : '']))
+          : empty);
       })
       .catch(e => setError(e.message))
       .finally(() => setLoading(false));
-  }, [token]);
+  };
+
+  useEffect(() => { load(); }, [token]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const total = FIELDS.reduce((s, f) => s + Number(values[f.key] || 0), 0);
+  const fieldsDisabled = isLocked || !isEditing;
 
   const save = async () => {
     try {
@@ -69,6 +76,7 @@ function DeductionsGrid({ token, showToast, isLocked }) {
         throw new Error(msg || 'Failed to save');
       }
       showToast('Deductions saved successfully');
+      setIsEditing(false);
     } catch (e) {
       showToast(e.message, 'error');
     } finally {
@@ -76,12 +84,25 @@ function DeductionsGrid({ token, showToast, isLocked }) {
     }
   };
 
+  // Cancel discards unsaved changes by re-fetching from the server.
+  const cancelEdit = () => {
+    setIsEditing(false);
+    load();
+  };
+
   if (loading) return <div className="ded-loading">Loading…</div>;
   if (error)   return <div className="ded-loading" style={{ color: '#dc2626' }}><FiAlertCircle /> {error}</div>;
 
   return (
     <div className="ded-section">
-      <h2 className="ded-section-title">Deductions</h2>
+      <div className="ded-section-header-row">
+        <h2 className="ded-section-title">Deductions</h2>
+        {!isLocked && !isEditing && (
+          <button type="button" className="ded-edit-btn" onClick={() => setIsEditing(true)}>
+            <FiEdit2 /> Edit
+          </button>
+        )}
+      </div>
       <div className="ded-table-wrap">
         <table className="ded-table">
           <thead>
@@ -102,8 +123,8 @@ function DeductionsGrid({ token, showToast, isLocked }) {
                     step="0.01"
                     placeholder={`Enter ${f.label}`}
                     value={values[f.key]}
-                    readOnly={isLocked}
-                    onChange={isLocked ? undefined : e => setValues({ ...values, [f.key]: e.target.value })}
+                    readOnly={fieldsDisabled}
+                    onChange={fieldsDisabled ? undefined : e => setValues({ ...values, [f.key]: e.target.value })}
                   />
                 </td>
               </tr>
@@ -117,11 +138,16 @@ function DeductionsGrid({ token, showToast, isLocked }) {
           </tfoot>
         </table>
       </div>
-      <div className="ded-actions">
-        <button className="ded-save-btn" onClick={save} disabled={saving || isLocked}>
-          {saving ? 'Saving…' : 'Save Deductions'}
-        </button>
-      </div>
+      {isEditing && !isLocked && (
+        <div className="ded-actions">
+          <button className="ded-save-btn" onClick={save} disabled={saving}>
+            {saving ? 'Saving…' : 'Save Deductions'}
+          </button>
+          <button className="ded-cancel-btn" onClick={cancelEdit} disabled={saving}>
+            <FiX /> Cancel
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -131,16 +157,27 @@ function DeductionsGrid({ token, showToast, isLocked }) {
 ══════════════════════════════════ */
 const blankInvoiceRow = () => ({ id: Date.now(), supplierId: '', invoiceNo: '', value: '' });
 
-function SupplierInvoices({ token, showToast, isLocked }) {
+// §2 — supplier invoices become read-only once the day is committed, unless
+// an admin has reopened that specific date (see PUT /Suppliers/invoices/reopen/:date).
+// This lock is entirely independent of isLocked (DailySummary.isCommitted /
+// isPendingAdminReview, which is unused/always-false today) — it's driven by
+// ReconciliationRecord.isStaffCommitted for the active date only.
+function SupplierInvoices({ token, showToast, isLocked, activeDate }) {
   const [suppliers, setSuppliers] = useState([]);
   const [invoices, setInvoices]   = useState([]);
   const [loading, setLoading]     = useState(true);
   const [error, setError]         = useState('');
   const [rows, setRows]           = useState([blankInvoiceRow()]);
   const [saving, setSaving]       = useState(false);
+  const [isEditingRows, setIsEditingRows] = useState(false);
+  const [invoiceLock, setInvoiceLock] = useState({ isStaffCommitted: false, editable: true });
+  const [editingInvoiceId, setEditingInvoiceId] = useState(null);
+  const [editDraft, setEditDraft] = useState({ supplierId: '', invoiceNo: '', value: '' });
+  const [savingEditId, setSavingEditId] = useState(null);
 
-  useEffect(() => {
+  const loadInvoices = () => {
     if (!token) { setLoading(false); return; }
+    setLoading(true);
     Promise.all([
       fetch(`${API}/Suppliers`, { headers: authHeader(token) }).then(safeJson), // ✅
       fetch(`${API}/Suppliers/invoices/today`, { headers: authHeader(token) }).then(safeJson), // ✅
@@ -151,7 +188,20 @@ function SupplierInvoices({ token, showToast, isLocked }) {
       })
       .catch(e => setError(e.message))
       .finally(() => setLoading(false));
-  }, [token]);
+  };
+
+  useEffect(() => { loadInvoices(); }, [token]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!token || !activeDate) return;
+    const dateStr = activeDate.split('T')[0];
+    fetch(`${API}/Suppliers/invoices/lock-status?date=${dateStr}`, { headers: authHeader(token) })
+      .then(safeJson)
+      .then(data => { if (data) setInvoiceLock(data); })
+      .catch(() => {});
+  }, [token, activeDate]);
+
+  const invoicesLocked = isLocked || !invoiceLock.editable;
 
   const addRow = () =>
     setRows(prev => [...prev, blankInvoiceRow()]);
@@ -215,11 +265,56 @@ function SupplierInvoices({ token, showToast, isLocked }) {
         method: 'DELETE',
         headers: authHeader(token),
       });
-      if (!res.ok) throw new Error('Failed to delete');
+      if (!res.ok) {
+        const err = await res.json().catch(() => null);
+        throw new Error(err?.message || 'Failed to delete');
+      }
       setInvoices(prev => prev.filter(i => i.id !== id));
       showToast('Invoice deleted');
     } catch (e) {
       showToast(e.message, 'error');
+    }
+  };
+
+  // §2 — inline edit of an already-saved invoice's supplier/invoice no/value.
+  const startEditInvoice = (inv) => {
+    setEditingInvoiceId(inv.id);
+    setEditDraft({
+      supplierId: suppliers.find(s => s.name === inv.supplierName)?.id ?? '',
+      invoiceNo: inv.invoiceNo,
+      value: String(inv.value),
+    });
+  };
+
+  const cancelEditInvoice = () => {
+    setEditingInvoiceId(null);
+    setEditDraft({ supplierId: '', invoiceNo: '', value: '' });
+  };
+
+  const saveEditInvoice = async (id) => {
+    setSavingEditId(id);
+    try {
+      const res = await fetch(`${API}/Suppliers/invoices/${id}`, {
+        method: 'PUT',
+        headers: authHeader(token),
+        body: JSON.stringify({
+          supplierId: editDraft.supplierId ? Number(editDraft.supplierId) : undefined,
+          invoiceNo: editDraft.invoiceNo,
+          value: Number(editDraft.value) || 0,
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => null);
+        throw new Error(err?.message || 'Failed to update invoice');
+      }
+      const updated = await safeJson(res);
+      setInvoices(prev => prev.map(i => (i.id === id ? { ...i, ...updated } : i)));
+      showToast('Invoice updated successfully');
+      cancelEditInvoice();
+    } catch (e) {
+      showToast(e.message, 'error');
+    } finally {
+      setSavingEditId(null);
     }
   };
 
@@ -232,7 +327,21 @@ function SupplierInvoices({ token, showToast, isLocked }) {
 
   return (
     <div className="ded-section">
-      <h2 className="ded-section-title">Supplier Payout</h2>
+      <div className="ded-section-header-row">
+        <h2 className="ded-section-title">Supplier Payout</h2>
+        {!invoicesLocked && !isEditingRows && (
+          <button type="button" className="ded-edit-btn" onClick={() => setIsEditingRows(true)}>
+            <FiEdit2 /> Edit
+          </button>
+        )}
+      </div>
+
+      {invoiceLock.isStaffCommitted && !invoiceLock.editable && (
+        <div className="ded-lock-banner">
+          <FiLock /> This date has been committed — supplier invoices are read-only. Ask an admin to reopen this date to make changes.
+        </div>
+      )}
+
       <div className="ded-table-wrap">
         <table className="ded-table">
           <thead>
@@ -253,22 +362,73 @@ function SupplierInvoices({ token, showToast, isLocked }) {
             )}
             {invoices.map(inv => (
               <tr key={inv.id}>
-                <td>{inv.supplierName}</td>
-                <td>{inv.invoiceNo}</td>
-                <td>£{Number(inv.value).toFixed(2)}</td>
-                <td>
-                  <button className="ded-del-btn" onClick={() => deleteInvoice(inv.id)} disabled={isLocked}><FiX /></button>
-                </td>
+                {editingInvoiceId === inv.id ? (
+                  <>
+                    <td>
+                      <select
+                        className="ded-input"
+                        value={editDraft.supplierId}
+                        onChange={e => setEditDraft(d => ({ ...d, supplierId: e.target.value }))}
+                      >
+                        <option value="">— Select Supplier —</option>
+                        {suppliers.map(s => (
+                          <option key={s.id} value={s.id}>{s.name}</option>
+                        ))}
+                      </select>
+                    </td>
+                    <td>
+                      <input
+                        className="ded-input"
+                        type="text"
+                        value={editDraft.invoiceNo}
+                        onChange={e => setEditDraft(d => ({ ...d, invoiceNo: e.target.value }))}
+                      />
+                    </td>
+                    <td>
+                      <input
+                        className="ded-input"
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={editDraft.value}
+                        onChange={e => setEditDraft(d => ({ ...d, value: e.target.value }))}
+                      />
+                    </td>
+                    <td>
+                      <button className="ded-icon-btn ded-icon-btn--ok" onClick={() => saveEditInvoice(inv.id)} disabled={savingEditId === inv.id} title="Save">
+                        <FiCheck />
+                      </button>
+                      <button className="ded-icon-btn" onClick={cancelEditInvoice} disabled={savingEditId === inv.id} title="Cancel">
+                        <FiX />
+                      </button>
+                    </td>
+                  </>
+                ) : (
+                  <>
+                    <td>{inv.supplierName}</td>
+                    <td>{inv.invoiceNo}</td>
+                    <td>£{Number(inv.value).toFixed(2)}</td>
+                    <td>
+                      {isEditingRows && !invoicesLocked ? (
+                        <>
+                          <button className="ded-icon-btn" onClick={() => startEditInvoice(inv)} title="Edit"><FiEdit2 /></button>
+                          <button className="ded-del-btn" onClick={() => deleteInvoice(inv.id)} title="Delete"><FiX /></button>
+                        </>
+                      ) : invoicesLocked ? (
+                        <span className="ded-locked-hint" title="Ask admin to reopen this date"><FiLock /></span>
+                      ) : null}
+                    </td>
+                  </>
+                )}
               </tr>
             ))}
-            {rows.map(row => (
+            {isEditingRows && !invoicesLocked && rows.map(row => (
               <tr key={row.id} className="ded-new-row">
                 <td>
                   <select
                     className="ded-input"
                     value={row.supplierId}
-                    disabled={isLocked}
-                    onChange={isLocked ? undefined : e => updateRow(row.id, 'supplierId', e.target.value)}
+                    onChange={e => updateRow(row.id, 'supplierId', e.target.value)}
                   >
                     <option value="">— Select Supplier —</option>
                     {suppliers.map(s => (
@@ -282,8 +442,7 @@ function SupplierInvoices({ token, showToast, isLocked }) {
                     type="text"
                     placeholder="Invoice No"
                     value={row.invoiceNo}
-                    readOnly={isLocked}
-                    onChange={isLocked ? undefined : e => updateRow(row.id, 'invoiceNo', e.target.value)}
+                    onChange={e => updateRow(row.id, 'invoiceNo', e.target.value)}
                   />
                 </td>
                 <td>
@@ -294,12 +453,11 @@ function SupplierInvoices({ token, showToast, isLocked }) {
                     step="0.01"
                     placeholder="Value"
                     value={row.value}
-                    readOnly={isLocked}
-                    onChange={isLocked ? undefined : e => updateRow(row.id, 'value', e.target.value)}
+                    onChange={e => updateRow(row.id, 'value', e.target.value)}
                   />
                 </td>
                 <td>
-                  <button className="ded-del-btn" onClick={() => removeRow(row.id)} disabled={isLocked}><FiX /></button>
+                  <button className="ded-del-btn" onClick={() => removeRow(row.id)}><FiX /></button>
                 </td>
               </tr>
             ))}
@@ -313,14 +471,19 @@ function SupplierInvoices({ token, showToast, isLocked }) {
           </tfoot>
         </table>
       </div>
-      <div className="ded-actions">
-        <button className="ded-add-btn" onClick={addRow} disabled={isLocked}><FiPlus /> Add Row</button>
-        {rows.length > 0 && (
-          <button className="ded-save-btn" onClick={saveRows} disabled={saving || isLocked}>
-            {saving ? 'Saving…' : 'Save Invoices'}
+      {isEditingRows && !invoicesLocked && (
+        <div className="ded-actions">
+          <button className="ded-add-btn" onClick={addRow}><FiPlus /> Add Row</button>
+          {rows.length > 0 && (
+            <button className="ded-save-btn" onClick={saveRows} disabled={saving}>
+              {saving ? 'Saving…' : 'Save Invoices'}
+            </button>
+          )}
+          <button className="ded-cancel-btn" onClick={() => { setIsEditingRows(false); setRows([blankInvoiceRow()]); loadInvoices(); }}>
+            <FiX /> Done
           </button>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -374,7 +537,7 @@ export const Deductions = () => {
           <span className="ded-date-chip"><FiCalendar /> {displayDate}</span>
         </div>
         <DeductionsGrid   token={user.token} showToast={showToast} isLocked={isLocked} />
-        <SupplierInvoices token={user.token} showToast={showToast} isLocked={isLocked} />
+        <SupplierInvoices token={user.token} showToast={showToast} isLocked={isLocked} activeDate={activeDate ?? new Date().toISOString()} />
       </div>
     </motion.div>
   );

@@ -194,5 +194,8 @@ reportsRouter.get("/:date", async (req, res) => {
     zReportTotal,
     totalVariance,
     adminNotes: record.adminNotes,
+    staffName: record.staffName,
+    shift: record.shift,
+    staffNotes: record.staffNotes,
   });
 });

@@ -76,6 +76,58 @@
   backdrop-filter: blur(10px);
 }
 
+/* ── Edit mode (§8) ─────────────────────────────────────── */
+.summary-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.summary-edit-toggle-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 16px;
+  background: white;
+  color: var(--brand-600);
+  border: none;
+  border-radius: 20px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 700;
+  transition: transform var(--duration-base) var(--ease-standard);
+}
+
+.summary-edit-toggle-btn:hover {
+  transform: translateY(-1px);
+}
+
+.summary-cancel-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0.85rem 2.2rem;
+  background: transparent;
+  color: white;
+  border: 2px solid rgba(255, 255, 255, 0.4);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  transition: background var(--duration-base) var(--ease-standard);
+}
+
+.summary-cancel-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.summary-cancel-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 /* ── Loading ────────────────────────────────────────────── */
 .summary-loading-wrap {
   display: flex;

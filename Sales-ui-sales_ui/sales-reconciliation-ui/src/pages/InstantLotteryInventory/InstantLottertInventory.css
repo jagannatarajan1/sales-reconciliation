@@ -179,6 +179,40 @@
 .stat-value.primary { color: var(--primary); }
 .stat-value.green   { color: var(--accent); }
 
+/* ── Edit mode (§8) ─────────────────────────────────────── */
+.ili-edit-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 16px;
+  align-self: center;
+  background: var(--surface);
+  color: var(--primary);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.ili-edit-btn:hover { background: var(--primary-light); }
+
+.ili-cancel-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 24px;
+  background: transparent;
+  color: var(--text-muted);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.ili-cancel-btn:hover:not(:disabled) { background: var(--surface2); }
+.ili-cancel-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
 /* ── Table Container ──
    overflow: auto lets the table scroll both vertically (long scratch-card
    lists) and horizontally (narrow screens) instead of clipping content. */

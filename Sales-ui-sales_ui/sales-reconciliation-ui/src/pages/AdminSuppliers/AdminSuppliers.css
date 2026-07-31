@@ -176,6 +176,41 @@
   border-color: #f87171;
 }
 
+/* ── §11 edit ── */
+.sup-row-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+.sup-edit-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0.45rem 0.9rem;
+  background: var(--brand-50);
+  color: var(--brand-600);
+  border: 1px solid rgba(99, 102, 241, 0.3);
+  border-radius: var(--radius-sm);
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all var(--duration-base) var(--ease-standard);
+}
+
+.sup-edit-btn:hover { background: var(--brand-100); }
+
+.sup-edit-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex: 1;
+}
+
+.sup-edit-input { flex: 1; }
+
 /* ── Inline confirm ── */
 .sup-confirm {
   display: flex;

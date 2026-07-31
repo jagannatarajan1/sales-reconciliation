@@ -652,6 +652,13 @@ export const AdminReconciliation = () => {
                   </div>
                 )}
 
+                {activeItem.staffNotes && (
+                  <div className="ar-committed-notes">
+                    <span className="ar-label">Staff Notes</span>
+                    <p>{activeItem.staffNotes}</p>
+                  </div>
+                )}
+
                 <div className="ar-notes-wrap">
                   <label className="ar-label">Admin Notes</label>
                   <textarea

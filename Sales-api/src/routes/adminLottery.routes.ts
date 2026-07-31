@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { prisma } from "../lib/prisma.js";
+import { getActiveDate } from "../lib/activeDate.js";
 import { requirePermission } from "../lib/permissions.js";
 import { writeAuditLog } from "../lib/auditLog.js";
 
@@ -9,21 +10,53 @@ function requireAdmin(req: import("express").Request, res: import("express").Res
   return requirePermission(req, res, "scratchCards");
 }
 
-function toCard(card: { scratchCardId: number; scratchCardNo: string; price: unknown; isActive: boolean; forcedOpenNo: number | null }) {
+function toCard(card: { scratchCardId: number; scratchCardNo: string; price: unknown; isActive: boolean; forcedOpenNo: number | null; packSize?: number }) {
   return {
     id: card.scratchCardId,
     scratchCardNo: card.scratchCardNo,
     price: card.price,
     isActive: card.isActive,
     forcedOpenNo: card.forcedOpenNo,
+    packSize: card.packSize ?? 100,
   };
+}
+
+// §10 — ScratchCard has no first-class "stock" concept; this derives
+// Opening/Current/Remaining from the existing InstantLotteryInventoryEntry
+// open/close numbers (same numbers the staff Instant Lottery Inventory page
+// already records) plus the new packSize field, so the admin Scratch Cards
+// page can always show stock without inventing any unrelated feature.
+async function withStock(card: Awaited<ReturnType<typeof prisma.scratchCard.findUniqueOrThrow>>) {
+  const date = await getActiveDate();
+  const todayEntry = await prisma.instantLotteryInventoryEntry.findUnique({
+    where: { scratchCardId_date: { scratchCardId: card.scratchCardId, date } },
+  });
+
+  let opening: number;
+  if (card.forcedOpenNo != null) {
+    opening = card.forcedOpenNo;
+  } else if (todayEntry) {
+    opening = todayEntry.openNo;
+  } else {
+    const previous = await prisma.instantLotteryInventoryEntry.findFirst({
+      where: { scratchCardId: card.scratchCardId, date: { lt: date } },
+      orderBy: { date: "desc" },
+    });
+    opening = previous?.closeNo ?? 0;
+  }
+
+  const current = todayEntry ? todayEntry.closeNo : opening;
+  const sold = Math.max(current - opening, 0);
+  const remaining = Math.max(card.packSize - sold, 0);
+
+  return { ...toCard(card), openingStock: opening, currentStock: current, remainingStock: remaining };
 }
 
 adminLotteryRouter.get("/scratch-cards", async (req, res) => {
   if (!requireAdmin(req, res)) return;
 
   const cards = await prisma.scratchCard.findMany({ orderBy: { scratchCardId: "asc" } });
-  res.json(cards.map(toCard));
+  res.json(await Promise.all(cards.map(withStock)));
 });
 
 adminLotteryRouter.post("/scratch-cards", async (req, res) => {
