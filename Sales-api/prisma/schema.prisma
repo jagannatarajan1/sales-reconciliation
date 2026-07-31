@@ -193,6 +193,10 @@ model ReconciliationRecord {
   difference   Decimal @default(0) @db.Decimal(18, 2)
   adminNotes   String?
 
+  staffName  String?
+  shift      String?
+  staffNotes String?
+
   isStaffCommitted  Boolean @default(false)
   isAdminReconciled Boolean @default(false)
 

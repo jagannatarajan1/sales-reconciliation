@@ -10,12 +10,17 @@ import {
   FiCircle,
   FiBarChart2,
   FiArrowLeft,
+  FiUsers,
 } from "react-icons/fi";
 import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../components/ui/Toast";
 import "./Summary.css";
 
-const SUMMARY_URL = `${import.meta.env.VITE_API_URL || "https://localhost:7276/api"}/Summary`;
+const API_BASE = import.meta.env.VITE_API_URL || "https://localhost:7276/api";
+const SUMMARY_URL = `${API_BASE}/Summary`;
+
+const SHIFTS = ["Morning", "Afternoon", "Evening", "Night"];
+const OTHER_STAFF_VALUE = "__other__";
 
 const SECTIONS = [
   {
@@ -175,9 +180,24 @@ export const Summary = () => {
   const [isPendingAdminReview, setIsPendingAdminReview] = useState(false);
   const [departmentTotal, setDepartmentTotal] = useState(null);
 
+  // ── Staff identity for commit (§4/§7) — held here in state; carried
+  // forward to the Commit page via router state when the user proceeds.
+  // Commit.jsx also owns its own copy of these fields, since it's reachable
+  // directly from the Dashboard without visiting Summary first — see the
+  // "Summary <-> Commit relationship" note in Commit.jsx.
+  const [staffList, setStaffList] = useState([]);
+  const [staffName, setStaffName] = useState("");
+  const [staffNameOther, setStaffNameOther] = useState("");
+  const [shift, setShift] = useState("");
+  const [staffNotes, setStaffNotes] = useState("");
+
   const isLocked = isCommitted || isPendingAdminReview;
 
   const authHeaders = () => ({ Authorization: `Bearer ${user.token}` });
+
+  const resolvedStaffName =
+    staffName === OTHER_STAFF_VALUE ? staffNameOther.trim() : staffName;
+  const canProceedToCommit = !!resolvedStaffName && !!shift;
 
   const cashTotal = (() => {
     const ls = parseFloat(safeData.lastSafe);
@@ -186,8 +206,21 @@ export const Summary = () => {
     return ((isNaN(ls) ? 0 : ls) + (isNaN(sd) ? 0 : sd)).toFixed(2);
   })();
 
+  const loadStaff = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/staff`, { headers: authHeaders() });
+      if (res.ok) {
+        const data = await res.json();
+        setStaffList(Array.isArray(data) ? data.filter((s) => s.isActive) : []);
+      }
+    } catch {
+      // Non-fatal — the "Other" free-text option still works without the list.
+    }
+  };
+
   useEffect(() => {
     loadToday();
+    loadStaff();
   }, []);
 
   const loadToday = async () => {
@@ -307,6 +340,21 @@ export const Summary = () => {
     } finally {
       setSaving(false);
     }
+  };
+
+  // ── Proceed to Commit ────────────────────────────────────
+  // Summary and Commit are independent Dashboard entries, not a wizard —
+  // there's no existing state-passing between them. This carries the staff
+  // fields forward via router state as a convenience; Commit.jsx re-validates
+  // and re-collects them itself so direct navigation to /commit still works.
+  const handleProceedToCommit = () => {
+    if (!canProceedToCommit) {
+      showToast("Please select a staff name and shift before committing", "error");
+      return;
+    }
+    navigate("/commit", {
+      state: { staffName: resolvedStaffName, shift, staffNotes: staffNotes.trim() },
+    });
   };
 
   // ── Live summary total (recalculates on every field change) ──
@@ -628,6 +676,69 @@ export const Summary = () => {
             </div>
           </div>
 
+          {/* ── Staff identity for commit ── */}
+          <div className="summary-total-panel summary-staff-panel">
+            <div className="summary-total-panel__title">
+              <FiUsers /> Staff &amp; Shift
+            </div>
+            <div className="summary-staff-panel__body">
+              <div className="summary-field summary-staff-field">
+                <label className="summary-field-label">Staff Name</label>
+                <select
+                  className="summary-staff-select"
+                  value={staffName}
+                  disabled={isLocked}
+                  onChange={(e) => setStaffName(e.target.value)}
+                >
+                  <option value="">Select staff…</option>
+                  {staffList.map((s) => (
+                    <option key={s.id} value={s.name}>{s.name}</option>
+                  ))}
+                  <option value={OTHER_STAFF_VALUE}>Other (temporary staff)</option>
+                </select>
+              </div>
+
+              {staffName === OTHER_STAFF_VALUE && (
+                <div className="summary-field summary-staff-field">
+                  <label className="summary-field-label">Temporary Staff Name</label>
+                  <input
+                    className="summary-staff-input"
+                    type="text"
+                    placeholder="Enter name"
+                    value={staffNameOther}
+                    disabled={isLocked}
+                    onChange={(e) => setStaffNameOther(e.target.value)}
+                  />
+                </div>
+              )}
+
+              <div className="summary-field summary-staff-field">
+                <label className="summary-field-label">Shift</label>
+                <select
+                  className="summary-staff-select"
+                  value={shift}
+                  disabled={isLocked}
+                  onChange={(e) => setShift(e.target.value)}
+                >
+                  <option value="">Select shift…</option>
+                  {SHIFTS.map((s) => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </div>
+
+              <div className="summary-field summary-staff-field summary-staff-field--notes">
+                <label className="summary-field-label">Staff Notes (optional)</label>
+                <textarea
+                  className="summary-staff-notes"
+                  rows={3}
+                  placeholder="Anything the admin should know about today…"
+                  value={staffNotes}
+                  disabled={isLocked}
+                  onChange={(e) => setStaffNotes(e.target.value)}
+                />
+              </div>
+            </div>
+          </div>
+
           <div className="summary-footer">
             <button
               className="summary-save-btn"
@@ -647,6 +758,14 @@ export const Summary = () => {
               ) : (
                 "Save Summary"
               )}
+            </button>
+            <button
+              className="summary-commit-btn"
+              onClick={handleProceedToCommit}
+              disabled={isLocked || !canProceedToCommit}
+              title={!canProceedToCommit ? "Select a staff name and shift first" : undefined}
+            >
+              Proceed to Commit →
             </button>
           </div>
         </>

@@ -25,6 +25,8 @@ export async function renderReconciliationReportPdf(record: ReconciliationRecord
 
   doc.fontSize(10).fillColor("#555");
   if (record.committedByName) doc.text(`Committed by: ${record.committedByName}${record.committedAt ? " on " + record.committedAt.toLocaleString("en-GB") : ""}`);
+  if (record.staffName) doc.text(`Staff Name: ${record.staffName}`);
+  if (record.shift) doc.text(`Shift: ${record.shift}`);
   if (record.adminSubmittedByName) doc.text(`Admin reviewed by: ${record.adminSubmittedByName}${record.adminSubmittedAt ? " on " + record.adminSubmittedAt.toLocaleString("en-GB") : ""}`);
   doc.fillColor("#000");
   doc.moveDown();
@@ -67,6 +69,12 @@ export async function renderReconciliationReportPdf(record: ReconciliationRecord
   doc.text(`Summary Total: ${fmtGBP(record.summaryTotal)}`);
   doc.text(`Z-Report Total: ${fmtGBP(record.zReportTotal)}`);
   doc.text(`Difference: ${fmtGBP(record.difference)}`);
+
+  if (record.staffNotes) {
+    doc.moveDown();
+    doc.fontSize(13).text("Staff Notes");
+    doc.fontSize(11).text(record.staffNotes);
+  }
 
   if (record.adminNotes) {
     doc.moveDown();

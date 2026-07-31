@@ -5,8 +5,8 @@ import { ProtectedRoute } from './components/ProtectedRoute';
 import { Login } from './pages/Login';
 import { Register } from './pages/Register';
 import { AdminDashboard } from './pages/AdminDashboard';
-import { AdminRegister } from './pages/AdminRegister';
-import { AdminChangePassword } from './pages/AdminChangePassword';
+import { AdminUsers } from './pages/AdminUsers/AdminUsers';
+import { AdminStaff } from './pages/AdminStaff/AdminStaff';
 import { Unauthorized } from './pages/Unauthorized';
 import { Dashboard } from './pages/Dashboard';
 import ShopSale from './pages/ShopSale/ShopSale';
@@ -147,18 +147,18 @@ function App() {
             }
           />
           <Route
-            path="/admin/register"
+            path="/admin/users"
             element={
-              <ProtectedRoute requiredRole="admin">
-                <AdminRegister />
+              <ProtectedRoute requiredRole="admin" requiredPermission="userManagement">
+                <AdminUsers />
               </ProtectedRoute>
             }
           />
           <Route
-            path="/admin/change-password"
+            path="/admin/staff"
             element={
-              <ProtectedRoute requiredRole="admin">
-                <AdminChangePassword />
+              <ProtectedRoute requiredRole="admin" requiredPermission="userManagement">
+                <AdminStaff />
               </ProtectedRoute>
             }
           />

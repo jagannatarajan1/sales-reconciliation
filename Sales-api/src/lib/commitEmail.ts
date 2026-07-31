@@ -8,6 +8,9 @@ export interface CommitEmailInput {
   zReportTotal: number;
   difference: number;
   adminNotes?: string | null;
+  staffName?: string | null;
+  shift?: string | null;
+  staffNotes?: string | null;
 }
 
 function shopName(): string {
@@ -29,11 +32,17 @@ export async function sendCommitNotificationEmail(input: CommitEmailInput): Prom
   const lines = [
     `Store: ${shopName()}`,
     `Date: ${input.dateStr}`,
+    ...(input.staffName ? [`Staff Name: ${input.staffName}`] : []),
+    ...(input.shift ? [`Shift: ${input.shift}`] : []),
     `Staff Total: £${input.summaryTotal.toFixed(2)}`,
     `Z-Report Total: £${input.zReportTotal.toFixed(2)}`,
     `Variance: £${input.difference.toFixed(2)}`,
     `Status: ${status}`,
   ];
+
+  if (input.staffNotes) {
+    lines.push("", `Staff Notes: ${input.staffNotes}`);
+  }
 
   if (!isOk) {
     lines.push("");

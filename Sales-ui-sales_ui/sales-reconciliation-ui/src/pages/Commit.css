@@ -428,6 +428,60 @@
   color: #1f2937;
 }
 
+/* ── Staff identity section ─────────────────────────────── */
+.commit-staff-section {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  border-top: 1px dashed #e5e7eb;
+  border-bottom: 1px dashed #e5e7eb;
+  padding: 16px 0;
+}
+
+.commit-field--notes {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+}
+
+.commit-select {
+  padding: 10px 12px;
+  border: 1.5px solid #d1d5db;
+  border-radius: 8px;
+  font-size: 0.92rem;
+  color: #1f2937;
+  font-family: 'Plus Jakarta Sans', 'Inter', system-ui, sans-serif;
+  outline: none;
+  background: white;
+  width: 220px;
+  flex-shrink: 0;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.commit-select:focus {
+  border-color: #6366f1;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+}
+
+.commit-textarea {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  border: 1.5px solid #d1d5db;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  color: #1f2937;
+  font-family: 'Plus Jakarta Sans', 'Inter', system-ui, sans-serif;
+  outline: none;
+  resize: vertical;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.commit-textarea:focus {
+  border-color: #6366f1;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+}
+
 /* ── Commit button ──────────────────────────────────────── */
 .commit-btn {
   display: flex;
@@ -489,5 +543,6 @@
   .commit-title { font-size: 1.4rem; }
   .commit-field { flex-direction: column; align-items: flex-start; }
   .commit-input-wrap { width: 100%; }
+  .commit-select { width: 100%; }
   .commit-done-badge { flex-direction: column; align-items: flex-start; }
 }

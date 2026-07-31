@@ -3,7 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
-  FiUserPlus, FiKey, FiBarChart2, FiTrendingUp, FiRotateCcw,
+  FiUsers, FiUserCheck, FiBarChart2, FiTrendingUp, FiRotateCcw,
   FiShoppingBag, FiFileText, FiCalendar, FiMail,
 } from 'react-icons/fi';
 import '../styles/AdminDashboard.css';
@@ -26,22 +26,32 @@ const getGreeting = () => {
 const getInitials = (nameOrEmail = '') =>
   nameOrEmail.split(/[\s@]/).filter(Boolean).slice(0, 2).map(w => w[0].toUpperCase()).join('');
 
+// superadmin always has everything, regardless of what's in permissions —
+// mirrors the backend's hasPermission()/requirePermission() rule exactly.
+const hasPermission = (user, moduleKey) => {
+  if (!moduleKey) return true;
+  if (user?.role === 'superadmin') return true;
+  return user?.role === 'admin' && (user?.permissions ?? []).includes(moduleKey);
+};
+
 const cards = [
   {
-    icon: FiUserPlus,
-    title: 'Register User / Admin',
-    desc: 'Create a new user or admin account',
-    label: 'Register Account',
-    path: '/admin/register',
+    icon: FiUsers,
+    title: 'User Management',
+    desc: 'Create, edit, disable, and reset passwords for user/admin accounts',
+    label: 'Manage Users',
+    path: '/admin/users',
     color: '#3b82f6',
+    permission: 'userManagement',
   },
   {
-    icon: FiKey,
-    title: 'Reset Password',
-    desc: 'Change the password for any account',
-    label: 'Reset Password',
-    path: '/admin/change-password',
+    icon: FiUserCheck,
+    title: 'Staff',
+    desc: 'Manage the staff-name list used at commit time',
+    label: 'Manage Staff',
+    path: '/admin/staff',
     color: '#8b5cf6',
+    permission: 'userManagement',
   },
   {
     icon: FiBarChart2,
@@ -199,7 +209,7 @@ export const AdminDashboard = () => {
           initial="hidden"
           animate="visible"
         >
-          {cards.map((card) => {
+          {cards.filter((card) => hasPermission(user, card.permission)).map((card) => {
             const Icon = card.icon;
             return (
               <motion.button

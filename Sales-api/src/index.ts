@@ -8,6 +8,7 @@ import { errorHandler } from "./middleware/errorHandler.js";
 import { attachUser } from "./middleware/auth.js";
 import { authRouter } from "./routes/auth.routes.js";
 import { usersRouter } from "./routes/users.routes.js";
+import { staffRouter } from "./routes/staff.routes.js";
 import { ordersRouter } from "./routes/orders.routes.js";
 import { gmailRouter } from "./routes/gmail.routes.js";
 import { summaryRouter } from "./routes/summary.routes.js";
@@ -61,6 +62,7 @@ app.use("/api", apiLimiter);
 
 app.use("/api/auth", authRouter);
 app.use("/api/users", usersRouter);
+app.use("/api/staff", staffRouter);
 app.use("/api/orders", ordersRouter);
 app.use("/api/gmail", gmailRouter);
 app.use("/api/Summary", summaryRouter);

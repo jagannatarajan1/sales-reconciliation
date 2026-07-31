@@ -828,6 +828,16 @@ export const AdminReconciliation = () => {
                     Committed: {new Date(committedRecord.committedAt).toLocaleString('en-GB')}
                   </span>
                 )}
+                {committedRecord.staffName && (
+                  <span className="ar-submitted-at">
+                    Staff: {committedRecord.staffName}
+                  </span>
+                )}
+                {committedRecord.shift && (
+                  <span className="ar-submitted-at">
+                    Shift: {committedRecord.shift}
+                  </span>
+                )}
                 {!isEditingCommitted && (
                   <button className="ar-edit-btn" onClick={startEditingCommitted}>
                     <FiEdit2 /> Edit
@@ -875,6 +885,12 @@ export const AdminReconciliation = () => {
               ) : (
                 <>
                   <ReadOnlyGrid data={committedRecord} />
+                  {committedRecord.staffNotes && (
+                    <div className="ar-committed-notes">
+                      <span className="ar-label">Staff Notes</span>
+                      <p>{committedRecord.staffNotes}</p>
+                    </div>
+                  )}
                   {committedRecord.adminNotes && (
                     <div className="ar-committed-notes">
                       <span className="ar-label">Admin Notes</span>

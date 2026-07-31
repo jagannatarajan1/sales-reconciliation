@@ -95,6 +95,7 @@ export const AuthProvider = ({ children }) => {
         email: response.data.email,
         name: response.data.name,
         role: response.data.role,
+        permissions: response.data.permissions ?? [],
         token: response.data.token,
       };
 
@@ -123,6 +124,7 @@ export const AuthProvider = ({ children }) => {
     email: response.data.user.email,
     name: response.data.user.name,
     role: response.data.user.role,
+    permissions: response.data.user.permissions ?? [],
     token: response.data.token
 };
 
