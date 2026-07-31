@@ -7,3 +7,6 @@ dist/
 bin/
 obj/
 .env
+
+# Claude Code's own internal bookkeeping — not part of this project
+.claude/
