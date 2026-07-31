@@ -20,6 +20,7 @@ import { Paypoint } from './pages/Paypoint/Paypoint';
 import { Commit } from './pages/Commit';
 import { AdminReconciliation } from './pages/AdminReconciliation/AdminReconciliation';
 import { Reports } from './pages/Reports/Reports';
+import { AdminZReports } from './pages/AdminZReports/AdminZReports';
 import { AdminSuppliers } from './pages/AdminSuppliers/AdminSuppliers';
 import { SupplierInvoices } from './pages/SupplierInvoices/SupplierInvoices';
 import { ScratchCards } from './pages/ScratchCards/ScratchCards';
@@ -125,8 +126,16 @@ function App() {
           <Route
             path="/admin/reports"
             element={
-              <ProtectedRoute requiredRole="admin">
+              <ProtectedRoute requiredRole="admin" requiredPermission="reports">
                 <Reports />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/z-reports"
+            element={
+              <ProtectedRoute requiredRole="admin" requiredPermission="reports">
+                <AdminZReports />
               </ProtectedRoute>
             }
           />

@@ -5,7 +5,7 @@ import { computeDailyTotals } from "../lib/dailyTotals.js";
 import { parseDepartmentTotal } from "../lib/departmentTotal.js";
 import { renderZReportBillPdf } from "../lib/pdf.js";
 import { sendCommitNotificationEmail } from "../lib/commitEmail.js";
-import { buildZip } from "../lib/zip.js";
+import { buildZReportBillsZip } from "../lib/zReportBills.js";
 import * as gmailService from "../services/gmail.service.js";
 import { requirePermission } from "../lib/permissions.js";
 import { writeAuditLog } from "../lib/auditLog.js";
@@ -191,6 +191,15 @@ adminReconciliationRouter.post("/submit", async (req, res) => {
   res.json({ message: "Reconciliation submitted successfully" });
 });
 
+// "Committed" here means what it says — a record only qualifies once staff
+// have actually committed it and/or admin has signed off (mirrors the same
+// predicate reports.routes.ts uses for the Sales Reconciliation page). This
+// also backs the "Recent Commits" quick-select chips on the frontend, which
+// would otherwise be able to surface a date that was never really committed.
+const COMMITTED_ONLY_WHERE = {
+  OR: [{ isStaffCommitted: true }, { isAdminReconciled: true }],
+};
+
 adminReconciliationRouter.get("/committed", async (req, res) => {
   if (!requireAdmin(req, res)) return;
 
@@ -199,6 +208,7 @@ adminReconciliationRouter.get("/committed", async (req, res) => {
 
   const records = await prisma.reconciliationRecord.findMany({
     where: {
+      ...COMMITTED_ONLY_WHERE,
       date: {
         ...(fromDate ? { gte: fromDate } : {}),
         ...(toDate ? { lte: toDate } : {}),
@@ -222,7 +232,9 @@ adminReconciliationRouter.get("/committed/:date", async (req, res) => {
 
   const date = dateOnly(req.params.date);
   const record = await prisma.reconciliationRecord.findUnique({ where: { date } });
-  if (!record) return res.status(404).json({ message: "No committed record found for this date." });
+  if (!record || !(record.isStaffCommitted || record.isAdminReconciled)) {
+    return res.status(404).json({ message: "No committed record found for this date." });
+  }
 
   res.json({
     date: record.date.toISOString().split("T")[0],
@@ -265,7 +277,7 @@ adminReconciliationRouter.get("/download-bill", async (req, res) => {
   const email = await gmailService.findZReportEmail(date);
   if (!email) return res.status(400).json({ message: "No Z-report email found for this date." });
 
-  const pdf = await renderZReportBillPdf(date, email.body);
+  const pdf = await renderZReportBillPdf(date, email.body, { generatedByName: req.userName });
   const dateStr = date.toISOString().split("T")[0];
   res.setHeader("Content-Type", "application/pdf");
   res.setHeader("Content-Disposition", `attachment; filename="zreport-bill-${dateStr}.pdf"`);
@@ -282,19 +294,9 @@ adminReconciliationRouter.get("/download-bills-range", async (req, res) => {
   const fromDate = dateOnly(fromParam);
   const toDate = dateOnly(toParam);
 
-  const files: Array<{ name: string; content: Buffer }> = [];
-  for (let d = new Date(fromDate); d <= toDate; d.setUTCDate(d.getUTCDate() + 1)) {
-    const current = new Date(d);
-    const email = await gmailService.findZReportEmail(current);
-    if (!email) continue;
+  const zip = await buildZReportBillsZip(fromDate, toDate, { generatedByName: req.userName });
+  if (!zip) return res.status(400).json({ message: "No Z-report emails found for this range." });
 
-    const pdf = await renderZReportBillPdf(current, email.body);
-    files.push({ name: `zreport-bill-${current.toISOString().split("T")[0]}.pdf`, content: pdf });
-  }
-
-  if (files.length === 0) return res.status(400).json({ message: "No Z-report emails found for this range." });
-
-  const zip = await buildZip(files);
   const fromStr = fromDate.toISOString().split("T")[0];
   const toStr = toDate.toISOString().split("T")[0];
   res.setHeader("Content-Type", "application/zip");

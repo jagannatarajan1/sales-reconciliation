@@ -4,7 +4,7 @@ import { motion } from 'framer-motion';
 import {
   FiArrowLeft, FiBarChart2, FiSearch, FiCheckCircle, FiUser, FiKey,
   FiClock, FiAlertTriangle, FiCreditCard, FiDollarSign, FiTrendingDown, FiPackage,
-  FiAward, FiGrid, FiInbox, FiFileText,
+  FiAward, FiGrid, FiInbox, FiFileText, FiPrinter, FiDownload,
 } from 'react-icons/fi';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../components/ui/Toast';
@@ -94,7 +94,7 @@ function ReportCard({ row, isSelected, onClick, compact = false }) {
 }
 
 /* ── Detail breakdown panel ─────────────────────────────────────────── */
-function DetailPanel({ detail }) {
+function DetailPanel({ detail, onPrint }) {
   if (!detail) return null;
 
   // Group detail.fields by section, preserving API order
@@ -110,17 +110,23 @@ function DetailPanel({ detail }) {
 
   return (
     <>
+      <div className="rpt-print-header">
+        <h2>Sales Reconciliation Report</h2>
+        <p>{fmtDateLong(detail.date)}</p>
+      </div>
+
       <div className="rpt-detail-head">
         <div>
           <h2 className="rpt-detail-title"><FiSearch /> Full Breakdown</h2>
           <p className="rpt-detail-sub">{fmtDateLong(detail.date)}</p>
         </div>
-        <div className="rpt-detail-badges">
+        <div className="rpt-detail-badges rpt-no-print">
           {detail.zReportAvailable
             ? <span className="rpt-badge rpt-badge--ok"><FiCheckCircle /> Z-Report Available</span>
             : <span className="rpt-badge rpt-badge--na">Z-Report Unavailable</span>}
           {detail.isStaffCommitted  && <span className="rpt-badge rpt-badge--staff">Staff</span>}
           {detail.isAdminReconciled && <span className="rpt-badge rpt-badge--admin">Admin</span>}
+          <button className="rpt-print-btn" onClick={onPrint}><FiPrinter /> Print</button>
         </div>
       </div>
 
@@ -249,6 +255,7 @@ export const Reports = () => {
   const [rangeError, setRangeError]       = useState('');
   const [rangeLoading, setRangeLoading]   = useState(false);
   const [isExporting, setIsExporting]     = useState(false);
+  const [isExportingExcel, setIsExportingExcel] = useState(false);
 
   const showToast = (message, type = 'success') => notify(message, type);
 
@@ -409,6 +416,44 @@ export const Reports = () => {
     }
   };
 
+  const handleDownloadExcel = async () => {
+    if (!isRangeValid || !startDate || !endDate) {
+      showToast('Select a valid date range to download the Excel file', 'error');
+      return;
+    }
+
+    setIsExportingExcel(true);
+    try {
+      const params = new URLSearchParams({ startDate, endDate });
+      const res = await fetch(`${API_BASE}/reports/download-excel?${params.toString()}`, {
+        headers: { Authorization: `Bearer ${user.token}` },
+      });
+      if (!res.ok) throw new Error();
+
+      const blob = await res.blob();
+      const disposition = res.headers.get('content-disposition') || '';
+      const match = disposition.match(/filename="?([^";]+)"?/);
+      const fileName = match ? match[1] : `sales-reconciliation-${startDate}-to-${endDate}.xlsx`;
+
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+
+      showToast('Download started', 'success');
+    } catch {
+      showToast('Failed to download Excel file', 'error');
+    } finally {
+      setIsExportingExcel(false);
+    }
+  };
+
+  const handlePrintDetail = () => window.print();
+
   const handleBackToList = () => {
     setSelectedDate(null);
     setDetail(null);
@@ -448,18 +493,18 @@ export const Reports = () => {
       transition={{ duration: 0.4, ease: [0.4, 0, 0.2, 1] }}
     >
 
-      <button className="rpt-back-btn" onClick={() => navigate('/admin/dashboard')}>
+      <button className="rpt-back-btn rpt-no-print" onClick={() => navigate('/admin/dashboard')}>
         <FiArrowLeft /> Back to Dashboard
       </button>
 
-      <div className="rpt-page-header">
-        <h1 className="rpt-page-title"><FiBarChart2 /> Reconciliation Reports</h1>
+      <div className="rpt-page-header rpt-no-print">
+        <h1 className="rpt-page-title"><FiBarChart2 /> Sales Reconciliation</h1>
         <p className="rpt-page-sub">
-          Date-wise history — staff entered values, Z-Report comparison, variance and who completed each reconciliation.
+          Committed-only date-wise history — staff entered values, Z-Report comparison, variance and who completed each reconciliation.
         </p>
       </div>
 
-      <div className="rpt-picker-panel">
+      <div className="rpt-picker-panel rpt-no-print">
         <div className="rpt-picker-row rpt-picker-row--stacked">
           <div className="rpt-picker-field">
             <label className="rpt-picker-label" htmlFor="rpt-start-date">Start Date</label>
@@ -502,7 +547,14 @@ export const Reports = () => {
             onClick={handleDownloadPdf}
             disabled={isExporting || rangeLoading || loading || reports.length === 0 || !isRangeValid}
           >
-            {isExporting ? 'Preparing…' : 'Download PDF'}
+            <FiDownload /> {isExporting ? 'Preparing…' : 'Download PDF'}
+          </button>
+          <button
+            className="rpt-picker-btn rpt-picker-btn--secondary"
+            onClick={handleDownloadExcel}
+            disabled={isExportingExcel || rangeLoading || loading || reports.length === 0 || !isRangeValid}
+          >
+            <FiFileText /> {isExportingExcel ? 'Preparing…' : 'Download Excel'}
           </button>
         </div>
         {rangeError ? (
@@ -513,31 +565,31 @@ export const Reports = () => {
       </div>
 
       {loading || rangeLoading ? (
-        <div className="rpt-center">
+        <div className="rpt-center rpt-no-print">
           <div className="rpt-spinner" />
           <p>Loading reports…</p>
         </div>
       ) : loadingDetail ? (
-        <div className="rpt-center">
+        <div className="rpt-center rpt-no-print">
           <div className="rpt-spinner" />
           <p>Loading breakdown…</p>
         </div>
       ) : selectedDate && detail ? (
         <div className="rpt-detail-panel">
-          <div className="rpt-detail-toolbar">
+          <div className="rpt-detail-toolbar rpt-no-print">
             <button className="rpt-back-btn" onClick={handleBackToList}><FiArrowLeft /> Back to reports</button>
           </div>
-          <DetailPanel detail={detail} />
+          <DetailPanel detail={detail} onPrint={handlePrintDetail} />
         </div>
       ) : reports.length === 0 ? (
-        <div className="rpt-empty-panel">
+        <div className="rpt-empty-panel rpt-no-print">
           <div className="rpt-empty-icon"><FiInbox /></div>
           <h3>No reports found for this range</h3>
           <p>Try widening the date range or selecting a different period.</p>
         </div>
       ) : (
         <motion.div
-          className="rpt-grid"
+          className="rpt-grid rpt-no-print"
           variants={gridVariants}
           initial="hidden"
           animate="visible"

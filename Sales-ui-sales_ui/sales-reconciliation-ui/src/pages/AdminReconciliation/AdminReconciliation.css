@@ -85,6 +85,28 @@
   color: #1f2937;
 }
 
+.ar-download-hint {
+  margin: -0.5rem 0 1rem;
+  font-size: 0.82rem;
+  color: #6b7280;
+}
+
+/* ── Recent commits row ── */
+.ar-recent-commits {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 1.25rem;
+}
+
+.ar-recent-commits-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #6b7280;
+}
+
 .ar-download-btn {
   display: inline-flex;
   align-items: center;

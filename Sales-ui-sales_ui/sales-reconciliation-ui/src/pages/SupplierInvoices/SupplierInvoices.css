@@ -683,3 +683,90 @@
   .si-table th, .si-table td { padding: 8px 10px; }
   .si-td-time { display: none; }
 }
+
+.si-filter-hint {
+  margin: 0;
+  font-size: 0.8rem;
+  color: #64748b;
+}
+
+/* ── Supplier Payout Report (D4) ── */
+.si-payout-report {
+  margin-bottom: 1.5rem;
+  padding: 1.5rem;
+}
+
+.si-payout-header {
+  padding-bottom: 1rem;
+  margin-bottom: 1rem;
+  border-bottom: 2px solid #f3f4f6;
+}
+
+.si-payout-range {
+  margin: 2px 0 0.75rem;
+  font-size: 0.85rem;
+  color: #6b7280;
+}
+
+.si-payout-actions {
+  display: flex;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.si-export-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border-radius: 8px;
+  border: 1px solid #c7d2fe;
+  background: #eef2ff;
+  color: #4f46e5;
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+
+.si-export-btn:hover:not(:disabled) { background: #4f46e5; color: white; }
+.si-export-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+.si-payout-supplier-block {
+  margin-bottom: 1.25rem;
+}
+
+.si-payout-supplier-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 0.5rem;
+  font-size: 0.95rem;
+  color: #1f2937;
+}
+
+.si-payout-grand-total {
+  text-align: right;
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: #1f2937;
+  padding: 0.75rem 1rem;
+  background: #eef2ff;
+  border-radius: 10px;
+}
+
+.si-payout-grand-total span {
+  color: #4f46e5;
+  margin-left: 6px;
+}
+
+/* ── Print ── */
+@media print {
+  .si-no-print { display: none !important; }
+
+  .si-page { background: none; padding: 0; }
+
+  .si-payout-report { box-shadow: none; max-width: 100%; padding: 0; }
+
+  .si-payout-supplier-block { break-inside: avoid; }
+}

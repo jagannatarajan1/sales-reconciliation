@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   FiUsers, FiUserCheck, FiBarChart2, FiTrendingUp, FiRotateCcw,
-  FiShoppingBag, FiFileText, FiCalendar, FiMail,
+  FiShoppingBag, FiFileText, FiCalendar, FiMail, FiClipboard,
 } from 'react-icons/fi';
 import '../styles/AdminDashboard.css';
 
@@ -55,19 +55,29 @@ const cards = [
   },
   {
     icon: FiBarChart2,
-    title: 'Sales Reconciliation',
-    desc: 'Review and submit pending staff reconciliations',
-    label: 'Pending Reconciliation',
+    title: 'Reconciliation Review',
+    desc: 'Review and submit pending staff reconciliations; browse committed records',
+    label: 'Review Reconciliation',
     path: '/admin/reconciliation',
     color: '#10b981',
   },
   {
     icon: FiTrendingUp,
-    title: 'Reports',
-    desc: 'Date-wise history, Z-Report comparison and variance',
+    title: 'Sales Reconciliation',
+    desc: 'Committed-only date-wise history, Z-Report comparison and variance',
     label: 'View Reports',
     path: '/admin/reports',
     color: '#f59e0b',
+    permission: 'reports',
+  },
+  {
+    icon: FiClipboard,
+    title: 'Z Reports',
+    desc: 'Browse Z-report emails over a date range — view, download, print',
+    label: 'View Z Reports',
+    path: '/admin/z-reports',
+    color: '#0ea5e9',
+    permission: 'reports',
   },
   {
     icon: FiRotateCcw,

@@ -21,6 +21,7 @@ import { adminLotteryRouter } from "./routes/adminLottery.routes.js";
 import { adminActiveDateRouter } from "./routes/adminActiveDate.routes.js";
 import { adminReconciliationRouter } from "./routes/adminReconciliation.routes.js";
 import { reportsRouter } from "./routes/reports.routes.js";
+import { zReportsRouter } from "./routes/zReports.routes.js";
 
 const app = express();
 
@@ -76,6 +77,7 @@ app.use("/api/admin/lottery", adminLotteryRouter);
 app.use("/api/admin/active-date", adminActiveDateRouter);
 app.use("/api/admin/reconciliation", adminReconciliationRouter);
 app.use("/api/reports", reportsRouter);
+app.use("/api/z-reports", zReportsRouter);
 
 app.use(errorHandler);
 

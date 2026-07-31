@@ -601,3 +601,43 @@
   .rpt-detail-panel { padding: 1.25rem; }
   .rpt-meta-row { flex-direction: column; }
 }
+
+/* ── Print button ── */
+.rpt-print-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 14px;
+  border-radius: 8px;
+  border: 1px solid #c7d2fe;
+  background: #eef2ff;
+  color: #4f46e5;
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+
+.rpt-print-btn:hover { background: #4f46e5; color: white; }
+
+.rpt-print-header { display: none; }
+
+/* ── Print ── */
+@media print {
+  .rpt-no-print { display: none !important; }
+
+  .rpt-page { background: none; padding: 0; }
+
+  .rpt-detail-panel { box-shadow: none; padding: 0; max-width: 100%; }
+
+  .rpt-print-header {
+    display: block;
+    margin-bottom: 1rem;
+  }
+
+  .rpt-print-header h2 { margin: 0 0 4px; font-size: 1.1rem; }
+  .rpt-print-header p  { margin: 0; font-size: 0.85rem; color: #4b5563; }
+
+  .rpt-section { box-shadow: none; break-inside: avoid; }
+  .rpt-compare-table { break-inside: avoid; }
+}

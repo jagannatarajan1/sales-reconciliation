@@ -218,12 +218,11 @@ export const AdminReconciliation = () => {
   const { showToast: notify } = useToast();
   const [activeTab, setActiveTab] = useState('pending');
 
-  /* download bill */
+  /* download bill (range only — see D2: a single-date picker used to sit
+     alongside this, removed in favour of range-only filters everywhere) */
   const todayStr = new Date().toISOString().split('T')[0];
-  const [billDate, setBillDate]           = useState('');
   const [billFromDate, setBillFromDate]   = useState('');
   const [billToDate, setBillToDate]       = useState('');
-  const [downloadingBill, setDownloadingBill]   = useState(false);
   const [downloadingRange, setDownloadingRange] = useState(false);
 
   /* pending (uncommitted) */
@@ -239,6 +238,10 @@ export const AdminReconciliation = () => {
   const [fromDate, setFromDate]                 = useState('');
   const [toDate, setToDate]                     = useState('');
   const [dateFilterError, setDateFilterError]   = useState('');
+  /* the 7 most recently committed dates — always unfiltered, shown as quick
+     chips directly below the date-range picker per the owner's request */
+  const [recentCommits, setRecentCommits]       = useState([]);
+  const [loadingRecentCommits, setLoadingRecentCommits] = useState(true);
   const [selectedCommitted, setSelectedCommitted] = useState(new Date().toISOString().split('T')[0]);
   const [loadingRecord, setLoadingRecord]       = useState(false);
   const [committedRecord, setCommittedRecord]   = useState(null);
@@ -271,27 +274,6 @@ export const AdminReconciliation = () => {
     link.remove();
     window.URL.revokeObjectURL(objectUrl);
   };
-
-  const handleDownloadBill = async () => {
-    if (!billDate) {
-      showToast('Please select a date', 'error');
-      return;
-    }
-    setDownloadingBill(true);
-    try {
-      await downloadFile(
-        `${API_BASE}/admin/reconciliation/download-bill?date=${billDate}`,
-        `zreport-bill-${billDate}.pdf`
-      );
-      showToast('Bill downloaded successfully');
-    } catch (e) {
-      showToast(e.message, 'error');
-    } finally {
-      setDownloadingBill(false);
-    }
-  };
-
-  const clearBillDate = () => setBillDate('');
 
   const clearBillRange = () => {
     setBillFromDate('');
@@ -358,10 +340,17 @@ export const AdminReconciliation = () => {
     setForm(itemToForm(item));
   };
 
-  /* fetch committed dates list — stores full objects {id, date, summaryTotal, …} */
+  /* fetch committed dates list — stores full objects {id, date, summaryTotal, …}.
+     When called unfiltered (mount, or "Clear Filter"), the same response also
+     refreshes the "Recent Commits" chips below — the backend already orders
+     desc, so the first 7 of an unfiltered fetch are exactly the 7 most
+     recently committed dates. This deliberately reuses that one fetch rather
+     than firing a second network call just for the recent-7 chips. */
   const loadCommittedDates = useCallback(async ({ fromDate: filterFromDate = '', toDate: filterToDate = '' } = {}) => {
     setLoadingDates(true);
     setCommittedDatesError('');
+    const isUnfiltered = !filterFromDate && !filterToDate;
+    if (isUnfiltered) setLoadingRecentCommits(true);
     try {
       const params = new URLSearchParams();
       if (filterFromDate) params.set('fromDate', filterFromDate);
@@ -374,12 +363,14 @@ export const AdminReconciliation = () => {
       const data = await res.json();
       const records = Array.isArray(data) ? data : [];
       setCommittedDates(records);
+      if (isUnfiltered) setRecentCommits(records.slice(0, 7));
     } catch {
       setCommittedDates([]);
       setCommittedDatesError('Failed to load committed records. Please try again.');
       showToast('Failed to load committed dates', 'error');
     } finally {
       setLoadingDates(false);
+      if (isUnfiltered) setLoadingRecentCommits(false);
     }
   }, [user.token]);
 
@@ -694,33 +685,13 @@ export const AdminReconciliation = () => {
             <h2 className="ar-panel-title"><FiCalendar /> Committed Records</h2>
             <p className="ar-panel-sub">
               {committedDates.length > 0
-                ? `${committedDates.length} committed date${committedDates.length !== 1 ? 's' : ''} — click a date or use the picker`
+                ? `${committedDates.length} committed date${committedDates.length !== 1 ? 's' : ''} — filter by range or pick a recent commit below`
                 : 'View past submitted reconciliations'}
             </p>
           </div>
         </div>
 
         <div className="ar-filter-toolbar">
-          <div className="ar-filter-card">
-            <div className="ar-filter-card-head">
-              <span className="ar-filter-card-icon"><FiCalendar /></span>
-              <span className="ar-filter-card-title">Pick a date</span>
-            </div>
-            <div className="ar-filter-card-body">
-              <div className="ar-picker-row ar-picker-row--inline">
-                <label className="ar-label" htmlFor="committed-picker">Date</label>
-                <input
-                  id="committed-picker"
-                  type="date"
-                  className="ar-date-input"
-                  value={selectedCommitted}
-                  max={new Date().toISOString().split('T')[0]}
-                  onChange={(e) => setSelectedCommitted(e.target.value)}
-                />
-              </div>
-            </div>
-          </div>
-
           <div className="ar-filter-card">
             <div className="ar-filter-card-head">
               <span className="ar-filter-card-icon"><FiCalendar /></span>
@@ -767,6 +738,36 @@ export const AdminReconciliation = () => {
         </div>
 
         {dateFilterError && <div className="ar-filter-error" role="alert">{dateFilterError}</div>}
+
+        {/* Recent Commits — always the 7 most recently committed dates,
+            independent of the date-range filter above, per the owner's
+            request for quick access without having to filter first. */}
+        <div className="ar-recent-commits">
+          <span className="ar-recent-commits-label">Recent Commits</span>
+          {loadingRecentCommits ? (
+            <div className="ar-center ar-center--inline">
+              <div className="ar-spinner ar-spinner--sm" />
+              <span>Loading…</span>
+            </div>
+          ) : recentCommits.length > 0 ? (
+            <div className="ar-date-chips ar-date-chips--committed">
+              {recentCommits.map((item) => (
+                <button
+                  key={item.date}
+                  className={`ar-chip ar-chip--committed${item.date === selectedCommitted ? ' ar-chip--active' : ''}`}
+                  onClick={() => setSelectedCommitted(item.date)}
+                >
+                  <span className="ar-chip-date">{fmtDateShort(item.date)}</span>
+                  {item.summaryTotal != null && (
+                    <span className="ar-chip-total">{fmtGBP(item.summaryTotal)}</span>
+                  )}
+                </button>
+              ))}
+            </div>
+          ) : (
+            <p className="ar-muted">No committed records yet.</p>
+          )}
+        </div>
 
         {/* Quick-select chips — only when committed dates are loaded */}
         {loadingDates ? (
@@ -919,40 +920,8 @@ export const AdminReconciliation = () => {
         </div>
 
         <div className="ar-download-section">
-          <h3 className="ar-download-heading">Single date</h3>
-          <div className="ar-date-filter" aria-label="Download bill for a single date">
-            <div className="ar-picker-row ar-picker-row--inline">
-              <label className="ar-label" htmlFor="bill-date">Date</label>
-              <input
-                id="bill-date"
-                type="date"
-                className="ar-date-input"
-                value={billDate}
-                max={todayStr}
-                onChange={(e) => setBillDate(e.target.value)}
-              />
-            </div>
-            <div className="ar-filter-actions">
-              <button
-                className="ar-download-btn"
-                onClick={handleDownloadBill}
-                disabled={downloadingBill || !billDate}
-              >
-                <FiDownload /> {downloadingBill ? 'Downloading…' : 'Download Bill'}
-              </button>
-              <button
-                className="ar-filter-clear-btn"
-                onClick={clearBillDate}
-                disabled={downloadingBill || !billDate}
-              >
-                Clear
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <div className="ar-download-section">
           <h3 className="ar-download-heading">Date range</h3>
+          <p className="ar-download-hint">To download a single day, set both From Date and To Date to the same day.</p>
           <div className="ar-date-filter" aria-label="Download bills for a date range">
             <div className="ar-picker-row ar-picker-row--inline">
               <label className="ar-label" htmlFor="bill-from-date">From Date</label>

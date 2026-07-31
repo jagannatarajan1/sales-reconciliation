@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   FiArrowLeft, FiFileText, FiCalendar, FiBriefcase, FiUser, FiDollarSign, FiX,
+  FiDownload, FiPrinter, FiPieChart,
 } from 'react-icons/fi';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../components/ui/Toast';
@@ -225,6 +226,174 @@ function DateDetail({ date, onBack, token }) {
   );
 }
 
+/* ── Supplier Payout report — grouped by supplier, range-based ──────────
+   D4: PDF / Excel / Print export of the current date-range filter, grouped
+   by supplier with per-supplier and grand totals. This is the printable
+   on-screen equivalent of the PDF/Excel files the backend generates from
+   the same range, so what's on screen always matches what gets exported. */
+function PayoutReport({ fromDate, toDate, token }) {
+  const [loading, setLoading] = useState(true);
+  const [invoices, setInvoices] = useState([]);
+  const [downloadingPdf, setDownloadingPdf] = useState(false);
+  const [downloadingExcel, setDownloadingExcel] = useState(false);
+  const { showToast: notify } = useToast();
+  const showToast = (message, type = 'error') => notify(message, type);
+
+  useEffect(() => {
+    const run = async () => {
+      setLoading(true);
+      try {
+        const params = new URLSearchParams({ fromDate, toDate });
+        const res = await fetch(`${API_BASE}/suppliers/invoices?${params.toString()}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.status === 404) {
+          setInvoices([]);
+          return;
+        }
+        if (!res.ok) throw new Error();
+        setInvoices(await res.json());
+      } catch {
+        showToast('Failed to load the supplier payout report for this range');
+      } finally {
+        setLoading(false);
+      }
+    };
+    if (fromDate && toDate) run();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fromDate, toDate, token]);
+
+  const bySupplier = new Map();
+  for (const inv of invoices) {
+    const key = inv.supplierName || inv.supplier || 'Unknown Supplier';
+    const list = bySupplier.get(key) ?? [];
+    list.push(inv);
+    bySupplier.set(key, list);
+  }
+  const supplierNames = Array.from(bySupplier.keys()).sort((a, b) => a.localeCompare(b));
+  const grandTotal = invoices.reduce((acc, inv) => acc + parseFloat(inv.value || 0), 0);
+
+  const downloadBlob = async (url, fallbackFileName) => {
+    const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      throw new Error(data.message || 'Download failed.');
+    }
+    const blob = await res.blob();
+    const disposition = res.headers.get('content-disposition') || '';
+    const match = disposition.match(/filename="?([^";]+)"?/);
+    const fileName = match ? match[1] : fallbackFileName;
+
+    const objectUrl = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = objectUrl;
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.URL.revokeObjectURL(objectUrl);
+  };
+
+  const handleDownloadPdf = async () => {
+    setDownloadingPdf(true);
+    try {
+      const params = new URLSearchParams({ fromDate, toDate });
+      await downloadBlob(
+        `${API_BASE}/suppliers/invoices/download-pdf?${params.toString()}`,
+        `supplier-payout-${fromDate}-to-${toDate}.pdf`,
+      );
+    } catch (e) {
+      showToast(e.message);
+    } finally {
+      setDownloadingPdf(false);
+    }
+  };
+
+  const handleDownloadExcel = async () => {
+    setDownloadingExcel(true);
+    try {
+      const params = new URLSearchParams({ fromDate, toDate });
+      await downloadBlob(
+        `${API_BASE}/suppliers/invoices/download-excel?${params.toString()}`,
+        `supplier-payout-${fromDate}-to-${toDate}.xlsx`,
+      );
+    } catch (e) {
+      showToast(e.message);
+    } finally {
+      setDownloadingExcel(false);
+    }
+  };
+
+  const handlePrint = () => window.print();
+
+  return (
+    <div className="si-panel si-payout-report">
+      <div className="si-payout-header">
+        <h2 className="si-detail-title"><FiPieChart /> Supplier Payout Report</h2>
+        <p className="si-payout-range">{fmtDateMed(fromDate)} to {fmtDateMed(toDate)}</p>
+        <div className="si-payout-actions si-no-print">
+          <button className="si-export-btn" onClick={handleDownloadPdf} disabled={downloadingPdf || loading}>
+            <FiDownload /> {downloadingPdf ? 'Preparing…' : 'Download PDF'}
+          </button>
+          <button className="si-export-btn" onClick={handleDownloadExcel} disabled={downloadingExcel || loading}>
+            <FiFileText /> {downloadingExcel ? 'Preparing…' : 'Download Excel'}
+          </button>
+          <button className="si-export-btn" onClick={handlePrint} disabled={loading}>
+            <FiPrinter /> Print
+          </button>
+        </div>
+      </div>
+
+      {loading ? (
+        <div className="si-center"><div className="si-spinner" /><p>Loading report…</p></div>
+      ) : supplierNames.length === 0 ? (
+        <div className="si-empty-inline"><p>No supplier invoices found for this range.</p></div>
+      ) : (
+        <>
+          {supplierNames.map((supplierName) => {
+            const rows = bySupplier.get(supplierName);
+            const supplierTotal = rows.reduce((acc, inv) => acc + parseFloat(inv.value || 0), 0);
+            return (
+              <div key={supplierName} className="si-payout-supplier-block">
+                <h3 className="si-payout-supplier-name"><FiBriefcase /> {supplierName}</h3>
+                <table className="si-table">
+                  <thead>
+                    <tr>
+                      <th>Date</th>
+                      <th>Invoice No.</th>
+                      <th>Entered By</th>
+                      <th className="si-th-right">Value</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rows.map((inv, idx) => (
+                      <tr key={inv.id ?? idx} className="si-row si-row--static">
+                        <td>{fmtDateMed(inv.date)}</td>
+                        <td><code className="si-invoice-no">{inv.invoiceNumber || inv.invoiceNo || '—'}</code></td>
+                        <td>{inv.enteredBy || '—'}</td>
+                        <td className="si-td-right si-amount">{fmtGBP(inv.value)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot>
+                    <tr>
+                      <td colSpan={3} className="si-tfoot-label">Supplier Total</td>
+                      <td className="si-tfoot-amount">{fmtGBP(supplierTotal)}</td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            );
+          })}
+          <div className="si-payout-grand-total">
+            Grand Total: <span>{fmtGBP(grandTotal)}</span>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 /* ── Main component ─────────────────────────────────────────────────── */
 export const SupplierInvoices = () => {
   const { user } = useAuth();
@@ -233,9 +402,11 @@ export const SupplierInvoices = () => {
   const [loading, setLoading]       = useState(true);
   const [dateRows, setDateRows]     = useState([]);
   const [selectedDate, setSelectedDate] = useState(todayStr());
-  const [specificDate, setSpecificDate] = useState(todayStr());
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
+  /* Range-only filter (D2) — no more single "specific date" card. Defaults
+     to today so the existing daily-lookup workflow still works via a
+     one-day range, exactly as it did with the specific-date picker. */
+  const [startDate, setStartDate] = useState(todayStr());
+  const [endDate, setEndDate] = useState(todayStr());
   const [rangeError, setRangeError] = useState('');
 
   const showToast = (message, type = 'error') => notify(message, type);
@@ -275,12 +446,6 @@ export const SupplierInvoices = () => {
     ? [startDate, endDate].filter(Boolean).join(' to ')
     : '';
 
-  const handleViewSpecificDate = () => {
-    if (!specificDate) return;
-    setRangeError('');
-    setSelectedDate(specificDate);
-  };
-
   const handleApplyRange = () => {
     if (startDate && endDate && startDate > endDate) {
       setRangeError('End date cannot be earlier than start date.');
@@ -291,11 +456,11 @@ export const SupplierInvoices = () => {
   };
 
   const handleClearFilter = () => {
-    setStartDate('');
-    setEndDate('');
+    const today = todayStr();
+    setStartDate(today);
+    setEndDate(today);
     setRangeError('');
-    setSpecificDate(todayStr());
-    setSelectedDate(todayStr());
+    setSelectedDate(today);
   };
 
   return (
@@ -306,11 +471,11 @@ export const SupplierInvoices = () => {
       transition={{ duration: 0.4, ease: [0.4, 0, 0.2, 1] }}
     >
 
-      <button className="si-back-btn" onClick={() => navigate(backPath)}>
+      <button className="si-back-btn si-no-print" onClick={() => navigate(backPath)}>
         <FiArrowLeft /> Back to Dashboard
       </button>
 
-      <div className="si-page-header">
+      <div className="si-page-header si-no-print">
         <h1 className="si-page-title"><FiFileText /> Supplier Payout</h1>
         <p className="si-page-sub">
           {selectedDate
@@ -319,31 +484,18 @@ export const SupplierInvoices = () => {
         </p>
       </div>
 
-      <div className="si-filter-toolbar">
+      <div className="si-filter-toolbar si-no-print">
         <div className="si-filter-card">
           <div className="si-filter-card-head">
             <span className="si-filter-card-icon"><FiCalendar /></span>
-            <span className="si-filter-card-title">Specific date</span>
+            <span className="si-filter-card-title">Today</span>
           </div>
           <div className="si-filter-card-body">
-            <div className="si-filter-field">
-              <label className="si-filter-label">Date</label>
-              <input
-                type="date"
-                className="si-date-input"
-                value={specificDate}
-                onChange={(e) => setSpecificDate(e.target.value)}
-              />
-            </div>
+            <p className="si-filter-hint">Reset the range below back to today in one click.</p>
             <div className="si-filter-actions">
-              <button
-                type="button"
-                className="si-today-btn"
-                onClick={() => { setSpecificDate(todayStr()); setRangeError(''); setSelectedDate(todayStr()); }}
-              >
+              <button type="button" className="si-today-btn" onClick={handleClearFilter}>
                 Today
               </button>
-              <button className="si-apply-btn" onClick={handleViewSpecificDate}>View</button>
             </div>
           </div>
         </div>
@@ -387,30 +539,33 @@ export const SupplierInvoices = () => {
         </div>
 
         <button className="si-clear-btn si-clear-btn--standalone" onClick={handleClearFilter}>
-          <FiX /> Clear filters
+          <FiX /> Reset to Today
         </button>
       </div>
 
-      {rangeError && <div className="si-range-error">{rangeError}</div>}
+      {rangeError && <div className="si-range-error si-no-print">{rangeError}</div>}
 
-      {selectedDate ? (
-        <DateDetail
-          date={selectedDate}
-          onBack={() => setSelectedDate(null)}
-          token={user.token}
-        />
-      ) : (
-        <DateList
-          rows={filteredRows}
-          onSelect={(date) => {
-            setSpecificDate(date);
-            setSelectedDate(date);
-          }}
-          loading={loading}
-          selectedDate={selectedDate}
-          rangeLabel={rangeLabel}
-        />
+      {startDate && endDate && !rangeError && (
+        <PayoutReport fromDate={startDate} toDate={endDate} token={user.token} />
       )}
+
+      <div className="si-no-print">
+        {selectedDate ? (
+          <DateDetail
+            date={selectedDate}
+            onBack={() => setSelectedDate(null)}
+            token={user.token}
+          />
+        ) : (
+          <DateList
+            rows={filteredRows}
+            onSelect={(date) => setSelectedDate(date)}
+            loading={loading}
+            selectedDate={selectedDate}
+            rangeLabel={rangeLabel}
+          />
+        )}
+      </div>
 
     </motion.div>
   );
