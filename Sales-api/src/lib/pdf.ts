@@ -152,7 +152,6 @@ export async function renderReconciliationReportPdf(record: ReconciliationRecord
   doc.font("Helvetica").fontSize(9).fillColor("#374151");
   const attribution: string[] = [];
   if (record.committedByName) attribution.push(`Committed by: ${record.committedByName}${record.committedAt ? " on " + record.committedAt.toLocaleString("en-GB") : ""}`);
-  if (record.staffName) attribution.push(`Staff: ${record.staffName}${record.shift ? ` (${record.shift})` : ""}`);
   if (record.adminSubmittedByName) attribution.push(`Admin reviewed by: ${record.adminSubmittedByName}${record.adminSubmittedAt ? " on " + record.adminSubmittedAt.toLocaleString("en-GB") : ""}`);
   for (const line of attribution) doc.text(line);
   if (attribution.length) doc.moveDown(0.6);
@@ -281,56 +280,96 @@ export interface SupplierPayoutInvoiceRow {
   enteredBy: string | null;
 }
 
+export type SupplierPayoutGroupBy = "supplier" | "date";
+
 export async function renderSupplierPayoutPdf(
   invoices: SupplierPayoutInvoiceRow[],
   fromDateStr: string,
   toDateStr: string,
   meta: PdfMeta = {},
+  groupBy: SupplierPayoutGroupBy = "supplier",
 ): Promise<Buffer> {
   const doc = newDocument();
   doc.y = drawHeader(doc, "Supplier Payout Report", `Date range: ${fromDateStr} to ${toDateStr}`, meta);
 
-  const bySupplier = new Map<string, SupplierPayoutInvoiceRow[]>();
-  for (const inv of invoices) {
-    const list = bySupplier.get(inv.supplierName) ?? [];
-    list.push(inv);
-    bySupplier.set(inv.supplierName, list);
+  if (invoices.length === 0) {
+    doc.font("Helvetica").fontSize(10).text("No supplier invoices found for this range.", PAGE_MARGIN, doc.y);
+    addPageNumbers(doc);
+    return collectPdf(doc);
   }
-
-  const columns: TableColumn[] = [
-    { label: "Date", width: CONTENT_WIDTH * 0.18 },
-    { label: "Invoice No.", width: CONTENT_WIDTH * 0.27 },
-    { label: "Entered By", width: CONTENT_WIDTH * 0.27 },
-    { label: "Value", width: CONTENT_WIDTH * 0.28, align: "right" },
-  ];
 
   let grandTotal = 0;
-  const supplierNames = Array.from(bySupplier.keys()).sort((a, b) => a.localeCompare(b));
 
-  if (supplierNames.length === 0) {
-    doc.font("Helvetica").fontSize(10).text("No supplier invoices found for this range.", PAGE_MARGIN, doc.y);
+  if (groupBy === "date") {
+    // By Date — group by date, list each supplier's payout within that
+    // date, no cross-date supplier subtotal, just that date's line items.
+    const byDate = new Map<string, SupplierPayoutInvoiceRow[]>();
+    for (const inv of invoices) {
+      const list = byDate.get(inv.date) ?? [];
+      list.push(inv);
+      byDate.set(inv.date, list);
+    }
+
+    const columns: TableColumn[] = [
+      { label: "Supplier", width: CONTENT_WIDTH * 0.32 },
+      { label: "Invoice No.", width: CONTENT_WIDTH * 0.23 },
+      { label: "Entered By", width: CONTENT_WIDTH * 0.22 },
+      { label: "Value", width: CONTENT_WIDTH * 0.23, align: "right" },
+    ];
+
+    const dates = Array.from(byDate.keys()).sort((a, b) => a.localeCompare(b));
+    for (const date of dates) {
+      const rows = byDate.get(date)!;
+      let dateTotal = 0;
+      const tableRows: TableRow[] = rows.map((r) => {
+        dateTotal += r.value;
+        return { cells: [r.supplierName, r.invoiceNo, r.enteredBy ?? "—", fmtGBP(r.value)] };
+      });
+      tableRows.push({
+        cells: ["", "", "Date Total", fmtGBP(dateTotal)],
+        bold: true,
+        highlight: true,
+      });
+      grandTotal += dateTotal;
+      drawTable(doc, `Date: ${date}`, columns, tableRows);
+    }
+  } else {
+    // By Supplier — group by supplier, list each date's amount within, then
+    // a supplier total.
+    const bySupplier = new Map<string, SupplierPayoutInvoiceRow[]>();
+    for (const inv of invoices) {
+      const list = bySupplier.get(inv.supplierName) ?? [];
+      list.push(inv);
+      bySupplier.set(inv.supplierName, list);
+    }
+
+    const columns: TableColumn[] = [
+      { label: "Date", width: CONTENT_WIDTH * 0.18 },
+      { label: "Invoice No.", width: CONTENT_WIDTH * 0.27 },
+      { label: "Entered By", width: CONTENT_WIDTH * 0.27 },
+      { label: "Value", width: CONTENT_WIDTH * 0.28, align: "right" },
+    ];
+
+    const supplierNames = Array.from(bySupplier.keys()).sort((a, b) => a.localeCompare(b));
+    for (const supplierName of supplierNames) {
+      const rows = bySupplier.get(supplierName)!;
+      let supplierTotal = 0;
+      const tableRows: TableRow[] = rows.map((r) => {
+        supplierTotal += r.value;
+        return { cells: [r.date, r.invoiceNo, r.enteredBy ?? "—", fmtGBP(r.value)] };
+      });
+      tableRows.push({
+        cells: ["", "", "Supplier Total", fmtGBP(supplierTotal)],
+        bold: true,
+        highlight: true,
+      });
+      grandTotal += supplierTotal;
+      drawTable(doc, `Supplier: ${supplierName}`, columns, tableRows);
+    }
   }
 
-  for (const supplierName of supplierNames) {
-    const rows = bySupplier.get(supplierName)!;
-    let supplierTotal = 0;
-    const tableRows: TableRow[] = rows.map((r) => {
-      supplierTotal += r.value;
-      return { cells: [r.date, r.invoiceNo, r.enteredBy ?? "—", fmtGBP(r.value)] };
-    });
-    tableRows.push({
-      cells: ["", "", "Supplier Total", fmtGBP(supplierTotal)],
-      bold: true,
-      highlight: true,
-    });
-    grandTotal += supplierTotal;
-    drawTable(doc, `Supplier: ${supplierName}`, columns, tableRows);
-  }
-
-  if (supplierNames.length > 0) {
-    if (doc.y > 700) doc.addPage();
-    doc.font("Helvetica-Bold").fontSize(12).fillColor("#1f2937").text(`Grand Total: ${fmtGBP(grandTotal)}`, PAGE_MARGIN, doc.y + 6);
-  }
+  if (doc.y > 700) doc.addPage();
+  doc.font("Helvetica-Bold").fontSize(12).fillColor("#1f2937").text(`Grand Total: ${fmtGBP(grandTotal)}`, PAGE_MARGIN, doc.y + 6);
 
   addPageNumbers(doc);
   return collectPdf(doc);

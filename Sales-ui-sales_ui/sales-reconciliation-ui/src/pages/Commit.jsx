@@ -8,19 +8,13 @@ import "./Commit.css";
 const API_BASE = import.meta.env.VITE_API_URL || "https://localhost:7276/api";
 const SUMMARY_URL = `${API_BASE}/Summary`;
 
-const SHIFTS = ["Morning", "Afternoon", "Evening", "Night"];
-const OTHER_STAFF_VALUE = "__other__";
-
 // ── Summary <-> Commit relationship ──────────────────────────────────────
 // Summary.jsx and Commit.jsx are independent Dashboard entries (Dashboard.jsx
 // links to both separately) — there is no wizard-style forward navigation
-// between them by default. Summary now has a "Proceed to Commit" button that
-// passes staffName/shift/staffNotes via router state as a convenience, but
-// Commit.jsx must also work when reached directly from the Dashboard, so it
-// owns its own copy of these fields (pre-filled from location.state when
-// present) and is the page that actually enforces "staff name + shift
-// required before commit" — this is the one place the POST /commit body is
-// built, so it's the natural place to gate the button.
+// between them by default. Summary has a "Proceed to Commit" button that
+// passes staffNotes via router state as a convenience, but Commit.jsx must
+// also work when reached directly from the Dashboard, so it owns its own
+// copy of the field (pre-filled from location.state when present).
 export const Commit = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -38,41 +32,14 @@ export const Commit = () => {
   const [limitExceeded, setLimitExceeded] = useState(false);
   const [alreadyAttempted, setAlreadyAttempted] = useState(false);
 
-  // If Summary passed a staffName through, default to the "Other" free-text
-  // slot showing that name — once the staff list loads below, it's swapped
-  // to the matching dropdown option if one exists.
+  // If Summary passed staffNotes through (already filled in there), pre-fill
+  // this page's textarea with it.
   const passedState = location.state || {};
-  const [staffList, setStaffList] = useState([]);
-  const [staffName, setStaffName] = useState(() => (passedState.staffName ? OTHER_STAFF_VALUE : ""));
-  const [staffNameOther, setStaffNameOther] = useState(() => passedState.staffName || "");
-  const [shift, setShift] = useState(() => passedState.shift || "");
   const [staffNotes, setStaffNotes] = useState(() => passedState.staffNotes || "");
 
   const authHeaders = () => ({ Authorization: `Bearer ${user.token}` });
 
-  const resolvedStaffName = staffName === OTHER_STAFF_VALUE ? staffNameOther.trim() : staffName;
-  const canCommit = !!resolvedStaffName && !!shift;
-
-  const loadStaff = async () => {
-    try {
-      const res = await fetch(`${API_BASE}/staff`, { headers: authHeaders() });
-      if (!res.ok) return;
-      const data = await res.json();
-      const active = Array.isArray(data) ? data.filter((s) => s.isActive) : [];
-      setStaffList(active);
-
-      // If a name was passed in from Summary and it matches an active staff
-      // entry exactly, switch the dropdown to that entry instead of "Other".
-      if (passedState.staffName && active.some((s) => s.name === passedState.staffName)) {
-        setStaffName(passedState.staffName);
-        setStaffNameOther("");
-      }
-    } catch {
-      // Non-fatal — the "Other" free-text option still works without the list.
-    }
-  };
-
-  useEffect(() => { loadAll(); loadStaff(); }, []);
+  useEffect(() => { loadAll(); }, []);
 
   const loadAll = async () => {
     setLoading(true);
@@ -122,10 +89,6 @@ export const Commit = () => {
   };
 
   const handleCommit = async () => {
-    if (!canCommit) {
-      setErrorMsg("Staff name and shift are required before you can commit.");
-      return;
-    }
     setErrorMsg("");
     setCommitting(true);
     try {
@@ -133,8 +96,6 @@ export const Commit = () => {
         method:  "POST",
         headers: { "Content-Type": "application/json", ...authHeaders() },
         body:    JSON.stringify({
-          staffName: resolvedStaffName,
-          shift,
           staffNotes: staffNotes.trim(),
         }),
       });
@@ -234,46 +195,6 @@ export const Commit = () => {
 
               {!committed && (
                 <div className="commit-staff-section">
-                  <div className="commit-field">
-                    <label className="commit-label">Staff Name</label>
-                    <select
-                      className="commit-select"
-                      value={staffName}
-                      onChange={(e) => setStaffName(e.target.value)}
-                    >
-                      <option value="">Select staff…</option>
-                      {staffList.map((s) => (
-                        <option key={s.id} value={s.name}>{s.name}</option>
-                      ))}
-                      <option value={OTHER_STAFF_VALUE}>Other (temporary staff)</option>
-                    </select>
-                  </div>
-
-                  {staffName === OTHER_STAFF_VALUE && (
-                    <div className="commit-field">
-                      <label className="commit-label">Temporary Staff Name</label>
-                      <input
-                        className="commit-select"
-                        type="text"
-                        placeholder="Enter name"
-                        value={staffNameOther}
-                        onChange={(e) => setStaffNameOther(e.target.value)}
-                      />
-                    </div>
-                  )}
-
-                  <div className="commit-field">
-                    <label className="commit-label">Shift</label>
-                    <select
-                      className="commit-select"
-                      value={shift}
-                      onChange={(e) => setShift(e.target.value)}
-                    >
-                      <option value="">Select shift…</option>
-                      {SHIFTS.map((s) => <option key={s} value={s}>{s}</option>)}
-                    </select>
-                  </div>
-
                   <div className="commit-field commit-field--notes">
                     <label className="commit-label">Staff Notes (optional)</label>
                     <textarea
@@ -298,8 +219,7 @@ export const Commit = () => {
                 <button
                   className={`commit-btn ${limitExceeded ? "commit-btn--red" : "commit-btn--green"}`}
                   onClick={handleCommit}
-                  disabled={committing || committed || limitExceeded || !canCommit}
-                  title={!canCommit ? "Select a staff name and shift first" : undefined}
+                  disabled={committing || committed || limitExceeded}
                 >
                   {committing
                     ? <><span className="commit-btn-spinner" /> Committing…</>
@@ -307,9 +227,7 @@ export const Commit = () => {
                       ? "Already Attempted — Commit Locked for This Date"
                       : limitExceeded
                         ? "Commit Blocked — Exceeds £5.00 Limit"
-                        : !canCommit
-                          ? "Select Staff Name & Shift to Continue"
-                          : "Confirm Commit"
+                        : "Confirm Commit"
                   }
                 </button>
               )}

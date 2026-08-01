@@ -248,6 +248,7 @@ export const AdminReconciliation = () => {
   const [isEditingCommitted, setIsEditingCommitted] = useState(false);
   const [editForm, setEditForm]                 = useState({});
   const [savingEdit, setSavingEdit]             = useState(false);
+  const [downloadingBill, setDownloadingBill]   = useState(false);
 
   const showToast = (message, type = 'success') => notify(message, type);
 
@@ -300,6 +301,25 @@ export const AdminReconciliation = () => {
       showToast(e.message, 'error');
     } finally {
       setDownloadingRange(false);
+    }
+  };
+
+  // Download the full Sales Reconciliation report (Stage 3's single-date PDF
+  // renderer) for the currently viewed committed record — the properly
+  // formatted report, not the raw Z-report-email PDF.
+  const handleDownloadBill = async () => {
+    if (!selectedCommitted) return;
+    setDownloadingBill(true);
+    try {
+      await downloadFile(
+        `${API_BASE}/admin/reconciliation/download-bill?date=${selectedCommitted}`,
+        `reconciliation-report-${selectedCommitted}.pdf`
+      );
+      showToast('Bill downloaded successfully');
+    } catch (e) {
+      showToast(e.message, 'error');
+    } finally {
+      setDownloadingBill(false);
     }
   };
 
@@ -836,20 +856,19 @@ export const AdminReconciliation = () => {
                     Committed: {new Date(committedRecord.committedAt).toLocaleString('en-GB')}
                   </span>
                 )}
-                {committedRecord.staffName && (
-                  <span className="ar-submitted-at">
-                    Staff: {committedRecord.staffName}
-                  </span>
-                )}
-                {committedRecord.shift && (
-                  <span className="ar-submitted-at">
-                    Shift: {committedRecord.shift}
-                  </span>
-                )}
                 {!isEditingCommitted && (
-                  <button className="ar-edit-btn" onClick={startEditingCommitted}>
-                    <FiEdit2 /> Edit
-                  </button>
+                  <>
+                    <button
+                      className="ar-download-btn ar-download-btn--inline"
+                      onClick={handleDownloadBill}
+                      disabled={downloadingBill}
+                    >
+                      <FiDownload /> {downloadingBill ? 'Downloading…' : 'Download Bill'}
+                    </button>
+                    <button className="ar-edit-btn" onClick={startEditingCommitted}>
+                      <FiEdit2 /> Edit
+                    </button>
+                  </>
                 )}
               </div>
 

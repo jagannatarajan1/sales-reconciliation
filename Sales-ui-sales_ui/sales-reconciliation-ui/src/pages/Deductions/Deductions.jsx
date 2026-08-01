@@ -157,12 +157,9 @@ function DeductionsGrid({ token, showToast, isLocked }) {
 ══════════════════════════════════ */
 const blankInvoiceRow = () => ({ id: Date.now(), supplierId: '', invoiceNo: '', value: '' });
 
-// §2 — supplier invoices become read-only once the day is committed, unless
-// an admin has reopened that specific date (see PUT /Suppliers/invoices/reopen/:date).
-// This lock is entirely independent of isLocked (DailySummary.isCommitted /
-// isPendingAdminReview, which is unused/always-false today) — it's driven by
-// ReconciliationRecord.isStaffCommitted for the active date only.
-function SupplierInvoices({ token, showToast, isLocked, activeDate }) {
+// Supplier invoice values are always editable, regardless of the day's
+// commit status — there is no invoice-specific lock/reopen mechanism.
+function SupplierInvoices({ token, showToast, isLocked }) {
   const [suppliers, setSuppliers] = useState([]);
   const [invoices, setInvoices]   = useState([]);
   const [loading, setLoading]     = useState(true);
@@ -170,7 +167,6 @@ function SupplierInvoices({ token, showToast, isLocked, activeDate }) {
   const [rows, setRows]           = useState([blankInvoiceRow()]);
   const [saving, setSaving]       = useState(false);
   const [isEditingRows, setIsEditingRows] = useState(false);
-  const [invoiceLock, setInvoiceLock] = useState({ isStaffCommitted: false, editable: true });
   const [editingInvoiceId, setEditingInvoiceId] = useState(null);
   const [editDraft, setEditDraft] = useState({ supplierId: '', invoiceNo: '', value: '' });
   const [savingEditId, setSavingEditId] = useState(null);
@@ -192,16 +188,7 @@ function SupplierInvoices({ token, showToast, isLocked, activeDate }) {
 
   useEffect(() => { loadInvoices(); }, [token]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  useEffect(() => {
-    if (!token || !activeDate) return;
-    const dateStr = activeDate.split('T')[0];
-    fetch(`${API}/Suppliers/invoices/lock-status?date=${dateStr}`, { headers: authHeader(token) })
-      .then(safeJson)
-      .then(data => { if (data) setInvoiceLock(data); })
-      .catch(() => {});
-  }, [token, activeDate]);
-
-  const invoicesLocked = isLocked || !invoiceLock.editable;
+  const invoicesLocked = isLocked;
 
   const addRow = () =>
     setRows(prev => [...prev, blankInvoiceRow()]);
@@ -336,12 +323,6 @@ function SupplierInvoices({ token, showToast, isLocked, activeDate }) {
         )}
       </div>
 
-      {invoiceLock.isStaffCommitted && !invoiceLock.editable && (
-        <div className="ded-lock-banner">
-          <FiLock /> This date has been committed — supplier invoices are read-only. Ask an admin to reopen this date to make changes.
-        </div>
-      )}
-
       <div className="ded-table-wrap">
         <table className="ded-table">
           <thead>
@@ -415,7 +396,7 @@ function SupplierInvoices({ token, showToast, isLocked, activeDate }) {
                           <button className="ded-del-btn" onClick={() => deleteInvoice(inv.id)} title="Delete"><FiX /></button>
                         </>
                       ) : invoicesLocked ? (
-                        <span className="ded-locked-hint" title="Ask admin to reopen this date"><FiLock /></span>
+                        <span className="ded-locked-hint" title="This day is already committed"><FiLock /></span>
                       ) : null}
                     </td>
                   </>
@@ -537,7 +518,7 @@ export const Deductions = () => {
           <span className="ded-date-chip"><FiCalendar /> {displayDate}</span>
         </div>
         <DeductionsGrid   token={user.token} showToast={showToast} isLocked={isLocked} />
-        <SupplierInvoices token={user.token} showToast={showToast} isLocked={isLocked} activeDate={activeDate ?? new Date().toISOString()} />
+        <SupplierInvoices token={user.token} showToast={showToast} isLocked={isLocked} />
       </div>
     </motion.div>
   );

@@ -187,16 +187,7 @@ summaryRouter.post("/commit", async (req, res) => {
   }
 
   const body = req.body ?? {};
-  const staffName = typeof body.staffName === "string" ? body.staffName.trim() : "";
-  const shift = typeof body.shift === "string" ? body.shift.trim() : "";
   const staffNotes = typeof body.staffNotes === "string" && body.staffNotes.trim() ? body.staffNotes.trim() : null;
-
-  // Form-validation gate only — not an account-level lock. Staff identity
-  // must be recorded on every commit, but this never blocks saving/entering
-  // data on the Summary page itself.
-  if (!staffName || !shift) {
-    return res.status(400).json({ message: "Staff name and shift are required to commit." });
-  }
 
   const date = await getActiveDate();
 
@@ -218,8 +209,6 @@ summaryRouter.post("/commit", async (req, res) => {
       ...totals,
       zReportTotal,
       difference,
-      staffName,
-      shift,
       staffNotes,
       isStaffCommitted: true,
       committedByUserId: req.userId,
@@ -230,8 +219,6 @@ summaryRouter.post("/commit", async (req, res) => {
       ...totals,
       zReportTotal,
       difference,
-      staffName,
-      shift,
       staffNotes,
       isStaffCommitted: true,
       committedByUserId: req.userId,
@@ -246,7 +233,7 @@ summaryRouter.post("/commit", async (req, res) => {
     action: "staff_commit",
     entity: "ReconciliationRecord",
     entityId: date.toISOString().split("T")[0],
-    newValue: { ...totals, zReportTotal, difference, staffName, shift, staffNotes },
+    newValue: { ...totals, zReportTotal, difference, staffNotes },
   });
 
   await sendCommitNotificationEmail({
@@ -254,8 +241,6 @@ summaryRouter.post("/commit", async (req, res) => {
     summaryTotal: totals.summaryTotal,
     zReportTotal,
     difference,
-    staffName,
-    shift,
     staffNotes,
   });
 
@@ -300,4 +285,32 @@ summaryRouter.get("/reconciliation/portal", async (req, res) => {
     difference: record.difference,
     adminNotes: record.adminNotes,
   });
+});
+
+// Lightweight, non-admin-gated list of committed dates within a range — used
+// by the Shop Sale calendar (any authenticated staff member) to grey out
+// dates that already have a completed reconciliation, without exposing any
+// of the admin-only reconciliation detail that /admin/reconciliation/committed
+// returns. Deliberately returns nothing but the date strings.
+summaryRouter.get("/committed-dates", async (req, res) => {
+  if (req.userId == null) {
+    return res.status(401).json({ message: "User not authenticated" });
+  }
+
+  const fromDate = req.query.fromDate ? dateOnly(req.query.fromDate as string) : undefined;
+  const toDate = req.query.toDate ? dateOnly(req.query.toDate as string) : undefined;
+
+  const records = await prisma.reconciliationRecord.findMany({
+    where: {
+      OR: [{ isStaffCommitted: true }, { isAdminReconciled: true }],
+      date: {
+        ...(fromDate ? { gte: fromDate } : {}),
+        ...(toDate ? { lte: toDate } : {}),
+      },
+    },
+    select: { date: true },
+    orderBy: { date: "asc" },
+  });
+
+  res.json({ dates: records.map((r) => r.date.toISOString().split("T")[0]) });
 });

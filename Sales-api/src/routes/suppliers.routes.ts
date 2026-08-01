@@ -2,7 +2,7 @@ import { Router } from "express";
 import { prisma } from "../lib/prisma.js";
 import { getActiveDate, dateOnly } from "../lib/activeDate.js";
 import { writeAuditLog } from "../lib/auditLog.js";
-import { renderSupplierPayoutPdf, type SupplierPayoutInvoiceRow } from "../lib/pdf.js";
+import { renderSupplierPayoutPdf, type SupplierPayoutInvoiceRow, type SupplierPayoutGroupBy } from "../lib/pdf.js";
 import { buildSupplierPayoutExcel } from "../lib/excel.js";
 import { requirePermission } from "../lib/permissions.js";
 
@@ -13,16 +13,8 @@ function toNumber(value: unknown): number {
   return Number.isFinite(n) ? n : 0;
 }
 
-// §2 — narrow, specific lock: an invoice is read-only once its date's
-// ReconciliationRecord.isStaffCommitted is true, UNLESS an admin has
-// explicitly reopened that date via supplierInvoicesReopened. This has no
-// relationship to (and does not touch) DailySummary.isCommitted /
-// isPendingAdminReview, which gate the Summary/Deductions/Lottery/Paypoint
-// pages — those are untouched by this change.
-async function isInvoiceDateLocked(date: Date): Promise<boolean> {
-  const record = await prisma.reconciliationRecord.findUnique({ where: { date } });
-  if (!record || !record.isStaffCommitted) return false;
-  return !record.supplierInvoicesReopened;
+function parseGroupBy(value: unknown): SupplierPayoutGroupBy {
+  return value === "date" ? "date" : "supplier";
 }
 
 suppliersRouter.get("/invoices/today", async (req, res) => {
@@ -122,10 +114,11 @@ suppliersRouter.get("/invoices/download-pdf", async (req, res) => {
   const fromDate = dateOnly(fromParam);
   const toDate = dateOnly(toParam);
   const rows = await loadPayoutRows(fromDate, toDate);
+  const groupBy = parseGroupBy(req.query.groupBy);
 
   const fromStr = fromDate.toISOString().split("T")[0];
   const toStr = toDate.toISOString().split("T")[0];
-  const pdf = await renderSupplierPayoutPdf(rows, fromStr, toStr, { generatedByName: req.userName });
+  const pdf = await renderSupplierPayoutPdf(rows, fromStr, toStr, { generatedByName: req.userName }, groupBy);
 
   res.setHeader("Content-Type", "application/pdf");
   res.setHeader("Content-Disposition", `attachment; filename="supplier-payout-${fromStr}-to-${toStr}.pdf"`);
@@ -142,73 +135,15 @@ suppliersRouter.get("/invoices/download-excel", async (req, res) => {
   const fromDate = dateOnly(fromParam);
   const toDate = dateOnly(toParam);
   const rows = await loadPayoutRows(fromDate, toDate);
+  const groupBy = parseGroupBy(req.query.groupBy);
 
   const fromStr = fromDate.toISOString().split("T")[0];
   const toStr = toDate.toISOString().split("T")[0];
-  const excel = await buildSupplierPayoutExcel(rows, fromStr, toStr, { generatedByName: req.userName });
+  const excel = await buildSupplierPayoutExcel(rows, fromStr, toStr, { generatedByName: req.userName }, groupBy);
 
   res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
   res.setHeader("Content-Disposition", `attachment; filename="supplier-payout-${fromStr}-to-${toStr}.xlsx"`);
   res.send(excel);
-});
-
-// Lets the staff-facing edit UI know, for a given date, whether invoices are
-// currently editable — i.e. either never committed, or committed but
-// reopened by an admin. Read by Deductions.jsx before showing Edit controls.
-suppliersRouter.get("/invoices/lock-status", async (req, res) => {
-  if (req.userId == null) return res.status(401).json({ message: "User not authenticated" });
-
-  const dateParam = req.query.date as string | undefined;
-  if (!dateParam) return res.status(400).json({ message: "date query parameter is required." });
-
-  const date = dateOnly(dateParam);
-  const record = await prisma.reconciliationRecord.findUnique({ where: { date } });
-  const isStaffCommitted = record?.isStaffCommitted ?? false;
-  const supplierInvoicesReopened = record?.supplierInvoicesReopened ?? false;
-
-  res.json({
-    date: date.toISOString().split("T")[0],
-    isStaffCommitted,
-    supplierInvoicesReopened,
-    editable: !isStaffCommitted || supplierInvoicesReopened,
-  });
-});
-
-// Admin-only: flips supplierInvoicesReopened for a specific already-committed
-// date, toggling between locked and reopened. This is the ONLY mechanism
-// that unlocks a committed date's invoices — it does nothing to
-// isStaffCommitted itself, the day's totals, or any other module.
-suppliersRouter.put("/invoices/reopen/:date", async (req, res) => {
-  if (!requirePermission(req, res, "commitHistory")) return;
-
-  const date = dateOnly(req.params.date);
-  const record = await prisma.reconciliationRecord.findUnique({ where: { date } });
-  if (!record || !record.isStaffCommitted) {
-    return res.status(400).json({ message: "This date has not been committed, so there is nothing to reopen." });
-  }
-
-  const updated = await prisma.reconciliationRecord.update({
-    where: { date },
-    data: { supplierInvoicesReopened: !record.supplierInvoicesReopened },
-  });
-
-  void writeAuditLog({
-    userId: req.userId,
-    userName: req.userName,
-    action: updated.supplierInvoicesReopened ? "supplier_invoices_reopen" : "supplier_invoices_relock",
-    entity: "ReconciliationRecord",
-    entityId: date.toISOString().split("T")[0],
-    previousValue: { supplierInvoicesReopened: record.supplierInvoicesReopened },
-    newValue: { supplierInvoicesReopened: updated.supplierInvoicesReopened },
-  });
-
-  res.json({
-    date: date.toISOString().split("T")[0],
-    supplierInvoicesReopened: updated.supplierInvoicesReopened,
-    message: updated.supplierInvoicesReopened
-      ? "Supplier invoices reopened for editing on this date."
-      : "Supplier invoices locked again for this date.",
-  });
 });
 
 suppliersRouter.post("/invoices", async (req, res) => {
@@ -247,20 +182,13 @@ suppliersRouter.post("/invoices", async (req, res) => {
   });
 });
 
-// §2 — edit an invoice's value/details. Blocked once the invoice's date has
-// been staff-committed, unless an admin has reopened that date (see
-// PUT /invoices/reopen/:date above).
+// Edit an invoice's value/details. Always editable regardless of the date's
+// commit status — supplier payout values must remain editable at all times.
 suppliersRouter.put("/invoices/:id", async (req, res) => {
   if (req.userId == null) return res.status(401).json({ message: "User not authenticated" });
 
   const existing = await prisma.supplierInvoice.findUnique({ where: { supplierInvoiceId: Number(req.params.id) } });
   if (!existing) return res.status(404).json({ message: "Invoice not found." });
-
-  if (await isInvoiceDateLocked(existing.date)) {
-    return res.status(403).json({
-      message: "This date has been committed. Ask an admin to reopen supplier invoices for this date before editing.",
-    });
-  }
 
   const { supplierId, invoiceNo, value } = req.body ?? {};
   const supplier = supplierId ? await prisma.supplier.findUnique({ where: { supplierId: Number(supplierId) } }) : null;
@@ -298,11 +226,6 @@ suppliersRouter.delete("/invoices/:id", async (req, res) => {
   if (req.userId == null) return res.status(401).json({ message: "User not authenticated" });
 
   const existing = await prisma.supplierInvoice.findUnique({ where: { supplierInvoiceId: Number(req.params.id) } });
-  if (existing && (await isInvoiceDateLocked(existing.date))) {
-    return res.status(403).json({
-      message: "This date has been committed. Ask an admin to reopen supplier invoices for this date before deleting.",
-    });
-  }
   await prisma.supplierInvoice.delete({ where: { supplierInvoiceId: Number(req.params.id) } }).catch(() => null);
 
   void writeAuditLog({

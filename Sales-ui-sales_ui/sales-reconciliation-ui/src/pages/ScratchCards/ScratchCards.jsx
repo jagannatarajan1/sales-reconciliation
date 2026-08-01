@@ -17,6 +17,17 @@ const fmtGBP = (val) => {
   return isNaN(n) ? '—' : `£${n.toFixed(2)}`;
 };
 
+// Mirrors the backend's hasPermission()/requirePermission("scratchCards"):
+// superadmin always passes, admin passes only if "scratchCards" is in their
+// permissions array, user never passes (this page's route already requires
+// at least the admin role, but a limited admin might not have this module).
+const canManageScratchCards = (user) => {
+  if (!user) return false;
+  if (user.role === 'superadmin') return true;
+  if (user.role === 'admin') return (user.permissions ?? []).includes('scratchCards');
+  return false;
+};
+
 const SCRATCH_CARD_ORDER_KEY = 'scratch-card-display-order';
 
 const readStoredCardOrder = () => {
@@ -54,7 +65,7 @@ const getOrderedCards = (cards) => {
   });
 };
 
-/* ── Inline "Set Open Value" popover ───────────────────────────────── */
+/* ── Inline "Set Opening Value" popover (overrides the carry-over default) ── */
 function OpenValuePopover({ cardId, onSet, onClose, busy }) {
   const [custom, setCustom] = useState('');
   const inputRef = useRef(null);
@@ -70,7 +81,7 @@ function OpenValuePopover({ cardId, onSet, onClose, busy }) {
 
   return (
     <div className="sc-popover">
-      <span className="sc-popover-label">Set open value:</span>
+      <span className="sc-popover-label">Set opening value:</span>
 
       <div className="sc-popover-presets">
         <button
@@ -213,7 +224,7 @@ export const ScratchCards = () => {
   };
 
   const handleRowDrop = (targetId) => {
-    if (!isAdmin || !draggedCardId || String(draggedCardId) === String(targetId)) {
+    if (!canManage || !draggedCardId || String(draggedCardId) === String(targetId)) {
       setDraggedCardId(null);
       return;
     }
@@ -283,7 +294,7 @@ export const ScratchCards = () => {
     }
   };
 
-  const isAdmin = user?.role === 'admin';
+  const canManage = canManageScratchCards(user);
 
   return (
     <motion.div
@@ -301,7 +312,7 @@ export const ScratchCards = () => {
       <div className="sc-page-header">
         <h1 className="sc-page-title"><FiRotateCcw /> Scratch Cards</h1>
         <p className="sc-page-sub">
-          Manage scratch card status, stock, and set forced open values for the staff lottery portal.
+          Manage scratch card status and opening/current values for the staff lottery portal.
         </p>
       </div>
 
@@ -310,7 +321,8 @@ export const ScratchCards = () => {
         <div className="sc-panel-header">
           <h2 className="sc-panel-title"><FiClipboard /> Existing Scratch Cards</h2>
           <p className="sc-panel-sub">
-            Inactive cards are hidden from staff but manageable here. Open Value resets automatically after staff saves. Drag a row onto another row to swap their positions.
+            Inactive cards are hidden from staff but manageable here. Opening Value carries over from
+            yesterday's Current Value automatically, unless overridden below. Drag a row onto another row to swap their positions.
           </p>
         </div>
 
@@ -332,10 +344,8 @@ export const ScratchCards = () => {
                   <th>Scratch Card No</th>
                   <th>Price</th>
                   <th>Status</th>
-                  <th>Open Value</th>
-                  <th>Opening Stock</th>
-                  <th>Current Stock</th>
-                  <th>Remaining Stock</th>
+                  <th>Opening Value</th>
+                  <th>Current Value</th>
                   <th>Actions</th>
                 </tr>
               </thead>
@@ -344,7 +354,7 @@ export const ScratchCards = () => {
                   <tr
                     key={card.id}
                     className={`${card.isActive ? '' : 'sc-row--inactive'} ${draggedCardId === card.id ? 'sc-row--dragging' : ''}`}
-                    draggable={isAdmin}
+                    draggable={canManage}
                     onDragStart={() => setDraggedCardId(card.id)}
                     onDragOver={(event) => event.preventDefault()}
                     onDrop={() => handleRowDrop(card.id)}
@@ -353,7 +363,7 @@ export const ScratchCards = () => {
 
                     {/* Scratch card number */}
                     <td className="sc-td-cardno">
-                      {isAdmin && (
+                      {canManage && (
                         <span className="sc-drag-handle" title="Drag to swap position">⋮⋮</span>
                       )}
                       <span className="sc-card-no">{card.scratchCardNo || '—'}</span>
@@ -369,27 +379,19 @@ export const ScratchCards = () => {
                         : <span className="sc-badge sc-badge--inactive">Inactive</span>}
                     </td>
 
-                    {/* Open value */}
-                    <td className="sc-td-openval">
-                      {card.forcedOpenNo != null && card.forcedOpenNo !== ''
-                        ? <span className="sc-openval">{card.forcedOpenNo}</span>
-                        : <span className="sc-openval-none">—</span>}
-                    </td>
-
-                    {/* §10 — Opening / Current / Remaining stock, always visible */}
-                    <td className="sc-td-stock">{card.openingStock ?? 0}</td>
-                    <td className="sc-td-stock">{card.currentStock ?? 0}</td>
-                    <td className="sc-td-stock">{card.remainingStock ?? card.packSize ?? 0}</td>
+                    {/* Opening / Current value — simple carry-over model, no stock/pack-size */}
+                    <td className="sc-td-stock">{card.openingValue ?? 0}</td>
+                    <td className="sc-td-stock">{card.currentValue ?? 0}</td>
 
                     {/* Actions */}
                     <td className="sc-td-actions">
                       <div className="sc-actions-wrap">
 
-                        {isAdmin && (
+                        {canManage && (
                           <span className="sc-drag-hint"></span>
                         )}
 
-                        {/* Set open value */}
+                        {/* Set opening value (overrides the carry-over default) */}
                         {popoverId === card.id ? (
                           <OpenValuePopover
                             cardId={card.id}
@@ -402,7 +404,7 @@ export const ScratchCards = () => {
                             className="sc-action-btn sc-action-btn--open"
                             onClick={() => setPopoverId(card.id)}
                           >
-                            Set Open Value
+                            Set Opening Value
                           </button>
                         )}
 
@@ -417,7 +419,7 @@ export const ScratchCards = () => {
                             : card.isActive ? 'Deactivate' : 'Activate'}
                         </button>
 
-                        {isAdmin && (
+                        {canManage && (
                           <button
                             className="sc-action-btn sc-action-btn--delete"
                             onClick={() => setConfirmDeleteId(card.id)}

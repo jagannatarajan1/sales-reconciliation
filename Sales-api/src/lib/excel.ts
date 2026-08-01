@@ -67,8 +67,6 @@ export async function buildReconciliationExcel(
   const sheet = workbook.addWorksheet("Sales Reconciliation");
   const columns = [
     { header: "Date", key: "date", width: 14 },
-    { header: "Staff", key: "staff", width: 16 },
-    { header: "Shift", key: "shift", width: 12 },
     { header: "Manual Card", key: "manualCardAmount", width: 14 },
     { header: "Card Amount", key: "cardAmount", width: 14 },
     { header: "Last Safe", key: "lastSafe", width: 12 },
@@ -103,8 +101,6 @@ export async function buildReconciliationExcel(
   for (const r of records) {
     const rowData = {
       date: r.date.toISOString().split("T")[0],
-      staff: r.staffName ?? "",
-      shift: r.shift ?? "",
       manualCardAmount: toNum(r.manualCardAmount),
       cardAmount: toNum(r.cardAmount),
       lastSafe: toNum(r.lastSafe),
@@ -131,7 +127,7 @@ export async function buildReconciliationExcel(
   }
 
   const totalsRow = sheet.addRow([
-    "Grand Total", "", "",
+    "Grand Total",
     grand.manualCardAmount, grand.cardAmount, grand.lastSafe, grand.safeDropAmount, grand.cashback,
     grand.paypointPayout, grand.instantLotteryPayout, grand.lotteryPayout, grand.newsVoucher, grand.ddPoint,
     grand.supplierInvoicesTotal, grand.lotteryValue, grand.paypointValue, grand.summaryTotal, grand.zReportTotal, grand.difference, "",
@@ -149,6 +145,7 @@ export async function buildSupplierPayoutExcel(
   fromDateStr: string,
   toDateStr: string,
   meta: ExcelMeta = {},
+  groupBy: "supplier" | "date" = "supplier",
 ): Promise<Buffer> {
   const workbook = new ExcelJS.Workbook();
   workbook.creator = shopName();
@@ -164,26 +161,50 @@ export async function buildSupplierPayoutExcel(
     { width: 14 }, { width: 22 }, { width: 20 }, { width: 18 }, { width: 14 },
   ];
 
-  const bySupplier = new Map<string, SupplierPayoutInvoiceRow[]>();
-  for (const inv of invoices) {
-    const list = bySupplier.get(inv.supplierName) ?? [];
-    list.push(inv);
-    bySupplier.set(inv.supplierName, list);
-  }
-
   let grandTotal = 0;
-  const supplierNames = Array.from(bySupplier.keys()).sort((a, b) => a.localeCompare(b));
 
-  for (const supplierName of supplierNames) {
-    const rows = bySupplier.get(supplierName)!;
-    let supplierTotal = 0;
-    for (const inv of rows) {
-      supplierTotal += inv.value;
-      sheet.addRow([inv.date, inv.supplierName, inv.invoiceNo, inv.enteredBy ?? "", inv.value]);
+  if (groupBy === "date") {
+    // By Date — group by date, list each supplier's payout within that
+    // date, no cross-date supplier subtotal, just that date's total.
+    const byDate = new Map<string, SupplierPayoutInvoiceRow[]>();
+    for (const inv of invoices) {
+      const list = byDate.get(inv.date) ?? [];
+      list.push(inv);
+      byDate.set(inv.date, list);
     }
-    const supplierTotalRow = sheet.addRow(["", "", "", `${supplierName} Total`, supplierTotal]);
-    styleTotalsRow(supplierTotalRow);
-    grandTotal += supplierTotal;
+
+    const dates = Array.from(byDate.keys()).sort((a, b) => a.localeCompare(b));
+    for (const date of dates) {
+      const rows = byDate.get(date)!;
+      let dateTotal = 0;
+      for (const inv of rows) {
+        dateTotal += inv.value;
+        sheet.addRow([inv.date, inv.supplierName, inv.invoiceNo, inv.enteredBy ?? "", inv.value]);
+      }
+      const dateTotalRow = sheet.addRow(["", "", "", `${date} Total`, dateTotal]);
+      styleTotalsRow(dateTotalRow);
+      grandTotal += dateTotal;
+    }
+  } else {
+    const bySupplier = new Map<string, SupplierPayoutInvoiceRow[]>();
+    for (const inv of invoices) {
+      const list = bySupplier.get(inv.supplierName) ?? [];
+      list.push(inv);
+      bySupplier.set(inv.supplierName, list);
+    }
+
+    const supplierNames = Array.from(bySupplier.keys()).sort((a, b) => a.localeCompare(b));
+    for (const supplierName of supplierNames) {
+      const rows = bySupplier.get(supplierName)!;
+      let supplierTotal = 0;
+      for (const inv of rows) {
+        supplierTotal += inv.value;
+        sheet.addRow([inv.date, inv.supplierName, inv.invoiceNo, inv.enteredBy ?? "", inv.value]);
+      }
+      const supplierTotalRow = sheet.addRow(["", "", "", `${supplierName} Total`, supplierTotal]);
+      styleTotalsRow(supplierTotalRow);
+      grandTotal += supplierTotal;
+    }
   }
 
   sheet.addRow([]);

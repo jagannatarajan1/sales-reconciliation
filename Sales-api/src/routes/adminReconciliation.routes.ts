@@ -3,7 +3,7 @@ import { prisma } from "../lib/prisma.js";
 import { dateOnly } from "../lib/activeDate.js";
 import { computeDailyTotals } from "../lib/dailyTotals.js";
 import { parseDepartmentTotal } from "../lib/departmentTotal.js";
-import { renderZReportBillPdf } from "../lib/pdf.js";
+import { renderReconciliationReportPdf } from "../lib/pdf.js";
 import { sendCommitNotificationEmail } from "../lib/commitEmail.js";
 import { buildZReportBillsZip } from "../lib/zReportBills.js";
 import * as gmailService from "../services/gmail.service.js";
@@ -259,8 +259,6 @@ adminReconciliationRouter.get("/committed/:date", async (req, res) => {
     zReportTotal: record.zReportTotal,
     difference: record.difference,
     adminNotes: record.adminNotes,
-    staffName: record.staffName,
-    shift: record.shift,
     staffNotes: record.staffNotes,
     isStaffCommitted: record.isStaffCommitted,
     isAdminReconciled: record.isAdminReconciled,
@@ -269,6 +267,13 @@ adminReconciliationRouter.get("/committed/:date", async (req, res) => {
   });
 });
 
+// "Download Bill" — thin wrapper around the same single-date Sales
+// Reconciliation renderer used by GET /api/reports/download-pdf (Stage 3),
+// so the button shows the full, properly formatted reconciliation report for
+// that date rather than the raw Z-report-email PDF. Kept as its own endpoint
+// (rather than pointing the frontend at /api/reports/download-pdf directly)
+// so it stays gated on "commitHistory" — the same permission this button
+// has always required — instead of picking up the "reports" module's gate.
 adminReconciliationRouter.get("/download-bill", async (req, res) => {
   if (!requireAdmin(req, res)) return;
 
@@ -276,13 +281,15 @@ adminReconciliationRouter.get("/download-bill", async (req, res) => {
   if (!dateParam) return res.status(400).json({ message: "date query parameter is required." });
 
   const date = dateOnly(dateParam);
-  const email = await gmailService.findZReportEmail(date);
-  if (!email) return res.status(400).json({ message: "No Z-report email found for this date." });
+  const record = await prisma.reconciliationRecord.findUnique({ where: { date } });
+  if (!record || !(record.isStaffCommitted || record.isAdminReconciled)) {
+    return res.status(404).json({ message: "No committed reconciliation found for this date." });
+  }
 
-  const pdf = await renderZReportBillPdf(date, email.body, { generatedByName: req.userName });
+  const pdf = await renderReconciliationReportPdf(record, { generatedByName: req.userName });
   const dateStr = date.toISOString().split("T")[0];
   res.setHeader("Content-Type", "application/pdf");
-  res.setHeader("Content-Disposition", `attachment; filename="zreport-bill-${dateStr}.pdf"`);
+  res.setHeader("Content-Disposition", `attachment; filename="reconciliation-report-${dateStr}.pdf"`);
   res.send(pdf);
 });
 

@@ -132,6 +132,12 @@
   cursor: not-allowed;
 }
 
+.ar-download-btn--inline {
+  padding: 0.5rem 1rem;
+  font-size: 0.82rem;
+  margin-left: auto;
+}
+
 /* ── Panel (white card) ── */
 .ar-panel {
   background: var(--bg-surface);

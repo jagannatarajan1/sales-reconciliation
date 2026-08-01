@@ -65,10 +65,13 @@ export async function getAllUsers(
   pageNumber = 1,
   pageSize = 10
 ): Promise<PaginatedResponse<UserDto>> {
-  const where = { isActive: true };
-  const totalCount = await prisma.user.count({ where });
+  // Disabled (isActive: false) users must stay visible in User Management —
+  // they're just marked accordingly on the frontend — so this intentionally
+  // has no isActive filter, unlike login/getUserById which only ever resolve
+  // active accounts.
+  const totalCount = await prisma.user.count();
   const users = await prisma.user.findMany({
-    where,
+    orderBy: { userId: "asc" },
     skip: (pageNumber - 1) * pageSize,
     take: pageSize,
   });

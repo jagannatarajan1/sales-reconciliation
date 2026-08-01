@@ -2,8 +2,8 @@ import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
-  FiArrowLeft, FiFileText, FiCalendar, FiBriefcase, FiUser, FiDollarSign, FiX,
-  FiDownload, FiPrinter, FiPieChart, FiLock, FiUnlock,
+  FiArrowLeft, FiFileText, FiCalendar, FiBriefcase, FiUser, FiDollarSign,
+  FiDownload, FiPrinter, FiPieChart,
 } from 'react-icons/fi';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../components/ui/Toast';
@@ -122,26 +122,12 @@ function DateList({ rows, onSelect, loading, selectedDate, rangeLabel }) {
 }
 
 /* ── Date-detail view ───────────────────────────────────────────────── */
-// §2 — canManageLock gates the reopen/lock toggle to the same permission the
-// backend PUT /suppliers/invoices/reopen/:date checks (commitHistory or
-// superadmin) — see the SupplierInvoices root component below.
-function DateDetail({ date, onBack, token, canManageLock }) {
+function DateDetail({ date, onBack, token }) {
   const [loading, setLoading] = useState(true);
   const [invoices, setInvoices] = useState([]);
-  const [lockStatus, setLockStatus] = useState(null);
-  const [togglingLock, setTogglingLock] = useState(false);
   const { showToast: notify } = useToast();
 
   const showToast = (message, type = 'error') => notify(message, type);
-
-  const loadLockStatus = () => {
-    fetch(`${API_BASE}/suppliers/invoices/lock-status?date=${encodeURIComponent(date)}`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then(res => (res.ok ? res.json() : null))
-      .then(data => { if (data) setLockStatus(data); })
-      .catch(() => {});
-  };
 
   useEffect(() => {
     const run = async () => {
@@ -163,27 +149,8 @@ function DateDetail({ date, onBack, token, canManageLock }) {
       }
     };
     run();
-    loadLockStatus();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [date, token]);
-
-  const handleToggleLock = async () => {
-    setTogglingLock(true);
-    try {
-      const res = await fetch(`${API_BASE}/suppliers/invoices/reopen/${encodeURIComponent(date)}`, {
-        method: 'PUT',
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.message || 'Failed to update lock status');
-      setLockStatus(prev => ({ ...prev, supplierInvoicesReopened: data.supplierInvoicesReopened, editable: !prev.isStaffCommitted || data.supplierInvoicesReopened }));
-      notify(data.message || 'Updated', 'success');
-    } catch (e) {
-      showToast(e.message || 'Failed to update lock status');
-    } finally {
-      setTogglingLock(false);
-    }
-  };
 
   const dayTotal = invoices.reduce((acc, inv) => acc + parseFloat(inv.value || 0), 0);
 
@@ -203,22 +170,6 @@ function DateDetail({ date, onBack, token, canManageLock }) {
           )}
         </div>
       </div>
-
-      {lockStatus?.isStaffCommitted && (
-        <div className={`si-lock-banner ${lockStatus.editable ? 'si-lock-banner--open' : 'si-lock-banner--locked'}`}>
-          {lockStatus.editable ? <FiUnlock /> : <FiLock />}
-          <span>
-            {lockStatus.editable
-              ? 'This date is committed but has been reopened — supplier invoices are editable.'
-              : 'This date has been committed — supplier invoices are read-only for staff.'}
-          </span>
-          {canManageLock && (
-            <button className="si-lock-toggle-btn" onClick={handleToggleLock} disabled={togglingLock}>
-              {togglingLock ? 'Working…' : lockStatus.editable ? 'Lock Again' : 'Reopen for Editing'}
-            </button>
-          )}
-        </div>
-      )}
 
       {loading ? (
         <div className="si-center">
@@ -286,6 +237,9 @@ function PayoutReport({ fromDate, toDate, token }) {
   const [invoices, setInvoices] = useState([]);
   const [downloadingPdf, setDownloadingPdf] = useState(false);
   const [downloadingExcel, setDownloadingExcel] = useState(false);
+  // By Supplier (existing Stage 3 grouping) vs By Date (group by date, list
+  // each supplier's payout within that date, no cross-date supplier total).
+  const [groupBy, setGroupBy] = useState('supplier');
   const { showToast: notify } = useToast();
   const showToast = (message, type = 'error') => notify(message, type);
 
@@ -321,6 +275,17 @@ function PayoutReport({ fromDate, toDate, token }) {
     bySupplier.set(key, list);
   }
   const supplierNames = Array.from(bySupplier.keys()).sort((a, b) => a.localeCompare(b));
+
+  const byDate = new Map();
+  for (const inv of invoices) {
+    const key = inv.date;
+    const list = byDate.get(key) ?? [];
+    list.push(inv);
+    byDate.set(key, list);
+  }
+  const dateKeys = Array.from(byDate.keys()).sort((a, b) => a.localeCompare(b));
+
+  const groupKeys = groupBy === 'date' ? dateKeys : supplierNames;
   const grandTotal = invoices.reduce((acc, inv) => acc + parseFloat(inv.value || 0), 0);
 
   const downloadBlob = async (url, fallbackFileName) => {
@@ -347,7 +312,7 @@ function PayoutReport({ fromDate, toDate, token }) {
   const handleDownloadPdf = async () => {
     setDownloadingPdf(true);
     try {
-      const params = new URLSearchParams({ fromDate, toDate });
+      const params = new URLSearchParams({ fromDate, toDate, groupBy });
       await downloadBlob(
         `${API_BASE}/suppliers/invoices/download-pdf?${params.toString()}`,
         `supplier-payout-${fromDate}-to-${toDate}.pdf`,
@@ -362,7 +327,7 @@ function PayoutReport({ fromDate, toDate, token }) {
   const handleDownloadExcel = async () => {
     setDownloadingExcel(true);
     try {
-      const params = new URLSearchParams({ fromDate, toDate });
+      const params = new URLSearchParams({ fromDate, toDate, groupBy });
       await downloadBlob(
         `${API_BASE}/suppliers/invoices/download-excel?${params.toString()}`,
         `supplier-payout-${fromDate}-to-${toDate}.xlsx`,
@@ -382,6 +347,22 @@ function PayoutReport({ fromDate, toDate, token }) {
         <h2 className="si-detail-title"><FiPieChart /> Supplier Payout Report</h2>
         <p className="si-payout-range">{fmtDateMed(fromDate)} to {fmtDateMed(toDate)}</p>
         <div className="si-payout-actions si-no-print">
+          <div className="si-groupby-toggle" role="group" aria-label="Group report by">
+            <button
+              type="button"
+              className={`si-groupby-btn${groupBy === 'supplier' ? ' si-groupby-btn--active' : ''}`}
+              onClick={() => setGroupBy('supplier')}
+            >
+              By Supplier
+            </button>
+            <button
+              type="button"
+              className={`si-groupby-btn${groupBy === 'date' ? ' si-groupby-btn--active' : ''}`}
+              onClick={() => setGroupBy('date')}
+            >
+              By Date
+            </button>
+          </div>
           <button className="si-export-btn" onClick={handleDownloadPdf} disabled={downloadingPdf || loading}>
             <FiDownload /> {downloadingPdf ? 'Preparing…' : 'Download PDF'}
           </button>
@@ -396,8 +377,49 @@ function PayoutReport({ fromDate, toDate, token }) {
 
       {loading ? (
         <div className="si-center"><div className="si-spinner" /><p>Loading report…</p></div>
-      ) : supplierNames.length === 0 ? (
+      ) : groupKeys.length === 0 ? (
         <div className="si-empty-inline"><p>No supplier invoices found for this range.</p></div>
+      ) : groupBy === 'date' ? (
+        <>
+          {dateKeys.map((date) => {
+            const rows = byDate.get(date);
+            const dateTotal = rows.reduce((acc, inv) => acc + parseFloat(inv.value || 0), 0);
+            return (
+              <div key={date} className="si-payout-supplier-block">
+                <h3 className="si-payout-supplier-name"><FiCalendar /> {fmtDateMed(date)}</h3>
+                <table className="si-table">
+                  <thead>
+                    <tr>
+                      <th>Supplier</th>
+                      <th>Invoice No.</th>
+                      <th>Entered By</th>
+                      <th className="si-th-right">Value</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rows.map((inv, idx) => (
+                      <tr key={inv.id ?? idx} className="si-row si-row--static">
+                        <td>{inv.supplierName || inv.supplier || '—'}</td>
+                        <td><code className="si-invoice-no">{inv.invoiceNumber || inv.invoiceNo || '—'}</code></td>
+                        <td>{inv.enteredBy || '—'}</td>
+                        <td className="si-td-right si-amount">{fmtGBP(inv.value)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot>
+                    <tr>
+                      <td colSpan={3} className="si-tfoot-label">Date Total</td>
+                      <td className="si-tfoot-amount">{fmtGBP(dateTotal)}</td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            );
+          })}
+          <div className="si-payout-grand-total">
+            Grand Total: <span>{fmtGBP(grandTotal)}</span>
+          </div>
+        </>
       ) : (
         <>
           {supplierNames.map((supplierName) => {
@@ -463,11 +485,6 @@ export const SupplierInvoices = () => {
 
   const backPath = user?.role === 'admin' ? '/admin/dashboard' : '/dashboard';
 
-  // §2 — matches the backend's requirePermission(req, res, "commitHistory")
-  // gate on PUT /suppliers/invoices/reopen/:date.
-  const canManageLock = user?.role === 'superadmin'
-    || (user?.role === 'admin' && Array.isArray(user?.permissions) && user.permissions.includes('commitHistory'));
-
   const fetchDates = useCallback(async (options = {}) => {
     const { silent = false } = options;
     setLoading(true);
@@ -510,14 +527,6 @@ export const SupplierInvoices = () => {
     setSelectedDate(null);
   };
 
-  const handleClearFilter = () => {
-    const today = todayStr();
-    setStartDate(today);
-    setEndDate(today);
-    setRangeError('');
-    setSelectedDate(today);
-  };
-
   return (
     <motion.div
       className="si-page"
@@ -540,21 +549,6 @@ export const SupplierInvoices = () => {
       </div>
 
       <div className="si-filter-toolbar si-no-print">
-        <div className="si-filter-card">
-          <div className="si-filter-card-head">
-            <span className="si-filter-card-icon"><FiCalendar /></span>
-            <span className="si-filter-card-title">Today</span>
-          </div>
-          <div className="si-filter-card-body">
-            <p className="si-filter-hint">Reset the range below back to today in one click.</p>
-            <div className="si-filter-actions">
-              <button type="button" className="si-today-btn" onClick={handleClearFilter}>
-                Today
-              </button>
-            </div>
-          </div>
-        </div>
-
         <div className="si-filter-card">
           <div className="si-filter-card-head">
             <span className="si-filter-card-icon"><FiCalendar /></span>
@@ -592,10 +586,6 @@ export const SupplierInvoices = () => {
             </div>
           </div>
         </div>
-
-        <button className="si-clear-btn si-clear-btn--standalone" onClick={handleClearFilter}>
-          <FiX /> Reset to Today
-        </button>
       </div>
 
       {rangeError && <div className="si-range-error si-no-print">{rangeError}</div>}
@@ -610,7 +600,6 @@ export const SupplierInvoices = () => {
             date={selectedDate}
             onBack={() => setSelectedDate(null)}
             token={user.token}
-            canManageLock={canManageLock}
           />
         ) : (
           <DateList

@@ -160,18 +160,6 @@ function DetailPanel({ detail, onPrint }) {
             <span className="rpt-meta-value"><FiClock /> {fmtDateTime(detail.adminSubmittedAt)}</span>
           </div>
         )}
-        {detail.staffName && (
-          <div className="rpt-meta-item">
-            <span className="rpt-meta-label">Staff</span>
-            <span className="rpt-meta-value"><FiUser /> {detail.staffName}</span>
-          </div>
-        )}
-        {detail.shift && (
-          <div className="rpt-meta-item">
-            <span className="rpt-meta-label">Shift</span>
-            <span className="rpt-meta-value">{detail.shift}</span>
-          </div>
-        )}
       </div>
 
       {!detail.zReportAvailable && (
