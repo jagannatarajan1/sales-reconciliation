@@ -97,12 +97,17 @@
 }
 
 /* ── Shop Sale calendar (§1) ─────────────────────────────── */
+/* Capped at a fixed width — without this it stretches to fill
+   .report-container (max-width: 1200px), and since each day cell is sized
+   off that width via aspect-ratio, the whole grid renders oversized on
+   anything wider than a phone. */
 .sc-calendar {
   background: white;
   border-radius: 16px;
   padding: 1.25rem 1.5rem 1.5rem;
   box-shadow: 0 4px 24px rgba(0, 0, 0, 0.16);
-  margin-bottom: 1.5rem;
+  margin: 0 auto 1.5rem;
+  max-width: 420px;
 }
 
 .sc-calendar-nav {
