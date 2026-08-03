@@ -19,7 +19,6 @@ import { Paypoint } from './pages/Paypoint/Paypoint';
 import { Commit } from './pages/Commit';
 import { AdminReconciliation } from './pages/AdminReconciliation/AdminReconciliation';
 import { ReconciliationReview } from './pages/ReconciliationReview/ReconciliationReview';
-import { DownloadBill } from './pages/DownloadBill/DownloadBill';
 import { SalesReconciliation } from './pages/ReconciliationReview/SalesReconciliation';
 import { AdminZReports } from './pages/AdminZReports/AdminZReports';
 import { AdminSuppliers } from './pages/AdminSuppliers/AdminSuppliers';
@@ -123,9 +122,11 @@ function App() {
             }
           />
 
-          {/* Reconciliation Review → Download Bill → Sales Reconciliation.
-              User-only — this is where Sales Reconciliation now lives (moved
-              off the Admin dashboard). */}
+          {/* Reconciliation Review → Download Bill. User-only — this is
+              where Sales Reconciliation now lives (moved off the Admin
+              dashboard). "Download Bill" opens straight into the Sales
+              Reconciliation report — there is no separate click-through
+              page in between. */}
           <Route
             path="/reconciliation-review"
             element={
@@ -136,14 +137,6 @@ function App() {
           />
           <Route
             path="/reconciliation-review/download-bill"
-            element={
-              <ProtectedRoute requiredRole="user">
-                <DownloadBill />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/reconciliation-review/download-bill/sales-reconciliation"
             element={
               <ProtectedRoute requiredRole="user">
                 <SalesReconciliation />

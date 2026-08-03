@@ -4,11 +4,11 @@ import { FiArrowLeft, FiClipboard, FiFileText, FiChevronRight } from 'react-icon
 import { ReconciliationPortal } from '../../components/ReconciliationPortal/ReconciliationPortal';
 import './ReconciliationReview.css';
 
-// User-facing hub: Dashboard → Reconciliation Review → Download Bill →
-// Sales Reconciliation. This page shows yesterday's reconciliation status
-// at a glance (ReconciliationPortal, previously built but unrouted) and
-// hands off to Download Bill for viewing/downloading the full report
-// history.
+// User-facing hub: Dashboard → Reconciliation Review → Download Bill. This
+// page shows yesterday's reconciliation status at a glance
+// (ReconciliationPortal, previously built but unrouted) and hands off to
+// Download Bill, which opens the Sales Reconciliation report directly —
+// no extra click-through page in between.
 export const ReconciliationReview = () => {
   const navigate = useNavigate();
 

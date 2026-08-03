@@ -508,12 +508,12 @@ export const SalesReconciliation = () => {
       transition={{ duration: 0.4, ease: [0.4, 0, 0.2, 1] }}
     >
 
-      <button className="rpt-back-btn rpt-no-print" onClick={() => navigate('/reconciliation-review/download-bill')}>
-        <FiArrowLeft /> Back to Download Bill
+      <button className="rpt-back-btn rpt-no-print" onClick={() => navigate('/reconciliation-review')}>
+        <FiArrowLeft /> Back to Reconciliation Review
       </button>
 
       <div className="rpt-page-header rpt-no-print">
-        <p className="rpt-breadcrumb">Reconciliation Review / Download Bill / Sales Reconciliation</p>
+        <p className="rpt-breadcrumb">Reconciliation Review / Download Bill</p>
         <h1 className="rpt-page-title"><FiBarChart2 /> Sales Reconciliation</h1>
         <p className="rpt-page-sub">
           Committed-only date-wise history — entered values, Z-Report comparison, variance and who completed each reconciliation.
