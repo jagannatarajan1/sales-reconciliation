@@ -86,18 +86,19 @@ lotteryInstantRouter.post("/", async (req, res) => {
     where: { scratchCardId_date: { scratchCardId, date } },
   });
 
-  // "Instant Lottery Price" and "Open No" are meant to be set once when a
-  // pack starts, not casually edited on the daily Close No entry screen the
-  // "user" role uses — the frontend already renders them read-only for
-  // "user", but that's cosmetic only, so enforce it here too in case someone
-  // hits this endpoint directly. Only reject if the value actually differs
-  // from what's currently stored; resubmitting the same value (e.g. because
-  // the row was already loaded with it) is not a change and must go through,
-  // since that's exactly what happens on every normal Close No save.
-  if (req.userRole === "user") {
-    const storedOpenNo = existingEntry ? existingEntry.openNo : await computeDefaultOpenNo(card, date);
-    const storedPrice = Number(card.price);
+  // Role split on this endpoint: an admin may edit Price, Open No and Close
+  // No; a "user" may edit Close No only. The frontend already renders Price
+  // and Open No read-only for "user", but that's cosmetic, so it is enforced
+  // here as well for anyone hitting the endpoint directly.
+  //
+  // Only reject when the submitted value actually differs from what is
+  // currently stored — resubmitting the same value is not a change and must
+  // go through, since that is exactly what every normal Close No save does.
+  const storedOpenNo = existingEntry ? existingEntry.openNo : await computeDefaultOpenNo(card, date);
+  const storedPrice = Number(card.price);
+  const isAdmin = req.userRole === "admin";
 
+  if (!isAdmin) {
     const attemptedOpenNoChange = openNo !== storedOpenNo;
     const attemptedPriceChange = priceProvided && submittedPrice !== storedPrice;
 
@@ -108,24 +109,31 @@ lotteryInstantRouter.post("/", async (req, res) => {
     }
   }
 
-  const totalSold = Math.abs(closeNo - openNo);
-  const sales = totalSold * Number(card.price);
+  // Admin-only: persist a Price change onto the ScratchCard record. Done
+  // before the entry is written so the day's sales figure below is computed
+  // from the new price rather than the one it is replacing.
+  const effectivePrice =
+    isAdmin && submittedPrice != null && Number.isFinite(submittedPrice) ? submittedPrice : storedPrice;
+
+  if (effectivePrice !== storedPrice) {
+    await prisma.scratchCard.update({ where: { scratchCardId }, data: { price: effectivePrice } });
+  }
+
+  // Non-admins never get to move Open No, so the stored value is what gets
+  // written regardless of what the request body carried.
+  const effectiveOpenNo = isAdmin ? openNo : storedOpenNo;
+
+  const totalSold = Math.abs(closeNo - effectiveOpenNo);
+  const sales = totalSold * effectivePrice;
 
   const entry = await prisma.instantLotteryInventoryEntry.upsert({
     where: { scratchCardId_date: { scratchCardId, date } },
-    create: { scratchCardId, date, openNo, closeNo, totalSold, sales },
-    update: { openNo, closeNo, totalSold, sales },
+    create: { scratchCardId, date, openNo: effectiveOpenNo, closeNo, totalSold, sales },
+    update: { openNo: effectiveOpenNo, closeNo, totalSold, sales },
   });
 
   if (card.forcedOpenNo != null) {
     await prisma.scratchCard.update({ where: { scratchCardId }, data: { forcedOpenNo: null } });
-  }
-
-  // Admin-only: actually persist a Price change onto the ScratchCard record.
-  // (Previously dead: the frontend never sent `price` at all, so nobody could
-  // persist a change through this route regardless of role.)
-  if (req.userRole === "admin" && submittedPrice != null && submittedPrice !== Number(card.price)) {
-    await prisma.scratchCard.update({ where: { scratchCardId }, data: { price: submittedPrice } });
   }
 
   res.json(entry);

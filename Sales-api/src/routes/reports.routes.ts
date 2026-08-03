@@ -7,12 +7,21 @@ import { renderReconciliationReportPdf, renderReconciliationRangeReportPdf } fro
 import { buildReconciliationExcel } from "../lib/excel.js";
 import { buildZip } from "../lib/zip.js";
 import * as gmailService from "../services/gmail.service.js";
-import { requirePermission } from "../lib/permissions.js";
 
 export const reportsRouter = Router();
 
-function requireAdmin(req: import("express").Request, res: import("express").Response): boolean {
-  return requirePermission(req, res, "reports");
+// Sales Reconciliation is a user-facing report now — reached through
+// User → Reconciliation Review → Download Bill → Sales Reconciliation — so
+// these routes gate on being signed in rather than on the admin-only
+// "reports" permission they previously used. (That permission key still
+// guards the separate admin Z Reports page.) The data returned is committed
+// reconciliation history, which is exactly what the page exists to show.
+function requireAuth(req: import("express").Request, res: import("express").Response): boolean {
+  if (req.userId == null) {
+    res.status(401).json({ message: "User not authenticated" });
+    return false;
+  }
+  return true;
 }
 
 // Sales Reconciliation is finalized-days-only: a record only belongs here
@@ -26,7 +35,7 @@ const COMMITTED_ONLY_WHERE = {
 };
 
 reportsRouter.get("/", async (req, res) => {
-  if (!requireAdmin(req, res)) return;
+  if (!requireAuth(req, res)) return;
 
   const startDate = req.query.startDate ? dateOnly(req.query.startDate as string) : undefined;
   const endDate = req.query.endDate ? dateOnly(req.query.endDate as string) : undefined;
@@ -53,7 +62,7 @@ reportsRouter.get("/", async (req, res) => {
 });
 
 reportsRouter.get("/download-pdf", async (req, res) => {
-  if (!requireAdmin(req, res)) return;
+  if (!requireAuth(req, res)) return;
 
   const startDate = req.query.startDate ? dateOnly(req.query.startDate as string) : undefined;
   const endDate = req.query.endDate ? dateOnly(req.query.endDate as string) : undefined;
@@ -93,7 +102,7 @@ reportsRouter.get("/download-pdf", async (req, res) => {
 // per-date ZIP that /download-pdf produces — used by the Excel-adjacent
 // "combined" export button on the Sales Reconciliation page.
 reportsRouter.get("/download-pdf-combined", async (req, res) => {
-  if (!requireAdmin(req, res)) return;
+  if (!requireAuth(req, res)) return;
 
   const startDate = req.query.startDate ? dateOnly(req.query.startDate as string) : undefined;
   const endDate = req.query.endDate ? dateOnly(req.query.endDate as string) : undefined;
@@ -115,7 +124,7 @@ reportsRouter.get("/download-pdf-combined", async (req, res) => {
 });
 
 reportsRouter.get("/download-excel", async (req, res) => {
-  if (!requireAdmin(req, res)) return;
+  if (!requireAuth(req, res)) return;
 
   const startDate = req.query.startDate ? dateOnly(req.query.startDate as string) : undefined;
   const endDate = req.query.endDate ? dateOnly(req.query.endDate as string) : undefined;
@@ -137,7 +146,7 @@ reportsRouter.get("/download-excel", async (req, res) => {
 });
 
 reportsRouter.get("/:date", async (req, res) => {
-  if (!requireAdmin(req, res)) return;
+  if (!requireAuth(req, res)) return;
 
   const date = dateOnly(req.params.date);
   const record = await prisma.reconciliationRecord.findUnique({ where: { date } });

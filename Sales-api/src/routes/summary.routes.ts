@@ -25,6 +25,18 @@ function toNumber(value: unknown): number {
   return Number.isFinite(n) ? n : 0;
 }
 
+// Shown verbatim by the Commit page when the day's Z-Report has not arrived.
+export const Z_REPORT_MISSING_MESSAGE =
+  "Commit cannot be completed because the Z Report is not available for the selected date.";
+
+// A date is off-limits to the user-facing Shop Sale / Commit flow once it has
+// been committed by a user or signed off by an admin — the same predicate the
+// committed-dates calendar feed uses, so the two can never disagree.
+async function isDateCommitted(date: Date): Promise<boolean> {
+  const record = await prisma.reconciliationRecord.findUnique({ where: { date } });
+  return !!record && (record.isStaffCommitted || record.isAdminReconciled);
+}
+
 summaryRouter.get("/today", async (req, res) => {
   if (req.userId == null) {
     return res.status(401).json({ message: "User not authenticated" });
@@ -173,12 +185,47 @@ summaryRouter.get("/zreport-email/by-date", async (req, res) => {
   }
 
   const targetDate = dateOnly(req.query.date as string);
+
+  // Only uncommitted dates are selectable in Shop Sale. The calendar already
+  // withholds committed days, but that is presentation only — refuse them
+  // here too so the rule holds for anyone calling the endpoint directly.
+  if (await isDateCommitted(targetDate)) {
+    return res.status(403).json({
+      message: "This date has already been committed and can no longer be selected.",
+    });
+  }
+
   const email = await getZReportForDate(targetDate);
   if (!email) {
     return res.status(400).json({ message: "No Z-report email found for this date." });
   }
 
   res.json({ isCommitted: false, targetDate, email });
+});
+
+// Whether a Z-Report exists for a date, without shipping the email body.
+// Backs the Commit page's pre-flight check so it can block the button and
+// show the same wording POST /commit would reject with. Defaults to the
+// active date when no `date` is supplied.
+summaryRouter.get("/zreport-status", async (req, res) => {
+  if (req.userId == null) {
+    return res.status(401).json({ message: "User not authenticated" });
+  }
+
+  const targetDate = req.query.date ? dateOnly(req.query.date as string) : await getActiveDate();
+
+  let available = false;
+  try {
+    available = (await getZReportForDate(targetDate)) != null;
+  } catch {
+    available = false;
+  }
+
+  res.json({
+    date: targetDate,
+    available,
+    message: available ? null : Z_REPORT_MISSING_MESSAGE,
+  });
 });
 
 summaryRouter.post("/commit", async (req, res) => {
@@ -191,12 +238,26 @@ summaryRouter.post("/commit", async (req, res) => {
 
   const date = await getActiveDate();
 
-  const email = await gmailService.findZReportEmail(date);
-  const parsedZReportTotal = email ? parseDepartmentTotal(email.body) : null;
-  // TODO(test-mode): the real Z-Report requirement is temporarily disabled so
-  // commit can be tested without waiting for today's email — falls back to 0
-  // instead of blocking. Re-enable the block once testing is done.
-  const zReportTotal = parsedZReportTotal ?? 0;
+  // Commit gate: a day can only be committed once its Z-Report has actually
+  // arrived. Enforced here as well as on the Commit page, since the page's
+  // check is only as good as the client running it. A lookup that errors
+  // outright counts as "not available" — better to block a commit we cannot
+  // verify than to record one against a Z-Report total of zero.
+  let email = null;
+  try {
+    email = await gmailService.findZReportEmail(date);
+  } catch {
+    email = null;
+  }
+  if (!email) {
+    return res.status(400).json({ message: Z_REPORT_MISSING_MESSAGE, zReportAvailable: false });
+  }
+
+  // The email is present but its Department Total line may still be
+  // unparseable (format changes, truncated body). That is not the same as a
+  // missing report, so it falls back to 0 and leaves the variance visible to
+  // the admin rather than blocking the commit.
+  const zReportTotal = parseDepartmentTotal(email.body) ?? 0;
 
   const totals = await computeDailyTotals(date);
   const difference = Math.abs(totals.summaryTotal - zReportTotal);

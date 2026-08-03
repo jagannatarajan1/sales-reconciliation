@@ -317,6 +317,35 @@
 
 .close-input::-webkit-inner-spin-button { opacity: 0.5; }
 
+/* Price / Open No when the signed-in role may not change them (see the
+   role note banner) — visibly inert rather than merely non-responsive. */
+.close-input--locked {
+  background: var(--surface2);
+  border-style: dashed;
+  color: var(--text-muted, #6b7280);
+  cursor: default;
+}
+
+.close-input--locked:focus {
+  border-color: var(--border);
+  box-shadow: none;
+  background: var(--surface2);
+}
+
+/* ── Role note ── */
+.ili-role-note {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 16px;
+  padding: 10px 14px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  color: var(--text-muted, #6b7280);
+}
+
 /* ── Badges ── */
 .badge {
   display: inline-flex;

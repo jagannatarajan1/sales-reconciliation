@@ -1,0 +1,112 @@
+.rr-page {
+  min-height: 100vh;
+  background: linear-gradient(145deg, #0f172a 0%, #1e1b4b 40%, #312e81 100%);
+  display: flex;
+  justify-content: center;
+  padding: 40px 20px;
+  font-family: var(--font-heading);
+}
+
+.rr-container {
+  width: 100%;
+  max-width: 720px;
+}
+
+.rr-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0.6rem 1.4rem;
+  background: rgba(255, 255, 255, 0.1);
+  color: white;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: var(--radius-sm);
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  margin-bottom: 1.8rem;
+  backdrop-filter: blur(10px);
+  transition: background var(--duration-base) var(--ease-standard), transform var(--duration-base) var(--ease-standard);
+}
+.rr-back:hover {
+  background: rgba(255, 255, 255, 0.18);
+  transform: translateX(-3px);
+}
+
+.rr-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 28px;
+  font-weight: 700;
+  color: white;
+  margin: 0 0 6px;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+}
+
+.rr-title-icon {
+  color: var(--accent-from);
+}
+
+.rr-subtitle {
+  color: rgba(255, 255, 255, 0.6);
+  margin: 0 0 28px;
+  font-size: 14px;
+  max-width: 560px;
+}
+
+.rr-nav-card {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-top: 20px;
+  padding: 20px 22px;
+  background: var(--bg-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+  cursor: pointer;
+  text-align: left;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.rr-nav-card:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-md, 0 10px 24px rgba(0, 0, 0, 0.12));
+}
+
+.rr-nav-card-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: var(--brand-100, #eef2ff);
+  color: var(--brand-500, #6366f1);
+  font-size: 20px;
+  flex-shrink: 0;
+}
+
+.rr-nav-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  flex: 1;
+}
+
+.rr-nav-card-title {
+  font-weight: 700;
+  font-size: 15px;
+  color: #1f2937;
+}
+
+.rr-nav-card-desc {
+  font-size: 13px;
+  color: #6b7280;
+}
+
+.rr-nav-card-arrow {
+  color: #9ca3af;
+  flex-shrink: 0;
+}

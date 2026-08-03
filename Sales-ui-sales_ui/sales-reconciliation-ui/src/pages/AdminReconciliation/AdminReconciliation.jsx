@@ -225,12 +225,14 @@ export const AdminReconciliation = () => {
   const [billToDate, setBillToDate]       = useState('');
   const [downloadingRange, setDownloadingRange] = useState(false);
 
-  /* pending (uncommitted) */
+  /* pending (uncommitted) — read-only until Edit is pressed; nothing is sent
+     to the server until Save, so edits can be abandoned with Cancel */
   const [loadingPending, setLoadingPending] = useState(true);
   const [submitting, setSubmitting]         = useState(false);
   const [pendingItems, setPendingItems]     = useState([]);
   const [selectedDate, setSelectedDate]     = useState(null);
   const [form, setForm]                     = useState({});
+  const [isEditingPending, setIsEditingPending] = useState(false);
   /* committed records */
   const [loadingDates, setLoadingDates]         = useState(true);
   const [committedDates, setCommittedDates]     = useState([]);
@@ -352,12 +354,23 @@ export const AdminReconciliation = () => {
     run();
   }, [user.token]);
 
-  /* switch date chip → reload form from cached item */
+  /* switch date chip → reload form from cached item, dropping any in-progress
+     edit so a half-typed value can't bleed across dates */
   const selectPendingDate = (date) => {
     const item = pendingItems.find((i) => i.date === date);
     if (!item) return;
     setSelectedDate(date);
     setForm(itemToForm(item));
+    setIsEditingPending(false);
+  };
+
+  const startEditingPending = () => setIsEditingPending(true);
+
+  /* Cancel → discard edits by re-deriving the form from the cached item */
+  const cancelEditingPending = () => {
+    const item = pendingItems.find((i) => i.date === selectedDate);
+    if (item) setForm(itemToForm(item));
+    setIsEditingPending(false);
   };
 
   /* fetch committed dates list — stores full objects {id, date, summaryTotal, …}.
@@ -515,7 +528,9 @@ export const AdminReconciliation = () => {
   const handleChange = (key, value) =>
     setForm((prev) => ({ ...prev, [key]: value }));
 
-  const handleSubmit = async () => {
+  /* Save — the only point at which an Uncommitted Data edit reaches the
+     server. Persisting it reconciles the date, so it leaves this list. */
+  const handleSavePending = async () => {
     if (!selectedDate) return;
     setSubmitting(true);
     try {
@@ -550,9 +565,10 @@ export const AdminReconciliation = () => {
       });
       if (!res.ok) throw new Error();
 
-      showToast(`${fmtDateShort(selectedDate)} submitted successfully`);
+      showToast(`${fmtDateShort(selectedDate)} saved successfully`);
+      setIsEditingPending(false);
 
-      /* remove submitted date and move to next */
+      /* remove saved date and move to next */
       const remaining = pendingItems.filter((i) => i.date !== selectedDate);
       setPendingItems(remaining);
       if (remaining.length > 0) {
@@ -566,13 +582,23 @@ export const AdminReconciliation = () => {
       /* refresh committed dates dropdown */
       loadCommittedDates();
     } catch {
-      showToast('Failed to submit reconciliation', 'error');
+      showToast('Failed to save changes', 'error');
     } finally {
       setSubmitting(false);
     }
   };
 
   const activeItem = pendingItems.find((i) => i.date === selectedDate);
+
+  /* What the read-only view of the pending date shows: the form values with
+     the three derived fields folded in, so it matches the editable grid
+     field-for-field. */
+  const pendingView = {
+    ...form,
+    cash: computedCash,
+    summaryTotal: computedSummaryTotal,
+    difference: computedDifference,
+  };
 
   return (
     <motion.div
@@ -652,16 +678,20 @@ export const AdminReconciliation = () => {
               ))}
             </div>
 
-            {/* Editable form for selected date */}
+            {/* Selected date — read-only until Edit is pressed */}
             {activeItem && (
               <div className="ar-form-section">
-                <EditableGrid
-                  form={form}
-                  computedCash={computedCash}
-                  computedSummaryTotal={computedSummaryTotal}
-                  computedDifference={computedDifference}
-                  onChange={handleChange}
-                />
+                {isEditingPending ? (
+                  <EditableGrid
+                    form={form}
+                    computedCash={computedCash}
+                    computedSummaryTotal={computedSummaryTotal}
+                    computedDifference={computedDifference}
+                    onChange={handleChange}
+                  />
+                ) : (
+                  <ReadOnlyGrid data={pendingView} />
+                )}
                 {form.zReportTotal !== '' && form.zReportTotal !== '0' && form.zReportTotal !== 0 && (
                   <div className={`ar-diff-bar ${computedDifference <= 5 ? 'ar-diff-bar--ok' : 'ar-diff-bar--over'}`}>
                     <span>Difference: <strong>£{computedDifference.toFixed(2)}</strong></span>
@@ -679,25 +709,49 @@ export const AdminReconciliation = () => {
                   </div>
                 )}
 
-                <div className="ar-notes-wrap">
-                  <label className="ar-label">Admin Notes</label>
-                  <textarea
-                    className="ar-notes"
-                    placeholder="Enter any notes about this reconciliation…"
-                    value={form.adminNotes || ''}
-                    rows={3}
-                    onChange={(e) => handleChange('adminNotes', e.target.value)}
-                  />
-                </div>
+                {isEditingPending ? (
+                  <div className="ar-notes-wrap">
+                    <label className="ar-label">Admin Notes</label>
+                    <textarea
+                      className="ar-notes"
+                      placeholder="Enter any notes about this reconciliation…"
+                      value={form.adminNotes || ''}
+                      rows={3}
+                      onChange={(e) => handleChange('adminNotes', e.target.value)}
+                    />
+                  </div>
+                ) : form.adminNotes ? (
+                  <div className="ar-committed-notes">
+                    <span className="ar-label">Admin Notes</span>
+                    <p>{form.adminNotes}</p>
+                  </div>
+                ) : null}
 
-                <button
-                  className="ar-submit-btn"
-                  onClick={handleSubmit}
-                  disabled={submitting}
-                >
-                  {submitting && <span className="ar-btn-spinner" />}
-                  {submitting ? 'Submitting…' : `Submit — ${fmtDateShort(selectedDate)}`}
-                </button>
+                {isEditingPending ? (
+                  <div className="ar-edit-actions">
+                    <button
+                      className="ar-submit-btn"
+                      onClick={handleSavePending}
+                      disabled={submitting}
+                    >
+                      {submitting && <span className="ar-btn-spinner" />}
+                      {submitting ? 'Saving…' : `Save — ${fmtDateShort(selectedDate)}`}
+                    </button>
+                    <button
+                      className="ar-cancel-btn"
+                      onClick={cancelEditingPending}
+                      disabled={submitting}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                ) : (
+                  <div className="ar-edit-actions">
+                    <button className="ar-edit-btn" onClick={startEditingPending}>
+                      <FiEdit2 /> Edit
+                    </button>
+                  </div>
+                )}
               </div>
             )}
           </>

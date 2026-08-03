@@ -6,7 +6,6 @@ import { Login } from './pages/Login';
 import { Register } from './pages/Register';
 import { AdminDashboard } from './pages/AdminDashboard';
 import { AdminUsers } from './pages/AdminUsers/AdminUsers';
-import { AdminStaff } from './pages/AdminStaff/AdminStaff';
 import { Unauthorized } from './pages/Unauthorized';
 import { Dashboard } from './pages/Dashboard';
 import ShopSale from './pages/ShopSale/ShopSale';
@@ -19,7 +18,9 @@ import { Summary } from './pages/Summary/Summary';
 import { Paypoint } from './pages/Paypoint/Paypoint';
 import { Commit } from './pages/Commit';
 import { AdminReconciliation } from './pages/AdminReconciliation/AdminReconciliation';
-import { Reports } from './pages/Reports/Reports';
+import { ReconciliationReview } from './pages/ReconciliationReview/ReconciliationReview';
+import { DownloadBill } from './pages/DownloadBill/DownloadBill';
+import { SalesReconciliation } from './pages/ReconciliationReview/SalesReconciliation';
 import { AdminZReports } from './pages/AdminZReports/AdminZReports';
 import { AdminSuppliers } from './pages/AdminSuppliers/AdminSuppliers';
 import { SupplierInvoices } from './pages/SupplierInvoices/SupplierInvoices';
@@ -122,15 +123,35 @@ function App() {
             }
           />
 
-          {/* Protected Admin Routes */}
+          {/* Reconciliation Review → Download Bill → Sales Reconciliation.
+              User-only — this is where Sales Reconciliation now lives (moved
+              off the Admin dashboard). */}
           <Route
-            path="/admin/reports"
+            path="/reconciliation-review"
             element={
-              <ProtectedRoute requiredRole="admin" requiredPermission="reports">
-                <Reports />
+              <ProtectedRoute requiredRole="user">
+                <ReconciliationReview />
               </ProtectedRoute>
             }
           />
+          <Route
+            path="/reconciliation-review/download-bill"
+            element={
+              <ProtectedRoute requiredRole="user">
+                <DownloadBill />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/reconciliation-review/download-bill/sales-reconciliation"
+            element={
+              <ProtectedRoute requiredRole="user">
+                <SalesReconciliation />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Protected Admin Routes */}
           <Route
             path="/admin/z-reports"
             element={
@@ -163,16 +184,8 @@ function App() {
               </ProtectedRoute>
             }
           />
-          <Route
-            path="/admin/staff"
-            element={
-              <ProtectedRoute requiredRole="admin" requiredPermission="userManagement">
-                <AdminStaff />
-              </ProtectedRoute>
-            }
-          />
 
-          {/* Supplier Invoices — staff route (also navigable from admin dashboard) */}
+          {/* Supplier Invoices — user route (also navigable from admin dashboard) */}
           <Route
             path="/supplier-invoices"
             element={

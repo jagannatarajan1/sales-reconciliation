@@ -22,13 +22,6 @@ model User {
   gmailConnections GmailConnection[]
 }
 
-model Staff {
-  staffId   Int      @id @default(autoincrement())
-  name      String
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
-}
-
 model AuditLog {
   auditLogId    Int      @id @default(autoincrement())
   userId        Int?

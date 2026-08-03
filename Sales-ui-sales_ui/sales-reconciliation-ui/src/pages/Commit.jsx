@@ -25,12 +25,16 @@ export const Commit = () => {
   const [committedAt, setCommittedAt]   = useState(null);
   const [committedMsg, setCommittedMsg] = useState("");
   const [targetDate, setTargetDate]     = useState(null);
-  const [emailError, setEmailError]     = useState("");
   const [committed, setCommitted]       = useState(false);
   const [committing, setCommitting]     = useState(false);
   const [errorMsg, setErrorMsg]           = useState("");
   const [limitExceeded, setLimitExceeded] = useState(false);
   const [alreadyAttempted, setAlreadyAttempted] = useState(false);
+  // Commit is only offered once the day's Z-Report has arrived. The same rule
+  // is enforced by POST /Summary/commit — this is the pre-flight so the user
+  // sees why the button is unavailable instead of being refused on click.
+  const [zReportAvailable, setZReportAvailable] = useState(true);
+  const [zReportMessage, setZReportMessage]     = useState("");
 
   // If Summary passed staffNotes through (already filled in there), pre-fill
   // this page's textarea with it.
@@ -44,42 +48,42 @@ export const Commit = () => {
   const loadAll = async () => {
     setLoading(true);
     setErrorMsg("");
-    setEmailError("");
+    setZReportMessage("");
     try {
-      const [emailRes, summaryRes] = await Promise.all([
-        fetch(`${SUMMARY_URL}/zreport-email`, { headers: authHeaders() }),
-        fetch(`${SUMMARY_URL}/today`,         { headers: authHeaders() }),
+      const [summaryRes, zReportRes] = await Promise.all([
+        fetch(`${SUMMARY_URL}/today`,          { headers: authHeaders() }),
+        fetch(`${SUMMARY_URL}/zreport-status`, { headers: authHeaders() }),
       ]);
 
-      if (summaryRes.ok) {
-        const summary = await summaryRes.json();
-        setCommittedAt(summary.committedAt ?? null);
-      }
-
-      if (emailRes.status === 400) {
-        setEmailError("No Z-report email found. Please ensure the plain-text Z-report has been received.");
-        return;
-      }
-      if (!emailRes.ok) {
-        setEmailError("Failed to check Z-report email.");
+      if (!summaryRes.ok) {
+        setErrorMsg("Failed to load today's data.");
         return;
       }
 
-      const emailData = await emailRes.json();
-      setIsCommitted(emailData.isCommitted ?? false);
-      const date = emailData.targetDate ?? null;
-      setTargetDate(date);
+      const summary = await summaryRes.json();
+      setCommittedAt(summary.committedAt ?? null);
+      setIsCommitted(summary.isCommitted ?? false);
+      setTargetDate(summary.date ?? null);
 
-      if (emailData.isCommitted) {
-        setCommittedMsg(
-          emailData.message || "Today's values are already committed. Next Z-report available tomorrow."
-        );
-      } else if (emailData.isPendingAdminReview) {
+      if (summary.isCommitted) {
+        setCommittedMsg("Today's values are already committed. Next Z-report available tomorrow.");
+        return;
+      }
+
+      if (summary.isPendingAdminReview) {
         // Backend says this date already exceeded £5.00 and is locked pending admin review —
         // authoritative and shared across every user/device, unlike a local flag would be.
         setLimitExceeded(true);
         setAlreadyAttempted(true);
-        setErrorMsg(emailData.message || "");
+      }
+
+      if (zReportRes.ok) {
+        const status = await zReportRes.json();
+        setZReportAvailable(status.available ?? false);
+        if (!status.available) setZReportMessage(status.message || "");
+      } else {
+        setZReportAvailable(false);
+        setZReportMessage("Failed to check whether the Z Report is available for this date.");
       }
     } catch {
       setErrorMsg("Network error loading data.");
@@ -89,6 +93,10 @@ export const Commit = () => {
   };
 
   const handleCommit = async () => {
+    // Belt-and-braces: the button is already disabled without a Z Report, so
+    // reaching here means the state changed under us.
+    if (!zReportAvailable) return;
+
     setErrorMsg("");
     setCommitting(true);
     try {
@@ -107,8 +115,16 @@ export const Commit = () => {
       } else {
         const errData = await res.json().catch(() => ({}));
         const msg = errData.message ?? "Commit failed.";
-        setErrorMsg(msg);
-        setLimitExceeded(true);
+
+        // A missing Z Report is its own outcome — the day is simply not ready
+        // yet, so surface it as such instead of as the £5.00 variance lock.
+        if (errData.zReportAvailable === false) {
+          setZReportAvailable(false);
+          setZReportMessage(msg);
+        } else {
+          setErrorMsg(msg);
+          setLimitExceeded(true);
+        }
       }
     } catch {
       setErrorMsg("Network error during commit.");
@@ -174,14 +190,14 @@ export const Commit = () => {
             </>
           )}
 
-          {/* ── No Z-report email ── */}
-          {!isCommitted && emailError && (
-            <div className="commit-error-msg"><FiAlertCircle /> {emailError}</div>
-          )}
-
           {/* ── Ready to commit ── */}
-          {!isCommitted && !emailError && (
+          {!isCommitted && (
             <>
+              {/* Z Report missing — commit stays blocked until it arrives */}
+              {!zReportAvailable && (
+                <div className="commit-error-msg"><FiAlertCircle /> {zReportMessage}</div>
+              )}
+
               {targetDate && (
                 <div className="commit-date-block">
                   <span className="commit-date-label">Committing for</span>
@@ -217,17 +233,19 @@ export const Commit = () => {
                 </div>
               ) : (
                 <button
-                  className={`commit-btn ${limitExceeded ? "commit-btn--red" : "commit-btn--green"}`}
+                  className={`commit-btn ${limitExceeded || !zReportAvailable ? "commit-btn--red" : "commit-btn--green"}`}
                   onClick={handleCommit}
-                  disabled={committing || committed || limitExceeded}
+                  disabled={committing || committed || limitExceeded || !zReportAvailable}
                 >
                   {committing
                     ? <><span className="commit-btn-spinner" /> Committing…</>
-                    : alreadyAttempted
-                      ? "Already Attempted — Commit Locked for This Date"
-                      : limitExceeded
-                        ? "Commit Blocked — Exceeds £5.00 Limit"
-                        : "Confirm Commit"
+                    : !zReportAvailable
+                      ? "Commit Blocked — Z Report Not Available"
+                      : alreadyAttempted
+                        ? "Already Attempted — Commit Locked for This Date"
+                        : limitExceeded
+                          ? "Commit Blocked — Exceeds £5.00 Limit"
+                          : "Confirm Commit"
                   }
                 </button>
               )}

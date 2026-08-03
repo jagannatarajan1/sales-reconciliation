@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import {
   FiShoppingBag, FiCreditCard, FiDollarSign, FiTrendingDown, FiPackage,
-  FiCircle, FiBarChart2, FiCheckCircle, FiLock,
+  FiCircle, FiBarChart2, FiCheckCircle, FiLock, FiClipboard,
 } from 'react-icons/fi';
 import { useAuth } from '../context/AuthContext';
 import '../styles/Dashboard.css';
@@ -22,6 +22,9 @@ const menuItems = [
   { id: 7,  name: 'Paypoint',               icon: FiCircle,       path: '/Paypoint',                   desc: 'Paypoint machine values',          color: '#06b6d4' },
   { id: 9,  name: 'Summary',              icon: FiBarChart2,    path: '/summary',                  desc: 'Reconciliation overview',          color: '#14b8a6' },
   { id: 10, name: 'Commit Day',            icon: FiCheckCircle,  path: '/commit',                    desc: "Finalise & lock today's data",     color: '#ef4444' },
+  // Never locked by today's commit — this reviews already-committed history,
+  // exactly the data that only exists once a day has been committed.
+  { id: 11, name: 'Reconciliation Review', icon: FiClipboard,   path: '/reconciliation-review',     desc: 'Review status & download reports', color: '#0ea5e9' },
 ];
 
 const gridVariants = {

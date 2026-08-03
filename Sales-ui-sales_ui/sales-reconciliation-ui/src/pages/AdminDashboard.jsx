@@ -3,7 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
-  FiUsers, FiUserCheck, FiBarChart2, FiTrendingUp, FiRotateCcw,
+  FiUsers, FiBarChart2, FiRotateCcw,
   FiShoppingBag, FiFileText, FiCalendar, FiMail, FiClipboard,
 } from 'react-icons/fi';
 import '../styles/AdminDashboard.css';
@@ -43,30 +43,12 @@ const cards = [
     permission: 'userManagement',
   },
   {
-    icon: FiUserCheck,
-    title: 'Staff',
-    desc: 'Manage the staff-name list used at commit time',
-    label: 'Manage Staff',
-    path: '/admin/staff',
-    color: '#8b5cf6',
-    permission: 'userManagement',
-  },
-  {
     icon: FiBarChart2,
     title: 'Reconciliation Review',
-    desc: 'Review and submit pending staff reconciliations; browse committed records',
+    desc: 'Review and submit uncommitted data; browse committed records',
     label: 'Review Reconciliation',
     path: '/admin/reconciliation',
     color: '#10b981',
-  },
-  {
-    icon: FiTrendingUp,
-    title: 'Sales Reconciliation',
-    desc: 'Committed-only date-wise history, Z-Report comparison and variance',
-    label: 'View Reports',
-    path: '/admin/reports',
-    color: '#f59e0b',
-    permission: 'reports',
   },
   {
     icon: FiClipboard,
@@ -88,7 +70,7 @@ const cards = [
   {
     icon: FiShoppingBag,
     title: 'Suppliers',
-    desc: 'Add and remove suppliers for staff invoice entry',
+    desc: 'Add and remove suppliers for user invoice entry',
     label: 'Manage Suppliers',
     path: '/admin/suppliers',
     color: '#06b6d4',
@@ -96,7 +78,7 @@ const cards = [
   {
     icon: FiFileText,
     title: 'Supplier Payout',
-    desc: 'Date-wise view of all invoices entered by staff',
+    desc: 'Date-wise view of all invoices entered by users',
     label: 'View Invoices',
     path: '/admin/supplier-invoices',
     color: '#14b8a6',
@@ -104,7 +86,7 @@ const cards = [
   {
     icon: FiCalendar,
     title: 'Reset Commit Date',
-    desc: 'Override the active working date for staff users',
+    desc: 'Override the active working date for users',
     label: 'Reset Commit Date',
     path: '/admin/reset-commit-date',
     color: '#ef4444',

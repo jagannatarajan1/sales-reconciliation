@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { FiArrowLeft, FiRefreshCw, FiAlertCircle, FiCheckCircle, FiChevronLeft, FiChevronRight, FiLock } from "react-icons/fi";
+import { FiArrowLeft, FiRefreshCw, FiAlertCircle, FiCheckCircle, FiChevronLeft, FiChevronRight } from "react-icons/fi";
 import { useAuth } from "../../context/AuthContext";
 import "./ShopSale.css";
 
@@ -16,12 +16,13 @@ const MONTH_LABELS = [
 const pad2 = (n) => String(n).padStart(2, "0");
 const ymd = (year, month, day) => `${year}-${pad2(month + 1)}-${pad2(day)}`;
 
-// ── Shop Sale calendar (§1) ──────────────────────────────────────────────
-// Full month grid; any date already committed (per
-// GET /Summary/committed-dates, which any authenticated staff member can
-// call) renders disabled/greyed-out and unclickable. Pending/uncommitted
-// dates — and only those — remain selectable. No per-day Z-report info is
-// shown inside the cells, just enabled/disabled state.
+// ── Shop Sale calendar ───────────────────────────────────────────────────
+// Full month grid showing uncommitted dates only. Any date already committed
+// (per GET /Summary/committed-dates, which any authenticated user can call)
+// is rendered as an empty cell — not visible and not selectable — so the only
+// dates on offer are ones still awaiting a commit. Future dates stay in the
+// grid but disabled, since they are not committed, just not reachable yet.
+// The same rule is enforced server-side by GET /Summary/zreport-email/by-date.
 function ShopSaleCalendar({ token, selectedDate, onSelectDate, onShowActiveDate }) {
   const today = new Date();
   const [viewYear, setViewYear] = useState(today.getFullYear());
@@ -103,11 +104,15 @@ function ShopSaleCalendar({ token, selectedDate, onSelectDate, onShowActiveDate 
           if (!cell.inMonth) {
             return <span key={idx} className="sc-day sc-day--outside" />;
           }
+          // Committed days are withheld entirely — the cell is left blank so
+          // the date is neither shown nor clickable.
+          if (committedDates.has(cell.dateStr)) {
+            return <span key={idx} className="sc-day sc-day--outside" />;
+          }
+
           const isFuture = cell.dateStr > todayYmd;
-          const isCommitted = committedDates.has(cell.dateStr);
           const isSelected = selectedDate === cell.dateStr;
           const isToday = cell.dateStr === todayYmd;
-          const disabled = isFuture || isCommitted;
 
           return (
             <button
@@ -115,25 +120,24 @@ function ShopSaleCalendar({ token, selectedDate, onSelectDate, onShowActiveDate 
               type="button"
               className={[
                 "sc-day",
-                disabled ? "sc-day--disabled" : "sc-day--pending",
+                isFuture ? "sc-day--disabled" : "sc-day--pending",
                 isSelected ? "sc-day--selected" : "",
                 isToday ? "sc-day--today" : "",
               ].filter(Boolean).join(" ")}
-              disabled={disabled}
-              title={isCommitted ? "Already committed" : isFuture ? "Future date" : undefined}
+              disabled={isFuture}
+              title={isFuture ? "Future date" : undefined}
               onClick={() => onSelectDate(cell.dateStr)}
             >
               {cell.dayNum}
-              {isCommitted && <FiLock className="sc-day-lock" />}
             </button>
           );
         })}
       </div>
 
       <div className="sc-legend">
-        <span className="sc-legend-item"><span className="sc-legend-swatch sc-legend-swatch--pending" /> Pending</span>
-        <span className="sc-legend-item"><span className="sc-legend-swatch sc-legend-swatch--committed" /> Committed</span>
+        <span className="sc-legend-item"><span className="sc-legend-swatch sc-legend-swatch--pending" /> Uncommitted — available to select</span>
       </div>
+      <p className="sc-legend-note">Committed dates are not shown.</p>
 
       {selectedDate && (
         <button type="button" className="active-date-btn sc-active-date-btn" onClick={onShowActiveDate}>
@@ -225,12 +229,13 @@ const ShopSale = () => {
         `${SUMMARY_URL}/zreport-email/by-date?date=${dateStr}`,
         { headers: authHeaders() }
       );
-      if (res.status === 400) {
+      // 400 = no email for the date, 403 = the date is committed and is no
+      // longer selectable. Both carry an explanatory message worth showing.
+      if (!res.ok) {
         const body = await res.json().catch(() => ({}));
-        setError(body.message || "No Z-report email found for this date.");
+        setError(body.message || "Failed to load Z-report.");
         return;
       }
-      if (!res.ok) { setError("Failed to load Z-report."); return; }
       applyResult(await res.json());
     } catch (err) {
       setError(err.message || "Something went wrong.");

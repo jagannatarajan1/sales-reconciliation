@@ -8,6 +8,7 @@ import {
   FiAlertTriangle,
   FiAlertCircle,
   FiEdit2,
+  FiLock,
   FiX,
 } from "react-icons/fi";
 import "./InstantLottertInventory.css";
@@ -173,12 +174,18 @@ function TodayInventory({ token, showToast, userRole, isLocked }) {
           body: JSON.stringify({
             lotteryId: item.lotteryId,
             inventoryDate: new Date(),
-            price: Number(item.price),
+            // Price is admin-only, so a non-admin sends no price at all
+            // rather than echoing back the one it was rendered with — a
+            // stale echo would read as an attempted edit and be rejected.
+            ...(canEditPriceAndOpen ? { price: Number(item.price) } : {}),
             openNo: Number(item.openNo),
             closeNo: Number(item.closeNo),
           }),
         });
-        if (!res.ok) throw new Error("Failed to save inventory");
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.message || "Failed to save inventory");
+        }
       }
 
       for (const item of toDelete) {
@@ -206,6 +213,9 @@ function TodayInventory({ token, showToast, userRole, isLocked }) {
   };
 
   const fieldsDisabled = isLocked || !isEditing;
+  // Price and Open No are admin-only; every other role gets Close No alone.
+  // Mirrors the same rule POST /LotteryInstant enforces server-side.
+  const canEditPriceAndOpen = userRole === "admin";
 
   const grandSold = inventory.reduce((s, r) => s + Number(r.totalSold || 0), 0);
   const grandSales = inventory.reduce((s, r) => s + Number(r.sales || 0), 0);
@@ -232,6 +242,12 @@ function TodayInventory({ token, showToast, userRole, isLocked }) {
           </button>
         )}
       </div>
+
+      {!canEditPriceAndOpen && (
+        <p className="ili-role-note">
+          <FiLock /> Price and Open No are set by an admin. You can enter the Close No.
+        </p>
+      )}
 
       {loading && (
         <div className="loading-container">Loading today's inventory…</div>
@@ -265,13 +281,17 @@ function TodayInventory({ token, showToast, userRole, isLocked }) {
                   </tr>
                 ) : (
                   inventory.map((item, i) => {
-                    const priceOpenReadOnly = userRole === "user" || fieldsDisabled;
+                    const priceOpenReadOnly = !canEditPriceAndOpen || fieldsDisabled;
+                    const lockedCls = canEditPriceAndOpen ? "" : " close-input--locked";
+                    const lockedTitle = canEditPriceAndOpen
+                      ? undefined
+                      : "Read-only — only an admin can change this";
                     return (
                     <tr key={item.lotteryId}>
                       <td>{item.scratchCardNo}</td>
                       <td>
                         <input
-                          className="close-input"
+                          className={`close-input${lockedCls}`}
                           type="number"
                           step="0.01"
                           min="0"
@@ -282,25 +302,12 @@ function TodayInventory({ token, showToast, userRole, isLocked }) {
                               ? undefined
                               : (e) => handlePrice(i, e.target.value)
                           }
-                          style={
-                            userRole === "user"
-                              ? {
-                                  background: "#f9fafb",
-                                  color: "#6b7280",
-                                  cursor: "default",
-                                }
-                              : undefined
-                          }
-                          title={
-                            userRole === "user"
-                              ? "Auto-set from yesterday's close"
-                              : undefined
-                          }
+                          title={lockedTitle}
                         />
                       </td>
                       <td>
                         <input
-                          className="close-input"
+                          className={`close-input${lockedCls}`}
                           type="number"
                           min="0"
                           value={item.openNo}
@@ -310,20 +317,7 @@ function TodayInventory({ token, showToast, userRole, isLocked }) {
                               ? undefined
                               : (e) => handleOpen(i, e.target.value)
                           }
-                          style={
-                            userRole === "user"
-                              ? {
-                                  background: "#f9fafb",
-                                  color: "#6b7280",
-                                  cursor: "default",
-                                }
-                              : undefined
-                          }
-                          title={
-                            userRole === "user"
-                              ? "Auto-set from yesterday's close"
-                              : undefined
-                          }
+                          title={lockedTitle}
                         />
                       </td>
                       <td>
