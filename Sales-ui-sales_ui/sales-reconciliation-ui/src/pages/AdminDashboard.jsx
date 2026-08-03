@@ -26,11 +26,9 @@ const getGreeting = () => {
 const getInitials = (nameOrEmail = '') =>
   nameOrEmail.split(/[\s@]/).filter(Boolean).slice(0, 2).map(w => w[0].toUpperCase()).join('');
 
-// superadmin always has everything, regardless of what's in permissions —
-// mirrors the backend's hasPermission()/requirePermission() rule exactly.
+// Mirrors the backend's hasPermission()/requirePermission() rule exactly.
 const hasPermission = (user, moduleKey) => {
   if (!moduleKey) return true;
-  if (user?.role === 'superadmin') return true;
   return user?.role === 'admin' && (user?.permissions ?? []).includes(moduleKey);
 };
 

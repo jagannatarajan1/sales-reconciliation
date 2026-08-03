@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   FiArrowLeft, FiPlus, FiUsers, FiEdit2, FiTrash2, FiKey,
-  FiUserCheck, FiUserX, FiX, FiShield,
+  FiUserCheck, FiUserX, FiX,
 } from 'react-icons/fi';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../components/ui/Toast';
@@ -26,7 +26,7 @@ const PERMISSION_MODULES = [
   { key: 'commitHistory', label: 'Commit History' },
 ];
 
-const ROLES = ['user', 'admin', 'superadmin'];
+const ROLES = ['user', 'admin'];
 
 const gridVariants = {
   hidden: {},
@@ -284,7 +284,7 @@ export const AdminUsers = () => {
                 </div>
 
                 <span className={`au-role-badge au-role-badge--${u.role}`}>
-                  {u.role === 'superadmin' && <FiShield />} {u.role}
+                  {u.role}
                 </span>
 
                 <span className={`au-status-badge ${u.isActive ? 'au-status-badge--active' : 'au-status-badge--inactive'}`}>
@@ -396,9 +396,6 @@ export const AdminUsers = () => {
               )}
               {form.role === 'user' && (
                 <p className="au-hint">Users have no admin-module access — their access is simply being logged in.</p>
-              )}
-              {form.role === 'superadmin' && (
-                <p className="au-hint">Superadmins always have full access to every module.</p>
               )}
             </div>
 

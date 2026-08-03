@@ -18,12 +18,11 @@ const fmtGBP = (val) => {
 };
 
 // Mirrors the backend's hasPermission()/requirePermission("scratchCards"):
-// superadmin always passes, admin passes only if "scratchCards" is in their
-// permissions array, user never passes (this page's route already requires
-// at least the admin role, but a limited admin might not have this module).
+// admin passes only if "scratchCards" is in their permissions array, user
+// never passes (this page's route already requires at least the admin role,
+// but a limited admin might not have this module).
 const canManageScratchCards = (user) => {
   if (!user) return false;
-  if (user.role === 'superadmin') return true;
   if (user.role === 'admin') return (user.permissions ?? []).includes('scratchCards');
   return false;
 };

@@ -164,7 +164,6 @@
 
 .au-role-badge--user { background: var(--bg-surface-muted); color: var(--text-secondary); }
 .au-role-badge--admin { background: var(--color-info-bg); color: var(--color-info); }
-.au-role-badge--superadmin { background: #fef3c7; color: #b45309; }
 
 .au-status-badge {
   padding: 0.3rem 0.7rem;

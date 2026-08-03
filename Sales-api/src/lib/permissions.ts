@@ -24,17 +24,12 @@ export type PermissionModule = (typeof PERMISSION_MODULES)[number];
 //
 // Rules:
 //   - Not authenticated              -> 401
-//   - role === "superadmin"          -> always passes
 //   - role === "admin"               -> passes only if moduleKey is in req.userPermissions
 //   - role === "user" (or anything else) -> never passes
 export function requirePermission(req: Request, res: Response, moduleKey: string): boolean {
   if (req.userId == null) {
     res.status(401).json({ message: "User not authenticated" });
     return false;
-  }
-
-  if (req.userRole === "superadmin") {
-    return true;
   }
 
   if (req.userRole === "admin" && (req.userPermissions ?? []).includes(moduleKey)) {
@@ -50,6 +45,5 @@ export function requirePermission(req: Request, res: Response, moduleKey: string
 // gating the entire handler on this permission alone.
 export function hasPermission(req: Request, moduleKey: string): boolean {
   if (req.userId == null) return false;
-  if (req.userRole === "superadmin") return true;
   return req.userRole === "admin" && (req.userPermissions ?? []).includes(moduleKey);
 }

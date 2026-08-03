@@ -173,6 +173,7 @@ function TodayInventory({ token, showToast, userRole, isLocked }) {
           body: JSON.stringify({
             lotteryId: item.lotteryId,
             inventoryDate: new Date(),
+            price: Number(item.price),
             openNo: Number(item.openNo),
             closeNo: Number(item.closeNo),
           }),

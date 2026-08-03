@@ -7,7 +7,7 @@ import { writeAuditLog } from "../lib/auditLog.js";
 
 export const usersRouter = Router();
 
-const VALID_ROLES = ["user", "admin", "superadmin"] as const;
+const VALID_ROLES = ["user", "admin"] as const;
 
 // "user" accounts never get admin-module access — their real reconciliation
 // access is just being logged in, not permission-gated. Whatever the caller
@@ -17,11 +17,13 @@ function normalizePermissions(role: string, permissions: unknown): string[] {
   return Array.isArray(permissions) ? permissions.filter((p) => typeof p === "string") : [];
 }
 
-// Guard rail: never let the last active superadmin be deleted/disabled/demoted.
-// Counts active superadmins other than the target account itself.
-async function otherActiveSuperadminCount(excludeUserId: number): Promise<number> {
+// Guard rail: never let the last active admin be deleted/disabled/demoted —
+// with only "user"/"admin" left, admin is the top role and losing the last
+// one would lock the account out of admin access entirely.
+// Counts active admins other than the target account itself.
+async function otherActiveAdminCount(excludeUserId: number): Promise<number> {
   return prisma.user.count({
-    where: { role: "superadmin", isActive: true, userId: { not: excludeUserId } },
+    where: { role: "admin", isActive: true, userId: { not: excludeUserId } },
   });
 }
 
@@ -117,12 +119,12 @@ usersRouter.put("/:id", async (req, res) => {
     return res.status(400).json({ message: "Invalid role" });
   }
 
-  // Demotion guard: this user is currently superadmin and the request would
-  // change that — block it if they are the last active superadmin.
-  if (existing.role === "superadmin" && nextRole !== "superadmin" && existing.isActive) {
-    const others = await otherActiveSuperadminCount(existing.userId);
+  // Demotion guard: this user is currently admin and the request would
+  // change that — block it if they are the last active admin.
+  if (existing.role === "admin" && nextRole !== "admin" && existing.isActive) {
+    const others = await otherActiveAdminCount(existing.userId);
     if (others === 0) {
-      return res.status(409).json({ message: "Cannot demote the last remaining superadmin account." });
+      return res.status(409).json({ message: "Cannot demote the last remaining admin account." });
     }
   }
 
@@ -175,10 +177,10 @@ usersRouter.put("/:id/disable", async (req, res) => {
   const existing = await prisma.user.findUnique({ where: { userId: id } });
   if (!existing) return res.status(404).json({ message: "User not found" });
 
-  if (existing.role === "superadmin" && existing.isActive) {
-    const others = await otherActiveSuperadminCount(existing.userId);
+  if (existing.role === "admin" && existing.isActive) {
+    const others = await otherActiveAdminCount(existing.userId);
     if (others === 0) {
-      return res.status(409).json({ message: "Cannot disable the last remaining superadmin account." });
+      return res.status(409).json({ message: "Cannot disable the last remaining admin account." });
     }
   }
 
@@ -235,10 +237,10 @@ usersRouter.delete("/:id", async (req, res) => {
   const existing = await prisma.user.findUnique({ where: { userId: id } });
   if (!existing) return res.status(404).json({ message: "User not found" });
 
-  if (existing.role === "superadmin" && existing.isActive) {
-    const others = await otherActiveSuperadminCount(existing.userId);
+  if (existing.role === "admin" && existing.isActive) {
+    const others = await otherActiveAdminCount(existing.userId);
     if (others === 0) {
-      return res.status(409).json({ message: "Cannot delete the last remaining superadmin account." });
+      return res.status(409).json({ message: "Cannot delete the last remaining admin account." });
     }
   }
 

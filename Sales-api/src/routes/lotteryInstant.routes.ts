@@ -9,6 +9,23 @@ function toInt(value: unknown): number {
   return Number.isFinite(n) ? Math.trunc(n) : 0;
 }
 
+// The Open No shown/expected for a card+date when no inventory row has been
+// saved for that date yet: an admin's explicit "Set Opening" override
+// (forcedOpenNo) takes priority, otherwise it carries over from the previous
+// day's Close No. Shared by GET /today (what the UI displays) and POST /
+// (what a "user" role's submission is compared against, below).
+async function computeDefaultOpenNo(
+  card: { scratchCardId: number; forcedOpenNo: number | null },
+  date: Date
+): Promise<number> {
+  if (card.forcedOpenNo != null) return card.forcedOpenNo;
+  const previous = await prisma.instantLotteryInventoryEntry.findFirst({
+    where: { scratchCardId: card.scratchCardId, date: { lt: date } },
+    orderBy: { date: "desc" },
+  });
+  return previous ? previous.closeNo : 0;
+}
+
 lotteryInstantRouter.get("/today", async (req, res) => {
   if (req.userId == null) return res.status(401).json({ message: "User not authenticated" });
 
@@ -35,14 +52,7 @@ lotteryInstantRouter.get("/today", async (req, res) => {
       continue;
     }
 
-    let openNo = card.forcedOpenNo ?? 0;
-    if (card.forcedOpenNo == null) {
-      const previous = await prisma.instantLotteryInventoryEntry.findFirst({
-        where: { scratchCardId: card.scratchCardId, date: { lt: date } },
-        orderBy: { date: "desc" },
-      });
-      if (previous) openNo = previous.closeNo;
-    }
+    const openNo = await computeDefaultOpenNo(card, date);
 
     result.push({
       id: 0,
@@ -66,9 +76,37 @@ lotteryInstantRouter.post("/", async (req, res) => {
   const scratchCardId = toInt(req.body?.lotteryId);
   const openNo = toInt(req.body?.openNo);
   const closeNo = toInt(req.body?.closeNo);
+  const priceProvided = req.body?.price !== undefined && req.body?.price !== null && req.body?.price !== "";
+  const submittedPrice = priceProvided ? Number(req.body.price) : null;
 
   const card = await prisma.scratchCard.findUnique({ where: { scratchCardId } });
   if (!card) return res.status(404).json({ message: "Scratch card not found." });
+
+  const existingEntry = await prisma.instantLotteryInventoryEntry.findUnique({
+    where: { scratchCardId_date: { scratchCardId, date } },
+  });
+
+  // "Instant Lottery Price" and "Open No" are meant to be set once when a
+  // pack starts, not casually edited on the daily Close No entry screen the
+  // "user" role uses — the frontend already renders them read-only for
+  // "user", but that's cosmetic only, so enforce it here too in case someone
+  // hits this endpoint directly. Only reject if the value actually differs
+  // from what's currently stored; resubmitting the same value (e.g. because
+  // the row was already loaded with it) is not a change and must go through,
+  // since that's exactly what happens on every normal Close No save.
+  if (req.userRole === "user") {
+    const storedOpenNo = existingEntry ? existingEntry.openNo : await computeDefaultOpenNo(card, date);
+    const storedPrice = Number(card.price);
+
+    const attemptedOpenNoChange = openNo !== storedOpenNo;
+    const attemptedPriceChange = priceProvided && submittedPrice !== storedPrice;
+
+    if (attemptedOpenNoChange || attemptedPriceChange) {
+      return res.status(403).json({
+        message: "Only an admin can change the Instant Lottery Price or Open No. Close No can still be saved.",
+      });
+    }
+  }
 
   const totalSold = Math.abs(closeNo - openNo);
   const sales = totalSold * Number(card.price);
@@ -81,6 +119,13 @@ lotteryInstantRouter.post("/", async (req, res) => {
 
   if (card.forcedOpenNo != null) {
     await prisma.scratchCard.update({ where: { scratchCardId }, data: { forcedOpenNo: null } });
+  }
+
+  // Admin-only: actually persist a Price change onto the ScratchCard record.
+  // (Previously dead: the frontend never sent `price` at all, so nobody could
+  // persist a change through this route regardless of role.)
+  if (req.userRole === "admin" && submittedPrice != null && submittedPrice !== Number(card.price)) {
+    await prisma.scratchCard.update({ where: { scratchCardId }, data: { price: submittedPrice } });
   }
 
   res.json(entry);

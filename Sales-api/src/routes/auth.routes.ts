@@ -9,7 +9,7 @@ export const authRouter = Router();
 
 // There is no public/self-service registration path anymore. Creating a new
 // login account is an admin action: the caller must be authenticated and
-// hold the "userManagement" permission (superadmin always passes).
+// hold the "userManagement" permission.
 authRouter.post("/register", async (req, res) => {
   if (!requirePermission(req, res, "userManagement")) return;
 
