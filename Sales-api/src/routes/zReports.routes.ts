@@ -7,10 +7,9 @@ import { requirePermission } from "../lib/permissions.js";
 
 // Z Reports admin page — browse historical Z-report emails over a date
 // range, view the raw text, and download as PDF (single day or a ZIP for
-// the range). This stays admin-only behind the "reports" permission, unlike
-// the committed-only Sales Reconciliation history page (SalesReconciliation.jsx
-// / reports.routes.ts), which moved to the User side and is gated on being
-// signed in rather than this permission.
+// the range). Admin-only behind the "reports" permission. Sales
+// Reconciliation/"Download Bill" lives entirely in adminReconciliation.routes.ts
+// (gated on "commitHistory") — there is no separate reports.routes.ts.
 export const zReportsRouter = Router();
 
 function requireReports(req: import("express").Request, res: import("express").Response): boolean {

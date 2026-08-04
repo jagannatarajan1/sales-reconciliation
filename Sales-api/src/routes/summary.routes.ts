@@ -308,46 +308,6 @@ summaryRouter.post("/commit", async (req, res) => {
   res.json({ message: "Committed successfully", committedAt: record.committedAt });
 });
 
-summaryRouter.get("/reconciliation/portal", async (req, res) => {
-  if (req.userId == null) {
-    return res.status(401).json({ message: "User not authenticated" });
-  }
-
-  const active = await getActiveDate();
-  const yesterday = new Date(active);
-  yesterday.setUTCDate(yesterday.getUTCDate() - 1);
-
-  const record = await prisma.reconciliationRecord.findUnique({ where: { date: yesterday } });
-  if (!record) {
-    return res.json({ hasReconciliation: false });
-  }
-
-  res.json({
-    hasReconciliation: true,
-    date: record.date,
-    submittedAt: record.adminSubmittedAt ?? record.committedAt,
-    manualCardAmount: record.manualCardAmount,
-    cardAmount: record.cardAmount,
-    lastSafe: record.lastSafe,
-    safeDropAmount: record.safeDropAmount,
-    cash: Number(record.lastSafe) + Number(record.safeDropAmount),
-    cashback: record.cashback,
-    paypointPayout: record.paypointPayout,
-    instantLotteryPayout: record.instantLotteryPayout,
-    lotteryPayout: record.lotteryPayout,
-    newsVoucher: record.newsVoucher,
-    ddPoint: record.ddPoint,
-    instantLotteryTotalCount: record.instantLotteryTotalCount,
-    instantLotteryTotalSales: record.instantLotteryTotalSales,
-    lotteryValue: record.lotteryValue,
-    paypointValue: record.paypointValue,
-    summaryTotal: record.summaryTotal,
-    zReportTotal: record.zReportTotal,
-    difference: record.difference,
-    adminNotes: record.adminNotes,
-  });
-});
-
 // Lightweight, non-admin-gated list of committed dates within a range — used
 // by the Shop Sale calendar (any authenticated staff member) to grey out
 // dates that already have a completed reconciliation, without exposing any

@@ -194,10 +194,9 @@ adminReconciliationRouter.post("/submit", async (req, res) => {
 });
 
 // "Committed" here means what it says — a record only qualifies once staff
-// have actually committed it and/or admin has signed off (mirrors the same
-// predicate reports.routes.ts uses for the Sales Reconciliation page). This
-// also backs the "Recent Commits" quick-select chips on the frontend, which
-// would otherwise be able to surface a date that was never really committed.
+// have actually committed it and/or admin has signed off. This also backs
+// the "Recent Commits" quick-select chips on the frontend, which would
+// otherwise be able to surface a date that was never really committed.
 const COMMITTED_ONLY_WHERE = {
   OR: [{ isStaffCommitted: true }, { isAdminReconciled: true }],
 };
@@ -267,13 +266,9 @@ adminReconciliationRouter.get("/committed/:date", async (req, res) => {
   });
 });
 
-// "Download Bill" — thin wrapper around the same single-date Sales
-// Reconciliation renderer used by GET /api/reports/download-pdf (Stage 3),
-// so the button shows the full, properly formatted reconciliation report for
-// that date rather than the raw Z-report-email PDF. Kept as its own endpoint
-// (rather than pointing the frontend at /api/reports/download-pdf directly)
-// so it stays gated on "commitHistory" — the same permission this button
-// has always required — instead of picking up the "reports" module's gate.
+// "Download Bill" — renders the full, properly formatted reconciliation
+// report for the date, rather than the raw Z-report-email PDF. Admin-only,
+// gated on "commitHistory".
 adminReconciliationRouter.get("/download-bill", async (req, res) => {
   if (!requireAdmin(req, res)) return;
 
