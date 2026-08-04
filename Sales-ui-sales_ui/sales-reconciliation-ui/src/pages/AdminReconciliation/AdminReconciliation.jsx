@@ -8,6 +8,7 @@ import {
 } from 'react-icons/fi';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../components/ui/Toast';
+import { DownloadBillReports } from './DownloadBillReports';
 import './AdminReconciliation.css';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'https://localhost:7276/api';
@@ -218,13 +219,6 @@ export const AdminReconciliation = () => {
   const { showToast: notify } = useToast();
   const [activeTab, setActiveTab] = useState('pending');
 
-  /* download bill (range only — see D2: a single-date picker used to sit
-     alongside this, removed in favour of range-only filters everywhere) */
-  const todayStr = new Date().toISOString().split('T')[0];
-  const [billFromDate, setBillFromDate]   = useState('');
-  const [billToDate, setBillToDate]       = useState('');
-  const [downloadingRange, setDownloadingRange] = useState(false);
-
   /* pending (uncommitted) — read-only until Edit is pressed; nothing is sent
      to the server until Save, so edits can be abandoned with Cancel */
   const [loadingPending, setLoadingPending] = useState(true);
@@ -276,34 +270,6 @@ export const AdminReconciliation = () => {
     link.click();
     link.remove();
     window.URL.revokeObjectURL(objectUrl);
-  };
-
-  const clearBillRange = () => {
-    setBillFromDate('');
-    setBillToDate('');
-  };
-
-  const handleDownloadBillsRange = async () => {
-    if (!billFromDate || !billToDate) {
-      showToast('Please select both a from date and a to date', 'error');
-      return;
-    }
-    if (billFromDate > billToDate) {
-      showToast('From Date must be on or before To Date', 'error');
-      return;
-    }
-    setDownloadingRange(true);
-    try {
-      await downloadFile(
-        `${API_BASE}/admin/reconciliation/download-bills-range?fromDate=${billFromDate}&toDate=${billToDate}`,
-        `zreport-bills-${billFromDate}-to-${billToDate}.zip`
-      );
-      showToast('Bills downloaded successfully');
-    } catch (e) {
-      showToast(e.message, 'error');
-    } finally {
-      setDownloadingRange(false);
-    }
   };
 
   // Download the full Sales Reconciliation report (Stage 3's single-date PDF
@@ -995,55 +961,14 @@ export const AdminReconciliation = () => {
         <div className="ar-panel-header">
           <div>
             <h2 className="ar-panel-title"><FiFileText /> Download Bill</h2>
-            <p className="ar-panel-sub">Download the Z-report bill received via Gmail for a specific date, or a range of dates.</p>
+            <p className="ar-panel-sub">
+              Browse committed reconciliation reports, view the full field-by-field Z-Report
+              comparison, and export a date range as PDF or Excel.
+            </p>
           </div>
         </div>
 
-        <div className="ar-download-section">
-          <h3 className="ar-download-heading">Date range</h3>
-          <p className="ar-download-hint">To download a single day, set both From Date and To Date to the same day.</p>
-          <div className="ar-date-filter" aria-label="Download bills for a date range">
-            <div className="ar-picker-row ar-picker-row--inline">
-              <label className="ar-label" htmlFor="bill-from-date">From Date</label>
-              <input
-                id="bill-from-date"
-                type="date"
-                className="ar-date-input"
-                value={billFromDate}
-                max={todayStr}
-                onChange={(e) => setBillFromDate(e.target.value)}
-              />
-            </div>
-            <div className="ar-picker-row ar-picker-row--inline">
-              <label className="ar-label" htmlFor="bill-to-date">To Date</label>
-              <input
-                id="bill-to-date"
-                type="date"
-                className="ar-date-input"
-                value={billToDate}
-                min={billFromDate || undefined}
-                max={todayStr}
-                onChange={(e) => setBillToDate(e.target.value)}
-              />
-            </div>
-            <div className="ar-filter-actions">
-              <button
-                className="ar-download-btn"
-                onClick={handleDownloadBillsRange}
-                disabled={downloadingRange || !billFromDate || !billToDate}
-              >
-                <FiDownload /> {downloadingRange ? 'Downloading…' : 'Download Bills (ZIP)'}
-              </button>
-              <button
-                className="ar-filter-clear-btn"
-                onClick={clearBillRange}
-                disabled={downloadingRange || (!billFromDate && !billToDate)}
-              >
-                Clear
-              </button>
-            </div>
-          </div>
-        </div>
+        <DownloadBillReports />
       </div>
       )}
 

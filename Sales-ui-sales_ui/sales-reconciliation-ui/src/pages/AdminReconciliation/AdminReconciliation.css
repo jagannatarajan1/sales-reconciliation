@@ -68,29 +68,6 @@
   box-shadow: var(--shadow-glow-brand);
 }
 
-/* ── Download Bill panel ── */
-.ar-download-section {
-  padding-top: 1.5rem;
-  border-top: 2px solid #f3f4f6;
-}
-
-.ar-download-section:first-of-type {
-  padding-top: 0;
-  border-top: none;
-}
-
-.ar-download-heading {
-  margin: 0 0 1rem;
-  font-size: 1rem;
-  color: #1f2937;
-}
-
-.ar-download-hint {
-  margin: -0.5rem 0 1rem;
-  font-size: 0.82rem;
-  color: #6b7280;
-}
-
 /* ── Recent commits row ── */
 .ar-recent-commits {
   display: flex;
@@ -678,13 +655,6 @@
    Shared by the Committed Records filter cards and the Download Bill
    sections, which lay out the same way without a card wrapper. */
 .ar-filter-card-body,
-.ar-date-filter {
-  display: flex;
-  align-items: flex-end;
-  gap: 0.9rem;
-  flex-wrap: wrap;
-}
-
 .ar-filter-actions {
   display: flex;
   align-items: center;
@@ -818,6 +788,238 @@
 .ar-input-wrap--ok  .ar-input--ro { background: #f0fdf4; color: #15803d; }
 .ar-input-wrap--over .ar-input--ro { background: #fef2f2; color: #dc2626; }
 
+/* ── Download Bill: Sales Reconciliation browser (DownloadBillReports) ── */
+.ar-rpt-root {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.ar-rpt-picker {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  flex-wrap: wrap;
+  padding: 1rem 1.25rem;
+  background: #f9fafb;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.ar-rpt-range-summary {
+  margin: 0;
+  width: 100%;
+  font-size: 0.85rem;
+  color: #6b7280;
+}
+
+/* ── Report card grid ── */
+.ar-rpt-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 0.75rem;
+}
+
+.ar-rpt-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 0.8rem 1rem;
+  border-radius: 10px;
+  background: white;
+  border: 1.5px solid var(--color-border);
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+
+.ar-rpt-item:hover {
+  border-color: var(--brand-500);
+  box-shadow: var(--shadow-sm);
+}
+
+.ar-rpt-item--active {
+  background: linear-gradient(135deg, var(--brand-500), #6d28d9);
+  border-color: transparent;
+  color: white;
+}
+
+.ar-rpt-item-text {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: inherit;
+}
+
+.ar-rpt-item-hint {
+  font-size: 0.72rem;
+  opacity: 0.75;
+}
+
+/* ── Status pill (Reconciled / Committed / Pending) ── */
+.ar-rpt-status-pill {
+  align-self: flex-start;
+  padding: 2px 9px;
+  border-radius: 999px;
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+}
+
+.ar-rpt-status-pill--reconciled { background: #ede9fe; color: #6d28d9; }
+.ar-rpt-status-pill--committed  { background: #dbeafe; color: #1d4ed8; }
+.ar-rpt-status-pill--pending    { background: #fef3c7; color: #92400e; }
+
+.ar-rpt-item--active .ar-rpt-status-pill {
+  background: rgba(255, 255, 255, 0.25);
+  color: white;
+}
+
+/* ── Detail breakdown ── */
+.ar-rpt-print-header { display: none; }
+
+.ar-rpt-detail-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.ar-rpt-detail-toolbar {
+  display: flex;
+}
+
+.ar-rpt-detail-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.ar-rpt-detail-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 4px;
+  font-size: 1.1rem;
+  color: #1f2937;
+}
+
+.ar-rpt-detail-sub {
+  margin: 0;
+  font-size: 0.85rem;
+  color: #6b7280;
+}
+
+.ar-rpt-detail-badges {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.ar-rpt-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: var(--radius-full);
+  font-size: 0.72rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.ar-rpt-badge--ok { background: #dcfce7; color: #166534; }
+.ar-rpt-badge--na { background: #f3f4f6; color: #6b7280; }
+
+.ar-rpt-print-btn {
+  padding: 6px 14px;
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: white;
+  color: #374151;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ar-rpt-print-btn:hover { border-color: var(--brand-500); color: var(--brand-500); }
+
+.ar-rpt-meta-row {
+  display: flex;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+}
+
+.ar-rpt-meta-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.ar-rpt-meta-value {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.ar-rpt-zreport-warn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  background: #fffbeb;
+  border: 1.5px solid #fde68a;
+  color: #92400e;
+  border-radius: var(--radius-sm);
+  font-size: 0.85rem;
+}
+
+/* ── Comparison table (per section + totals) ── */
+.ar-rpt-compare-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.ar-rpt-compare-table th {
+  text-align: left;
+  padding: 6px 10px;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: #9ca3af;
+  border-bottom: 1.5px solid var(--color-border);
+}
+
+.ar-rpt-compare-table td {
+  padding: 8px 10px;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.ar-rpt-field-label { color: #4b5563; font-weight: 600; }
+.ar-rpt-field-val    { font-weight: 700; color: #1f2937; }
+.ar-rpt-field-zreport { color: #6b7280; }
+.ar-rpt-na { color: #9ca3af; }
+
+.ar-rpt-ok   { color: #15803d !important; }
+.ar-rpt-warn { color: #b45309 !important; }
+.ar-rpt-bad  { color: #dc2626 !important; }
+
+/* ── Print ── */
+@media print {
+  .ar-no-print { display: none !important; }
+  .ar-rpt-print-header { display: block; margin-bottom: 1rem; }
+  .ar-rpt-print-header h2 { margin: 0; }
+  .ar-rpt-print-header p { margin: 4px 0 0; color: #6b7280; }
+}
+
 /* ── Responsive ── */
 @media (max-width: 640px) {
   .ar-page    { padding: 1rem; }
@@ -826,10 +1028,11 @@
   .ar-panel-header { flex-direction: column; align-items: flex-start; }
   .ar-picker-row { max-width: 100%; }
   .ar-filter-card { flex-basis: 100%; }
-  .ar-filter-card-body,
-  .ar-date-filter { align-items: stretch; }
+  .ar-filter-card-body { align-items: stretch; }
   .ar-filter-actions { width: 100%; }
   .ar-filter-apply-btn,
   .ar-filter-clear-btn,
   .ar-download-btn { flex: 1; }
+  .ar-rpt-picker { align-items: stretch; }
+  .ar-rpt-grid { grid-template-columns: 1fr 1fr; }
 }
