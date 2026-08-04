@@ -480,6 +480,11 @@ export const SupplierInvoices = () => {
   const [startDate, setStartDate] = useState(todayStr());
   const [endDate, setEndDate] = useState(todayStr());
   const [rangeError, setRangeError] = useState('');
+  /* The date-by-date browser (DateList/DateDetail) and the range Payout
+     Report used to both render at once, stacked on top of each other —
+     confusing and looked broken since they show overlapping data. Only one
+     view is shown at a time now, switched via this tab. */
+  const [view, setView] = useState('dates');
 
   const showToast = (message, type = 'error') => notify(message, type);
 
@@ -590,27 +595,46 @@ export const SupplierInvoices = () => {
 
       {rangeError && <div className="si-range-error si-no-print">{rangeError}</div>}
 
-      {startDate && endDate && !rangeError && (
-        <PayoutReport fromDate={startDate} toDate={endDate} token={user.token} />
-      )}
-
-      <div className="si-no-print">
-        {selectedDate ? (
-          <DateDetail
-            date={selectedDate}
-            onBack={() => setSelectedDate(null)}
-            token={user.token}
-          />
-        ) : (
-          <DateList
-            rows={filteredRows}
-            onSelect={(date) => setSelectedDate(date)}
-            loading={loading}
-            selectedDate={selectedDate}
-            rangeLabel={rangeLabel}
-          />
-        )}
+      <div className="si-view-toggle si-no-print" role="group" aria-label="Choose view">
+        <button
+          type="button"
+          className={`si-view-btn${view === 'dates' ? ' si-view-btn--active' : ''}`}
+          onClick={() => setView('dates')}
+        >
+          By Date
+        </button>
+        <button
+          type="button"
+          className={`si-view-btn${view === 'report' ? ' si-view-btn--active' : ''}`}
+          onClick={() => setView('report')}
+        >
+          Payout Report
+        </button>
       </div>
+
+      {view === 'report' ? (
+        startDate && endDate && !rangeError && (
+          <PayoutReport fromDate={startDate} toDate={endDate} token={user.token} />
+        )
+      ) : (
+        <div className="si-no-print">
+          {selectedDate ? (
+            <DateDetail
+              date={selectedDate}
+              onBack={() => setSelectedDate(null)}
+              token={user.token}
+            />
+          ) : (
+            <DateList
+              rows={filteredRows}
+              onSelect={(date) => setSelectedDate(date)}
+              loading={loading}
+              selectedDate={selectedDate}
+              rangeLabel={rangeLabel}
+            />
+          )}
+        </div>
+      )}
 
     </motion.div>
   );

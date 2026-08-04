@@ -652,6 +652,38 @@
   .si-td-time { display: none; }
 }
 
+/* ── View toggle (By Date vs Payout Report) ── */
+.si-view-toggle {
+  display: inline-flex;
+  gap: 2px;
+  padding: 4px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.14);
+  backdrop-filter: blur(6px);
+  align-self: center;
+}
+
+.si-view-btn {
+  padding: 8px 18px;
+  border-radius: 9px;
+  border: none;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+
+.si-view-btn:hover { color: white; }
+
+.si-view-btn--active {
+  background: white;
+  color: #4f46e5;
+}
+
+.si-view-btn--active:hover { color: #4f46e5; }
+
 /* ── Supplier Payout Report (D4) ── */
 .si-payout-report {
   margin-bottom: 1.5rem;
