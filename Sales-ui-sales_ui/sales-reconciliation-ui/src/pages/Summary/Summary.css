@@ -363,6 +363,40 @@
   color: #fca5a5;
 }
 
+/* ── Staff Total / Department Total summary rows ──────────
+   Distinct, non-overlapping colors so these two totals stand out from the
+   plain data rows above and from each other. Reuses the app's existing
+   semantic tokens (info-blue / warning-amber) rather than one-off hex
+   values, and deliberately avoids --color-success — that's already the
+   "variance within tolerance" signal on the row directly below, so reusing
+   it here would blur two different meanings into the same color. Full-bleed
+   edge-to-edge band, matching the existing .summary-total-panel__net
+   pattern in this same panel. */
+.summary-total-panel__row--staff-total,
+.summary-total-panel__row--department-total {
+  font-weight: 700;
+  padding: 8px 20px;
+  margin: 4px -20px 0;
+}
+
+.summary-total-panel__row--staff-total {
+  background: var(--color-info-bg);
+  color: var(--color-info);
+}
+
+.summary-total-panel__row--department-total {
+  background: var(--color-warning-bg);
+  color: var(--color-warning);
+}
+
+/* Department Total row before today's Z-report has arrived: value stays
+   muted even though the row itself is highlighted, so "pending" reads
+   clearly instead of looking like a confirmed figure. */
+.summary-total-panel__row--department-total .summary-total-panel__row--muted {
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
 /* ── Department Total / Variance rows (Z-Report comparison) ── */
 .summary-total-panel__row--ok {
   color: #16a34a;

@@ -643,11 +643,11 @@ export const Summary = () => {
                 <span>Total Deductions</span>
                 <span>{fmt(deductionsNum)}</span>
               </div>
-              <div className="summary-total-panel__row">
+              <div className="summary-total-panel__row summary-total-panel__row--staff-total">
                 <span>Staff Total</span>
                 <span>{fmt(liveSummaryTotal)}</span>
               </div>
-              <div className="summary-total-panel__row">
+              <div className="summary-total-panel__row summary-total-panel__row--department-total">
                 <span>Department Total</span>
                 <span className={hasDepartmentTotal ? "" : "summary-total-panel__row--muted"}>
                   {hasDepartmentTotal ? fmt(departmentTotal) : "Not yet received"}
