@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect, useRef } from 'react';
+import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   FiArrowLeft, FiMail, FiCheckCircle, FiXCircle, FiDownload, FiPrinter,
@@ -41,6 +41,8 @@ const cardVariants = { hidden: { opacity: 0, y: 8 }, visible: { opacity: 1, y: 0
 export const AdminZReports = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { showToast: notify } = useToast();
   const showToast = (message, type = 'success') => notify(message, type);
 
@@ -51,9 +53,15 @@ export const AdminZReports = () => {
   const [items, setItems] = useState([]);
   const [hasSearched, setHasSearched] = useState(false);
 
+  // The open document is tracked in the URL (?view=YYYY-MM-DD) rather than
+  // plain state, so browser back/forward and direct/deep links behave
+  // correctly — see the effect below and handleBackToList.
   const [selectedDate, setSelectedDate] = useState(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [detail, setDetail] = useState(null);
+  // Scroll position of the browse grid, restored when returning to it so
+  // "Back to Z-Reports" lands the user where they left off.
+  const savedScrollY = useRef(0);
 
   const [downloadingRange, setDownloadingRange] = useState(false);
   const [downloadingSingle, setDownloadingSingle] = useState(false);
@@ -93,8 +101,7 @@ export const AdminZReports = () => {
     }
     setRangeError('');
     setLoading(true);
-    setSelectedDate(null);
-    setDetail(null);
+    setSearchParams({}, { replace: true });
     try {
       const params = new URLSearchParams({ fromDate, toDate });
       const res = await fetch(`${API_BASE}/z-reports?${params.toString()}`, {
@@ -111,21 +118,54 @@ export const AdminZReports = () => {
     }
   };
 
-  const viewDate = async (date) => {
-    setSelectedDate(date);
-    setDetailLoading(true);
-    setDetail(null);
-    try {
-      const res = await fetch(`${API_BASE}/z-reports/${date}`, {
-        headers: { Authorization: `Bearer ${user.token}` },
-      });
-      if (!res.ok) throw new Error();
-      setDetail(await res.json());
-    } catch {
-      showToast(`Failed to load the Z-report for ${fmtDateMed(date)}`, 'error');
-      setSelectedDate(null);
-    } finally {
-      setDetailLoading(false);
+  // Source of truth for "which document is open" is the ?view= query param,
+  // so browser back/forward and direct/deep links all resolve correctly —
+  // clicking a document pushes the param (openDocument), clearing it (via
+  // handleBackToList or a fresh range search) closes the viewer.
+  useEffect(() => {
+    const viewParam = searchParams.get('view');
+
+    const run = async () => {
+      if (!viewParam) {
+        setSelectedDate(null);
+        setDetail(null);
+        requestAnimationFrame(() => window.scrollTo(0, savedScrollY.current));
+        return;
+      }
+
+      setSelectedDate(viewParam);
+      setDetailLoading(true);
+      setDetail(null);
+      try {
+        const res = await fetch(`${API_BASE}/z-reports/${viewParam}`, {
+          headers: { Authorization: `Bearer ${user.token}` },
+        });
+        if (!res.ok) throw new Error();
+        setDetail(await res.json());
+      } catch {
+        showToast(`Failed to load the Z-report for ${fmtDateMed(viewParam)}`, 'error');
+      } finally {
+        setDetailLoading(false);
+      }
+    };
+
+    run();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams.get('view'), user.token]);
+
+  const openDocument = (date) => {
+    savedScrollY.current = window.scrollY;
+    setSearchParams({ view: date });
+  };
+
+  // Direct/deep links land with no in-app history to pop (location.key is
+  // React Router's sentinel for that) — redirect straight to the list
+  // instead of navigate(-1), which could leave the app entirely.
+  const handleBackToList = () => {
+    if (location.key !== 'default') {
+      navigate(-1);
+    } else {
+      setSearchParams({}, { replace: true });
     }
   };
 
@@ -239,21 +279,36 @@ export const AdminZReports = () => {
         </div>
       ) : selectedDate && detail ? (
         <div className="zr-detail-panel">
-          <div className="zr-detail-toolbar zr-no-print">
-            <button className="zr-back-btn" onClick={() => { setSelectedDate(null); setDetail(null); }}>
-              <FiArrowLeft /> Back to list
-            </button>
-            <div className="zr-detail-actions">
-              <button className="zr-action-btn" onClick={handlePrint}>
-                <FiPrinter /> Print
+          <div className="zr-detail-header zr-no-print">
+            <nav className="zr-breadcrumb" aria-label="Breadcrumb">
+              <button type="button" className="zr-breadcrumb-link" onClick={() => navigate('/admin/dashboard')}>
+                Dashboard
               </button>
-              <button
-                className="zr-action-btn"
-                onClick={() => handleDownloadSingle(selectedDate)}
-                disabled={downloadingSingle || !detail.found}
-              >
-                <FiDownload /> {downloadingSingle ? 'Preparing…' : 'Download PDF'}
+              <span className="zr-breadcrumb-sep">/</span>
+              <button type="button" className="zr-breadcrumb-link" onClick={handleBackToList}>
+                Z-Reports
               </button>
+              <span className="zr-breadcrumb-sep">/</span>
+              <span className="zr-breadcrumb-current">View Document</span>
+            </nav>
+
+            <div className="zr-detail-toolbar">
+              <button className="zr-back-btn" onClick={handleBackToList}>
+                <FiArrowLeft /> Back to Z-Reports
+              </button>
+              <h2 className="zr-doc-title">Z-Report — {fmtDateLong(detail.date)}</h2>
+              <div className="zr-detail-actions">
+                <button className="zr-action-btn" onClick={handlePrint}>
+                  <FiPrinter /> Print
+                </button>
+                <button
+                  className="zr-action-btn"
+                  onClick={() => handleDownloadSingle(selectedDate)}
+                  disabled={downloadingSingle || !detail.found}
+                >
+                  <FiDownload /> {downloadingSingle ? 'Preparing…' : 'Download PDF'}
+                </button>
+              </div>
             </div>
           </div>
 
@@ -292,7 +347,7 @@ export const AdminZReports = () => {
               <div className="zr-item-actions">
                 {item.found && (
                   <>
-                    <button className="zr-item-btn" onClick={() => viewDate(item.date)}>
+                    <button className="zr-item-btn" onClick={() => openDocument(item.date)}>
                       <FiEye /> View
                     </button>
                     <button className="zr-item-btn" onClick={() => handleDownloadSingle(item.date)} disabled={downloadingSingle}>

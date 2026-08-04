@@ -282,13 +282,81 @@
   box-shadow: var(--shadow-lg);
 }
 
+/* Sticky while scrolling a long report — bleeds to the panel's edges so it
+   reads as a full-width bar rather than an inset block. */
+.zr-detail-header {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  background: var(--bg-surface);
+  margin: -2rem -2rem 1rem;
+  padding: 1.25rem 2rem 1rem;
+  border-bottom: 1px solid #e5e7eb;
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+}
+
+.zr-breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 0.75rem;
+  font-size: 0.8rem;
+}
+
+.zr-breadcrumb-link {
+  padding: 0;
+  border: none;
+  background: none;
+  color: #6b7280;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.zr-breadcrumb-link:hover {
+  color: #4f46e5;
+  text-decoration: underline;
+}
+
+.zr-breadcrumb-sep { color: #d1d5db; }
+
+.zr-breadcrumb-current {
+  color: #1f2937;
+  font-weight: 700;
+}
+
 .zr-detail-toolbar {
   display: flex;
-  justify-content: space-between;
   align-items: center;
   flex-wrap: wrap;
   gap: 0.75rem;
-  margin-bottom: 1rem;
+}
+
+/* .zr-back-btn's default look (white text on translucent white) is tuned for
+   the dark page background — the detail panel is white, so it needs the
+   same light-surface treatment as .zr-action-btn or it reads as invisible. */
+.zr-detail-toolbar .zr-back-btn {
+  background: #eef2ff;
+  color: #4f46e5;
+  border-color: #c7d2fe;
+  backdrop-filter: none;
+}
+
+.zr-detail-toolbar .zr-back-btn:hover {
+  background: #4f46e5;
+  color: white;
+}
+
+.zr-doc-title {
+  flex: 1 1 240px;
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #1f2937;
 }
 
 .zr-detail-actions {
@@ -344,6 +412,8 @@
   .zr-page { padding: 1rem; }
   .zr-grid { grid-template-columns: 1fr; }
   .zr-detail-panel { padding: 1.25rem; }
+  .zr-detail-header { margin: -1.25rem -1.25rem 1rem; padding: 1rem 1.25rem 0.85rem; }
+  .zr-doc-title { flex-basis: 100%; order: 3; white-space: normal; }
 }
 
 /* ── Print ── */
