@@ -212,16 +212,63 @@ function encodeBase64Url(data: string): string {
   return Buffer.from(data, "utf-8").toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
-export async function sendEmail(to: string, subject: string, body: string): Promise<boolean> {
+// Email header fields (Subject, From, To, ...) are defined as US-ASCII by
+// RFC 5322 — raw UTF-8 bytes dropped in unencoded produce exactly the
+// "Ã¢Â€Â”" mojibake this wraps around: a receiver with no MIME-Version /
+// encoded-word cue falls back to guessing a single-byte charset (typically
+// Windows-1252) and reinterprets each UTF-8 byte as its own character. RFC
+// 2047's encoded-word form (`=?UTF-8?B?<base64>?=`) sidesteps the guess
+// entirely. Only applied when the value actually has non-ASCII content —
+// plain ASCII subjects are left untouched, which is both simpler to read in
+// the raw message and avoids caring whether the header line stays under the
+// (irrelevant here) 998-octet soft limit.
+function encodeHeaderValue(value: string): string {
+  // eslint-disable-next-line no-control-regex
+  if (/^[\x00-\x7F]*$/.test(value)) return value;
+  return `=?UTF-8?B?${Buffer.from(value, "utf-8").toString("base64")}?=`;
+}
+
+// RFC 2045 base64 body lines must be wrapped (76 chars is the conventional
+// limit) — most parsers tolerate unwrapped base64, but some strict MTAs
+// don't, and wrapping costs nothing.
+function wrapBase64(encoded: string): string {
+  return encoded.match(/.{1,76}/g)?.join("\r\n") ?? encoded;
+}
+
+export async function sendEmail(
+  to: string,
+  subject: string,
+  body: string,
+  options: { html?: boolean } = {}
+): Promise<boolean> {
   const accessToken = await getValidAccessToken();
   if (!accessToken) return false;
 
   const connection = await getActiveConnection();
   const from = connection?.emailAddress ?? "";
 
-  const message = [`From: ${from}`, `To: ${to}`, `Subject: ${subject}`, "Content-Type: text/plain; charset=utf-8", "", body].join(
-    "\r\n"
-  );
+  // The body's own Content-Transfer-Encoding is declared and actually
+  // applied here (rather than relying on the outer Gmail API `raw` field's
+  // base64url, which only guarantees the bytes survive transport to Gmail
+  // intact — it says nothing about how the RFC 2822 message itself, once
+  // reconstituted, declares its payload to downstream mail clients).
+  // Without an explicit Content-Transfer-Encoding, RFC 2045 defaults to
+  // 7bit, i.e. receivers are entitled to assume — and "fix" — any 8-bit
+  // byte they find. Declaring base64 and actually base64-encoding the body
+  // removes that ambiguity regardless of what the receiving client does.
+  const contentType = options.html ? "text/html" : "text/plain";
+  const encodedBody = wrapBase64(Buffer.from(body, "utf-8").toString("base64"));
+
+  const headers = [
+    "MIME-Version: 1.0",
+    `From: ${from}`,
+    `To: ${to}`,
+    `Subject: ${encodeHeaderValue(subject)}`,
+    `Content-Type: ${contentType}; charset="UTF-8"`,
+    "Content-Transfer-Encoding: base64",
+  ];
+
+  const message = [...headers, "", encodedBody].join("\r\n");
 
   const response = await fetch(`${GMAIL_API_BASE}/messages/send`, {
     method: "POST",

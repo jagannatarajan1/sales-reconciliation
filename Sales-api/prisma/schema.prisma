@@ -64,6 +64,14 @@ model DailySummary {
 
   staffNotes String?
 
+  // Who last touched this day's entry before it was committed, and when —
+  // the "Last Edited By / At" audit trail shown on Uncommitted Data.
+  // updatedAt already carries the "when" once committed data starts
+  // supplying committedAt/committedByName instead, so this pair only ever
+  // needs to answer "who edited the uncommitted figures".
+  lastEditedByUserId Int?
+  lastEditedByName   String?
+
   isCommitted          Boolean @default(false)
   isPendingAdminReview Boolean @default(false)
 

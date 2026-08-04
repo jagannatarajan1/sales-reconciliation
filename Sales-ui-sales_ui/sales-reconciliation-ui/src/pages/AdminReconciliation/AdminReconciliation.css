@@ -741,11 +741,35 @@
   line-height: 1.55;
 }
 
-.ar-submitted-at {
-  margin: 0.75rem 0 0;
-  font-size: 0.8rem;
-  color: #9ca3af;
-  text-align: right;
+/* ── Status / audit trail block (Committed By, Last Edited By, ...) ── */
+.ar-status-block {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+  padding: 0.9rem 1.1rem;
+  margin-bottom: 1rem;
+  background: #f9fafb;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.ar-audit-row {
+  display: flex;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+}
+
+.ar-audit-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.ar-audit-value {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #1f2937;
 }
 
 /* ── Difference indicator bar ── */

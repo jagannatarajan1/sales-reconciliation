@@ -56,6 +56,9 @@ adminReconciliationRouter.get("/pending", async (req, res) => {
         zReportTotal,
         difference,
         staffNotes: day.staffNotes ?? null,
+        isStaffCommitted: false,
+        lastEditedByName: day.lastEditedByName ?? null,
+        lastEditedAt: day.updatedAt,
       });
       continue;
     }
@@ -87,6 +90,9 @@ adminReconciliationRouter.get("/pending", async (req, res) => {
       zReportTotal: record.zReportTotal,
       difference: record.difference,
       staffNotes: record.staffNotes ?? null,
+      isStaffCommitted: record.isStaffCommitted,
+      committedByName: record.committedByName ?? null,
+      committedAt: record.committedAt ?? null,
     });
   }
 
@@ -275,6 +281,8 @@ adminReconciliationRouter.get("/committed/:date", async (req, res) => {
     isAdminReconciled: record.isAdminReconciled,
     committedByName: record.committedByName,
     committedAt: record.committedAt,
+    adminSubmittedByName: record.adminSubmittedByName,
+    adminSubmittedAt: record.adminSubmittedAt,
   });
 });
 

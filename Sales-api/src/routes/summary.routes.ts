@@ -120,11 +120,13 @@ summaryRouter.put("/", async (req, res) => {
   // (distinct from ReconciliationRecord.staffNotes, which is the immutable
   // snapshot written once at commit time).
   const staffNotes = typeof body.staffNotes === "string" && body.staffNotes.trim() ? body.staffNotes.trim() : null;
+  const lastEditedByUserId = req.userId;
+  const lastEditedByName = req.userName ?? null;
 
   const record = await prisma.dailySummary.upsert({
     where: { date },
-    create: { date, ...fieldData, lastSafe, safeDropAmount, staffNotes },
-    update: { ...fieldData, lastSafe, safeDropAmount, staffNotes },
+    create: { date, ...fieldData, lastSafe, safeDropAmount, staffNotes, lastEditedByUserId, lastEditedByName },
+    update: { ...fieldData, lastSafe, safeDropAmount, staffNotes, lastEditedByUserId, lastEditedByName },
   });
 
   const incomingEntries: Array<{ id?: number; manualCardAmount: unknown; cardAmount: unknown }> =

@@ -26,6 +26,29 @@ const fmtDateLong = (str) =>
 const fmtDateShort = (str) =>
   new Date(str).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' });
 
+const fmtDateTime = (str) =>
+  new Date(str).toLocaleString('en-GB', {
+    day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
+  });
+
+/* Committed-by / last-edited-by audit block — shared shape across the
+   Uncommitted Data and Committed Records tabs so the same record always
+   shows the same two-line "label above value" style. */
+function AuditInfo({ items }) {
+  const visible = items.filter((i) => i.value);
+  if (visible.length === 0) return null;
+  return (
+    <div className="ar-audit-row">
+      {visible.map((i) => (
+        <div key={i.label} className="ar-audit-item">
+          <span className="ar-label">{i.label}</span>
+          <span className="ar-audit-value">{i.value}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 /* ddPoint is lowercase — matches actual API response */
 const SECTIONS = [
   {
@@ -650,6 +673,24 @@ export const AdminReconciliation = () => {
             {/* Selected date — read-only until Edit is pressed */}
             {activeItem && (
               <div className="ar-form-section">
+                <div className="ar-status-block">
+                  <span className={`ar-rpt-status-pill ar-rpt-status-pill--${activeItem.isStaffCommitted ? 'committed' : 'pending'}`}>
+                    {activeItem.isStaffCommitted ? 'Committed — Awaiting Admin Review' : 'Uncommitted'}
+                  </span>
+                  <AuditInfo
+                    items={
+                      activeItem.isStaffCommitted
+                        ? [
+                            { label: 'Committed By', value: activeItem.committedByName },
+                            { label: 'Committed At', value: activeItem.committedAt ? fmtDateTime(activeItem.committedAt) : null },
+                          ]
+                        : [
+                            { label: 'Last Edited By', value: activeItem.lastEditedByName },
+                            { label: 'Last Edited At', value: activeItem.lastEditedAt ? fmtDateTime(activeItem.lastEditedAt) : null },
+                          ]
+                    }
+                  />
+                </div>
                 {isEditingPending ? (
                   <EditableGrid
                     form={form}
@@ -869,16 +910,6 @@ export const AdminReconciliation = () => {
                 {committedRecord.isAdminReconciled && (
                   <span className="ar-source-badge ar-source-badge--admin">Admin</span>
                 )}
-                {committedRecord.committedByName && (
-                  <span className="ar-submitted-at">
-                    By: {committedRecord.committedByName}
-                  </span>
-                )}
-                {committedRecord.committedAt && (
-                  <span className="ar-submitted-at">
-                    Committed: {new Date(committedRecord.committedAt).toLocaleString('en-GB')}
-                  </span>
-                )}
                 {!isEditingCommitted && (
                   <>
                     <button
@@ -893,6 +924,17 @@ export const AdminReconciliation = () => {
                     </button>
                   </>
                 )}
+              </div>
+
+              <div className="ar-status-block">
+                <AuditInfo
+                  items={[
+                    { label: 'Committed By', value: committedRecord.committedByName },
+                    { label: 'Committed At', value: committedRecord.committedAt ? fmtDateTime(committedRecord.committedAt) : null },
+                    { label: 'Admin Submitted By', value: committedRecord.adminSubmittedByName },
+                    { label: 'Admin Submitted At', value: committedRecord.adminSubmittedAt ? fmtDateTime(committedRecord.adminSubmittedAt) : null },
+                  ]}
+                />
               </div>
 
               {isEditingCommitted ? (
