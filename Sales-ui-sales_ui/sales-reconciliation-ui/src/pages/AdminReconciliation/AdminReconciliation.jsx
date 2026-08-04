@@ -77,7 +77,10 @@ const SECTIONS = [
     title: 'Totals', color: 'rose', icon: FiBarChart2,
     fields: [
       { label: 'Summary Total',              key: 'summaryTotal', monetary: true, readOnly: true, computed: true },
-      { label: 'Z-Report Total', key: 'zReportTotal', monetary: true },
+      // Never editable — always the actual Z-Report figure (live-parsed
+      // server-side from the Gmail email), not something an admin can type
+      // over. Enforced again on the backend in case this is ever bypassed.
+      { label: 'Z-Report Total', key: 'zReportTotal', monetary: true, readOnly: true },
       { label: 'Difference',                 key: 'difference',   monetary: true, readOnly: true, computed: true },
     ],
   },

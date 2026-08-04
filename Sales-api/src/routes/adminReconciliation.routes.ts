@@ -115,8 +115,20 @@ adminReconciliationRouter.post("/submit", async (req, res) => {
   const supplierInvoicesTotal = toNumber(body.supplierInvoicesTotal);
   const lotteryValue = toNumber(body.lotteryValue);
   const paypointValue = toNumber(body.paypointValue);
-  const zReportTotal = toNumber(body.zReportTotal);
   const adminNotes = body.adminNotes ? String(body.adminNotes) : null;
+
+  // Z-Report Total is never client-editable — it always reflects the actual
+  // Z-Report email, the same live lookup GET /pending uses to pre-fill this
+  // figure. Whatever the request body sent for it is ignored, so a direct
+  // API call can't override it any more than the (read-only) UI field can.
+  let zReportTotal = 0;
+  try {
+    const email = await gmailService.findZReportEmail(date);
+    const parsed = email ? parseDepartmentTotal(email.body) : null;
+    if (parsed != null) zReportTotal = parsed;
+  } catch {
+    // Best-effort, same fallback-to-0 as GET /pending.
+  }
 
   const instantLotteryTotalCount = liveTotals.instantLotteryTotalCount;
   const instantLotteryTotalSales = liveTotals.instantLotteryTotalSales;
