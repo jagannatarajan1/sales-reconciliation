@@ -55,18 +55,19 @@ usersRouter.get("/:id", async (req, res) => {
   res.json(user);
 });
 
+// This endpoint can only ever create "user" accounts. Any "role" or
+// "permissions" field in the request body is deliberately ignored — not
+// validated, not echoed back as an error, just discarded — so a client
+// (frontend, curl, Postman, a hand-edited request) can never provision an
+// admin account through the admin panel. Admin accounts only ever come from
+// direct database provisioning outside this API.
 usersRouter.post("/", async (req, res) => {
   if (!requirePermission(req, res, "userManagement")) return;
 
-  const { email, password, name, role, permissions } = req.body ?? {};
+  const { email, password, name } = req.body ?? {};
 
   if (!email?.trim() || !password?.trim() || !name?.trim()) {
     return res.status(400).json({ message: "Email, password, and name are required" });
-  }
-
-  const requestedRole = typeof role === "string" ? role : "user";
-  if (!VALID_ROLES.includes(requestedRole as (typeof VALID_ROLES)[number])) {
-    return res.status(400).json({ message: "Invalid role" });
   }
 
   const existing = await prisma.user.findUnique({ where: { email: email.trim() } });
@@ -79,8 +80,8 @@ usersRouter.post("/", async (req, res) => {
       email: email.trim(),
       passwordHash: await hashPassword(password),
       name: name.trim(),
-      role: requestedRole,
-      permissions: normalizePermissions(requestedRole, permissions),
+      role: "user",
+      permissions: [],
       isActive: true,
     },
   });
@@ -117,6 +118,15 @@ usersRouter.put("/:id", async (req, res) => {
   const nextRole = typeof role === "string" && role.trim() ? role : existing.role;
   if (!VALID_ROLES.includes(nextRole as (typeof VALID_ROLES)[number])) {
     return res.status(400).json({ message: "Invalid role" });
+  }
+
+  // Promotion guard: this endpoint can demote an existing admin to "user",
+  // but can never do the reverse. A "user" account can only ever become
+  // "admin" through direct database provisioning — never through the
+  // admin-panel API, regardless of what a client requests (same rule as
+  // account creation above).
+  if (nextRole === "admin" && existing.role !== "admin") {
+    return res.status(403).json({ message: "Promoting an account to admin is not permitted through this endpoint." });
   }
 
   // Demotion guard: this user is currently admin and the request would

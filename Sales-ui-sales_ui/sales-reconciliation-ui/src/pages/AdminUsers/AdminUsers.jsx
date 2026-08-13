@@ -122,13 +122,19 @@ export const AdminUsers = () => {
 
     setSaving(true);
     try {
-      const body = {
-        email: form.email.trim(),
-        name: form.name.trim(),
-        role: form.role,
-        permissions: form.role === 'admin' ? form.permissions : [],
-      };
-      if (formMode === 'create') body.password = form.password;
+      // Create always goes through as a plain user — there is no field in
+      // this form that can set it to admin, and the backend forces/ignores
+      // role on this endpoint regardless. Edit only sends role/permissions
+      // when editing an existing admin (the one case where a role choice —
+      // demotion — is actually offered); the backend rejects promotion
+      // either way, so this is a UX nicety, not the enforcement point.
+      const body = { email: form.email.trim(), name: form.name.trim() };
+      if (formMode === 'create') {
+        body.password = form.password;
+      } else if (formTarget?.role === 'admin') {
+        body.role = form.role;
+        body.permissions = form.role === 'admin' ? form.permissions : [];
+      }
 
       const url = formMode === 'create' ? `${API_BASE}/users` : `${API_BASE}/users/${formTarget.userId}`;
       const method = formMode === 'create' ? 'POST' : 'PUT';
@@ -366,18 +372,26 @@ export const AdminUsers = () => {
                   />
                 </div>
               )}
-              <div className="au-field">
-                <label>Role</label>
-                <select
-                  className="au-input"
-                  value={form.role}
-                  onChange={(e) => setForm((p) => ({ ...p, role: e.target.value }))}
-                >
-                  {ROLES.map((r) => <option key={r} value={r}>{r}</option>)}
-                </select>
-              </div>
+              {/* Role is only ever editable when editing an existing admin —
+                  and even then the only real choice is demotion to "user".
+                  Creation never shows this: every account made from this
+                  panel is a user, full stop. The backend enforces this
+                  independently; this just keeps the option from being
+                  offered in the first place. */}
+              {formMode === 'edit' && formTarget?.role === 'admin' ? (
+                <div className="au-field">
+                  <label>Role</label>
+                  <select
+                    className="au-input"
+                    value={form.role}
+                    onChange={(e) => setForm((p) => ({ ...p, role: e.target.value }))}
+                  >
+                    {ROLES.map((r) => <option key={r} value={r}>{r}</option>)}
+                  </select>
+                </div>
+              ) : null}
 
-              {form.role === 'admin' && (
+              {form.role === 'admin' && formTarget?.role === 'admin' ? (
                 <div className="au-field">
                   <label>Permissions</label>
                   <div className="au-permission-grid">
@@ -393,8 +407,7 @@ export const AdminUsers = () => {
                     ))}
                   </div>
                 </div>
-              )}
-              {form.role === 'user' && (
+              ) : (
                 <p className="au-hint">Users have no admin-module access — their access is simply being logged in.</p>
               )}
             </div>
