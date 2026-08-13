@@ -4,5 +4,6 @@ declare namespace Express {
     userRole?: string;
     userName?: string;
     userPermissions?: string[];
+    otpVerified?: boolean;
   }
 }

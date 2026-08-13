@@ -1,16 +1,7 @@
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
-// Role hierarchy: admin > user. A route requiring "user" is satisfied by
-// any authenticated role.
-const ROLE_RANK = { user: 1, admin: 2 };
-
-const meetsRole = (userRole, requiredRole) => {
-  if (!requiredRole) return true;
-  const userRank = ROLE_RANK[userRole] ?? 0;
-  const requiredRank = ROLE_RANK[requiredRole] ?? 0;
-  return userRank >= requiredRank;
-};
+const DASHBOARD_BY_ROLE = { admin: '/admin/dashboard', user: '/dashboard' };
 
 // Mirrors the backend's hasPermission(): admin passes only if the module key
 // is in their permissions array, user never passes an admin-module
@@ -37,8 +28,12 @@ export const ProtectedRoute = ({ children, requiredRole = null, requiredPermissi
     return <Navigate to="/login" replace />;
   }
 
-  if (!meetsRole(user.role, requiredRole)) {
-    return <Navigate to="/unauthorized" replace />;
+  // Exact match only — an admin session is never treated as satisfying a
+  // "user" route (or vice versa). Since the two applications are otherwise
+  // completely separate, an authenticated-but-wrong-role visitor is sent to
+  // *their own* dashboard rather than a dead-end page.
+  if (requiredRole && user.role !== requiredRole) {
+    return <Navigate to={DASHBOARD_BY_ROLE[user.role] ?? '/unauthorized'} replace />;
   }
 
   if (!meetsPermission(user, requiredPermission)) {

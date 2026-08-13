@@ -49,6 +49,20 @@ const loginLimiter = rateLimit({
 });
 app.use("/api/auth/login", loginLimiter);
 
+// OTP endpoints get their own limiter, separate from the general login one
+// above: verify attempts are also capped per-challenge in the route handler
+// (OTP_MAX_ATTEMPTS), and resend has its own per-challenge cooldown — this
+// is the defense-in-depth layer against a script hammering either endpoint
+// across many different challenges/IPs-worth of attempts.
+const otpLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { message: "Too many attempts. Please try again later." },
+});
+app.use("/api/auth/otp", otpLimiter);
+
 // General limiter across all API traffic: generous for normal use, well
 // below what a scripted flood would generate.
 const apiLimiter = rateLimit({

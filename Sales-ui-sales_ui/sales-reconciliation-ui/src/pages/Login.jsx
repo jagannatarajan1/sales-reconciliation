@@ -1,56 +1,143 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
 import {
-  FiShield, FiZap, FiBarChart2, FiUser, FiMail, FiLock,
-  FiEye, FiEyeOff, FiAlertTriangle, FiArrowRight,
+  FiShield, FiZap, FiBarChart2, FiMail, FiLock,
+  FiEye, FiEyeOff, FiAlertTriangle, FiArrowRight, FiArrowLeft, FiRefreshCw,
 } from 'react-icons/fi';
 import '../styles/Login.css';
 
+const RESEND_COOLDOWN_SECONDS = 30;
+
 export const Login = () => {
   const navigate = useNavigate();
-  const { login } = useAuth();
+  const { login, verifyOtp, resendOtp } = useAuth();
 
-  const [email, setEmail]                   = useState('');
-  const [password, setPassword]             = useState('');
-  const [role, setRole]                     = useState('user');
-  const [error, setError]                   = useState('');
-  const [loading, setLoading]               = useState(false);
-  const [showPwd, setShowPwd]               = useState(false);
+  // One page, two steps — 'credentials' is the only thing ever shown for a
+  // user account (the backend never returns otpRequired for one). 'otp'
+  // only appears after the backend itself has identified the account as an
+  // admin; nothing about which step to show is decided on the frontend.
+  const [step, setStep] = useState('credentials');
+
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [showPwd, setShowPwd] = useState(false);
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const [otpSessionId, setOtpSessionId] = useState(null);
+  const [maskedEmail, setMaskedEmail] = useState('');
+  const [code, setCode] = useState('');
+  const [otpError, setOtpError] = useState('');
   const [attemptsRemaining, setAttemptsRemaining] = useState(null);
-  const [isLocked, setIsLocked]             = useState(false);
+  const [verifying, setVerifying] = useState(false);
+  const [resending, setResending] = useState(false);
+  const [expirySeconds, setExpirySeconds] = useState(0);
+  const [resendCooldown, setResendCooldown] = useState(0);
+  const codeInputRef = useRef(null);
 
-  const handleSubmit = async (e) => {
+  useEffect(() => {
+    if (step !== 'otp') return undefined;
+    const id = setInterval(() => {
+      setExpirySeconds((s) => Math.max(s - 1, 0));
+      setResendCooldown((s) => Math.max(s - 1, 0));
+    }, 1000);
+    return () => clearInterval(id);
+  }, [step]);
+
+  useEffect(() => {
+    if (step === 'otp') codeInputRef.current?.focus();
+  }, [step]);
+
+  const handleCredentialsSubmit = async (e) => {
     e.preventDefault();
-    if (isLocked) return;
     setError('');
     setLoading(true);
     try {
       if (!email || !password) throw new Error('Please fill in all fields');
       if (!email.includes('@')) throw new Error('Please enter a valid email');
-      await login(email, password, role);
-      setAttemptsRemaining(null);
-      setIsLocked(false);
-      navigate(role === 'admin' ? '/admin/dashboard' : '/dashboard');
-    } catch (err) {
-      const remaining = err.response?.data?.attemptsRemaining;
-      if (remaining !== undefined) {
-        setAttemptsRemaining(remaining);
-        if (remaining === 0) setIsLocked(true);
+
+      const result = await login(email, password);
+
+      if (result.otpRequired) {
+        setOtpSessionId(result.otpSessionId);
+        setMaskedEmail(result.maskedEmail);
+        setExpirySeconds(result.expiresInSeconds);
+        setResendCooldown(RESEND_COOLDOWN_SECONDS);
+        setCode('');
+        setOtpError('');
+        setAttemptsRemaining(null);
+        setStep('otp');
+      } else {
+        navigate(result.user.role === 'admin' ? '/admin/dashboard' : '/dashboard');
       }
+    } catch (err) {
       setError(err.response?.data?.message || err.message || 'Login failed. Please try again.');
     } finally {
       setLoading(false);
     }
   };
 
+  const handleOtpSubmit = async (e) => {
+    e.preventDefault();
+    if (expirySeconds <= 0) {
+      setOtpError('This code has expired. Request a new one below.');
+      return;
+    }
+    setOtpError('');
+    setVerifying(true);
+    try {
+      if (!/^\d{6}$/.test(code)) throw new Error('Enter the 6-digit code from your email');
+      await verifyOtp(otpSessionId, code);
+      navigate('/admin/dashboard');
+    } catch (err) {
+      const remaining = err.response?.data?.attemptsRemaining;
+      if (remaining !== undefined) setAttemptsRemaining(remaining);
+      setOtpError(err.response?.data?.message || err.message || 'Verification failed. Please try again.');
+      setCode('');
+      codeInputRef.current?.focus();
+    } finally {
+      setVerifying(false);
+    }
+  };
+
+  const handleResend = async () => {
+    if (resendCooldown > 0 || resending) return;
+    setResending(true);
+    setOtpError('');
+    try {
+      const result = await resendOtp(otpSessionId);
+      setExpirySeconds(result.expiresInSeconds);
+      setResendCooldown(RESEND_COOLDOWN_SECONDS);
+      setAttemptsRemaining(null);
+      setCode('');
+    } catch (err) {
+      setOtpError(err.response?.data?.message || err.message || 'Failed to resend code.');
+      const retryAfter = err.response?.data?.retryAfterSeconds;
+      if (retryAfter) setResendCooldown(retryAfter);
+    } finally {
+      setResending(false);
+    }
+  };
+
+  const backToCredentials = () => {
+    setStep('credentials');
+    setOtpSessionId(null);
+    setCode('');
+    setOtpError('');
+    setAttemptsRemaining(null);
+  };
+
   const handleEmailChange = (e) => {
     setEmail(e.target.value);
-    // Reset lockout tracking when the user types a different email
-    setAttemptsRemaining(null);
-    setIsLocked(false);
     setError('');
+  };
+
+  const fmtTimer = (totalSeconds) => {
+    const m = Math.floor(totalSeconds / 60);
+    const s = totalSeconds % 60;
+    return `${m}:${String(s).padStart(2, '0')}`;
   };
 
   return (
@@ -94,117 +181,132 @@ export const Login = () => {
       <div className="login-form-panel">
         <div className="login-form-card">
 
-          <div className="login-form-header">
-            <div className="login-form-logo-sm">SR</div>
-            <h2 className="login-form-title">Welcome back</h2>
-            <p className="login-form-sub">Sign in to continue to your dashboard</p>
-          </div>
-
-          <form onSubmit={handleSubmit} className="login-form">
-
-            {/* Locked state */}
-            {isLocked ? (
-              <div className="login-alert login-alert--locked">
-                <div className="login-alert-title"><FiLock className="login-alert-icon" /> Account Locked</div>
-                {role === 'admin'
-                  ? 'Too many failed attempts. A temporary password has been sent to your email — please check your inbox and use it to log in.'
-                  : 'Too many failed attempts. Your administrator has been notified and will reset your password shortly.'}
+          {step === 'credentials' ? (
+            <>
+              <div className="login-form-header">
+                <div className="login-form-logo-sm">SR</div>
+                <h2 className="login-form-title">Welcome back</h2>
+                <p className="login-form-sub">Sign in to continue to your dashboard</p>
               </div>
-            ) : attemptsRemaining !== null && attemptsRemaining <= 2 && attemptsRemaining > 0 ? (
-              /* Warning countdown */
-              <div className="login-alert login-alert--warning">
-                <div className="login-alert-row">
-                  <FiAlertTriangle className="login-alert-icon" />
-                  <span>
-                    <strong>{attemptsRemaining} attempt{attemptsRemaining !== 1 ? 's' : ''} remaining</strong>
-                    {' '}before your account is locked.
-                  </span>
+
+              <form onSubmit={handleCredentialsSubmit} className="login-form">
+                {error && <div className="login-alert login-alert--error">{error}</div>}
+
+                <div className="login-field">
+                  <label className="login-label" htmlFor="email">Email Address</label>
+                  <div className="login-input-wrap">
+                    <span className="login-input-icon"><FiMail /></span>
+                    <input
+                      id="email"
+                      type="email"
+                      className="login-input"
+                      placeholder="you@example.com"
+                      value={email}
+                      onChange={handleEmailChange}
+                      required
+                      autoComplete="email"
+                    />
+                  </div>
                 </div>
-              </div>
-            ) : error ? (
-              <div className="login-alert login-alert--error">{error}</div>
-            ) : null}
 
-            <div className="login-field">
-              <label className="login-label">Sign in as</label>
-              <div className="login-role-toggle">
-                <button
-                  type="button"
-                  className={`login-role-btn${role === 'user' ? ' active' : ''}`}
-                  onClick={() => setRole('user')}
-                >
-                  <FiUser className="login-role-icon" /> User
+                <div className="login-field">
+                  <label className="login-label" htmlFor="password">Password</label>
+                  <div className="login-input-wrap">
+                    <span className="login-input-icon"><FiLock /></span>
+                    <input
+                      id="password"
+                      type={showPwd ? 'text' : 'password'}
+                      className="login-input"
+                      placeholder="Enter your password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      required
+                      autoComplete="current-password"
+                    />
+                    <button
+                      type="button"
+                      className="login-pwd-toggle"
+                      onClick={() => setShowPwd((v) => !v)}
+                      tabIndex={-1}
+                      aria-label={showPwd ? 'Hide password' : 'Show password'}
+                    >
+                      {showPwd ? <FiEyeOff /> : <FiEye />}
+                    </button>
+                  </div>
+                </div>
+
+                <button type="submit" className="login-submit-btn" disabled={loading}>
+                  {loading ? <span className="login-btn-spinner" /> : null}
+                  {loading ? 'Signing in…' : <>Sign In <FiArrowRight /></>}
                 </button>
-                <button
-                  type="button"
-                  className={`login-role-btn${role === 'admin' ? ' active' : ''}`}
-                  onClick={() => setRole('admin')}
-                >
-                  <FiShield className="login-role-icon" /> Admin
+              </form>
+            </>
+          ) : (
+            <>
+              <div className="login-form-header">
+                <div className="login-form-icon"><FiShield /></div>
+                <h2 className="login-form-title">Verify it's you</h2>
+                <p className="login-form-sub">
+                  We've sent a 6-digit code to <strong>{maskedEmail}</strong>
+                </p>
+              </div>
+
+              <form onSubmit={handleOtpSubmit} className="login-form">
+                {otpError && (
+                  <div className="login-alert login-alert--error">
+                    <div className="login-alert-row">
+                      <FiAlertTriangle className="login-alert-icon" />
+                      <span>{otpError}</span>
+                    </div>
+                    {attemptsRemaining !== null && attemptsRemaining > 0 && (
+                      <div className="login-otp-attempts">
+                        {attemptsRemaining} attempt{attemptsRemaining !== 1 ? 's' : ''} remaining before this code is locked.
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                <div className="login-field">
+                  <label className="login-label" htmlFor="otp-code">Verification Code</label>
+                  <input
+                    id="otp-code"
+                    ref={codeInputRef}
+                    type="text"
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    className="login-otp-input"
+                    placeholder="000000"
+                    maxLength={6}
+                    value={code}
+                    onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                  />
+                  <div className="login-otp-meta">
+                    <span className={expirySeconds <= 30 ? 'login-otp-expiry login-otp-expiry--warn' : 'login-otp-expiry'}>
+                      {expirySeconds > 0 ? `Expires in ${fmtTimer(expirySeconds)}` : 'Code expired'}
+                    </span>
+                    <button
+                      type="button"
+                      className="login-otp-resend"
+                      onClick={handleResend}
+                      disabled={resendCooldown > 0 || resending}
+                    >
+                      <FiRefreshCw className={resending ? 'login-otp-resend-spin' : ''} />
+                      {resending ? 'Sending…' : resendCooldown > 0 ? `Resend in ${resendCooldown}s` : 'Resend code'}
+                    </button>
+                  </div>
+                </div>
+
+                <button type="submit" className="login-submit-btn" disabled={verifying || code.length !== 6}>
+                  {verifying ? <span className="login-btn-spinner" /> : null}
+                  {verifying ? 'Verifying…' : <>Verify &amp; Sign In <FiArrowRight /></>}
                 </button>
-              </div>
-            </div>
 
-            <div className="login-field">
-              <label className="login-label" htmlFor="email">Email Address</label>
-              <div className="login-input-wrap">
-                <span className="login-input-icon"><FiMail /></span>
-                <input
-                  id="email"
-                  type="email"
-                  className="login-input"
-                  placeholder="you@example.com"
-                  value={email}
-                  onChange={handleEmailChange}
-                  required
-                  autoComplete="email"
-                  disabled={isLocked}
-                />
-              </div>
-            </div>
-
-            <div className="login-field">
-              <label className="login-label" htmlFor="password">Password</label>
-              <div className="login-input-wrap">
-                <span className="login-input-icon"><FiLock /></span>
-                <input
-                  id="password"
-                  type={showPwd ? 'text' : 'password'}
-                  className="login-input"
-                  placeholder="Enter your password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                  autoComplete="current-password"
-                  disabled={isLocked}
-                />
-                <button
-                  type="button"
-                  className="login-pwd-toggle"
-                  onClick={() => setShowPwd(v => !v)}
-                  tabIndex={-1}
-                  aria-label={showPwd ? 'Hide password' : 'Show password'}
-                >
-                  {showPwd ? <FiEyeOff /> : <FiEye />}
+                <button type="button" className="login-back-link" onClick={backToCredentials}>
+                  <FiArrowLeft /> Back to login
                 </button>
-              </div>
-            </div>
-
-            <button
-              type="submit"
-              className={`login-submit-btn${isLocked ? ' login-submit-btn--locked' : ''}`}
-              disabled={loading || isLocked}
-            >
-              {loading ? <span className="login-btn-spinner" /> : null}
-              {isLocked ? (
-                <><FiLock /> Account Locked</>
-              ) : loading ? (
-                'Signing in…'
-              ) : (
-                <>Sign In <FiArrowRight /></>
-              )}
-            </button>
-          </form>
+              </form>
+            </>
+          )}
 
         </div>
       </div>

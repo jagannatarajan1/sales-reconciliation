@@ -41,7 +41,7 @@ axiosInstance.interceptors.response.use(
   (response) => response,
   (error) => {
     const url = error.config?.url ?? '';
-    const isAuthCall = url.includes('login') || url.includes('register') || url.includes('forgot-password');
+    const isAuthCall = url.includes('login') || url.includes('register') || url.includes('forgot-password') || url.includes('/otp/');
     if (error.response?.status === 401 && !isAuthCall) {
       localStorage.removeItem('user');
       window.location.href = '/login';
@@ -56,20 +56,23 @@ export const AuthProvider = ({ children }) => {
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    const storedUser = localStorage.getItem('user');
-    if (storedUser) {
-      try {
-        const userData = JSON.parse(storedUser);
-        if (isTokenValid(userData.token)) {
-          setUser(userData);
-        } else {
+    const run = async () => {
+      const storedUser = localStorage.getItem('user');
+      if (storedUser) {
+        try {
+          const userData = JSON.parse(storedUser);
+          if (isTokenValid(userData.token)) {
+            setUser(userData);
+          } else {
+            localStorage.removeItem('user');
+          }
+        } catch {
           localStorage.removeItem('user');
         }
-      } catch {
-        localStorage.removeItem('user');
       }
-    }
-    setLoading(false);
+      setLoading(false);
+    };
+    run();
   }, []);
 
   const register = async (email, password, confirmPassword, role, name) => {
@@ -109,32 +112,75 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const login = async (email, password, role) => {
+  // Single entry point for both roles — the backend alone decides what
+  // happens next based on the account's actual role, never a value the
+  // frontend supplies. A user account gets back { token, user } immediately;
+  // an admin account gets back { otpRequired: true, otpSessionId, ... } and
+  // no token, so nothing is written to localStorage or auth state until the
+  // OTP step (verifyOtp) completes.
+  const login = async (email, password) => {
     setError(null);
     try {
-      // Call backend API
-      const response = await axiosInstance.post('/auth/login', {
-        email,
-        password,
-        role,
-      });
+      const response = await axiosInstance.post('/auth/login', { email, password });
 
-    const userData = {
-    id: response.data.user.userId,
-    email: response.data.user.email,
-    name: response.data.user.name,
-    role: response.data.user.role,
-    permissions: response.data.user.permissions ?? [],
-    token: response.data.token
-};
+      if (response.data.otpRequired) {
+        return { otpRequired: true, ...response.data };
+      }
+
+      const userData = {
+        id: response.data.user.userId,
+        email: response.data.user.email,
+        name: response.data.user.name,
+        role: response.data.user.role,
+        permissions: response.data.user.permissions ?? [],
+        token: response.data.token,
+      };
+
+      localStorage.setItem('user', JSON.stringify(userData));
+      setUser(userData);
+      return { otpRequired: false, user: userData };
+    } catch (err) {
+      const errorMsg = err.response?.data?.message || err.message || 'Login failed';
+      setError(errorMsg);
+      throw err;
+    }
+  };
+
+  // The only place an admin session is actually created — called once the
+  // admin has entered the code emailed to them for the otpSessionId login()
+  // returned above.
+  const verifyOtp = async (otpSessionId, code) => {
+    setError(null);
+    try {
+      const response = await axiosInstance.post('/auth/otp/verify', { otpSessionId, code });
+
+      const userData = {
+        id: response.data.user.userId,
+        email: response.data.user.email,
+        name: response.data.user.name,
+        role: response.data.user.role,
+        permissions: response.data.user.permissions ?? [],
+        token: response.data.token,
+      };
 
       localStorage.setItem('user', JSON.stringify(userData));
       setUser(userData);
       return userData;
     } catch (err) {
-      const errorMsg = err.response?.data?.message || err.message || 'Login failed';
+      const errorMsg = err.response?.data?.message || err.message || 'Verification failed';
       setError(errorMsg);
-      console.log
+      throw err;
+    }
+  };
+
+  const resendOtp = async (otpSessionId) => {
+    setError(null);
+    try {
+      const response = await axiosInstance.post('/auth/otp/resend', { otpSessionId });
+      return response.data;
+    } catch (err) {
+      const errorMsg = err.response?.data?.message || err.message || 'Failed to resend code';
+      setError(errorMsg);
       throw err;
     }
   };
@@ -146,7 +192,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, error, register, login, logout }}>
+    <AuthContext.Provider value={{ user, loading, error, register, login, verifyOtp, resendOtp, logout }}>
       {children}
     </AuthContext.Provider>
   );

@@ -17,6 +17,10 @@ export function attachUser(req: Request, _res: Response, next: NextFunction) {
       req.userRole = decoded.role as string;
       req.userName = decoded.name as string;
       req.userPermissions = Array.isArray(decoded.permissions) ? (decoded.permissions as string[]) : [];
+      // Tokens minted before this claim existed decode it as undefined,
+      // which correctly fails the otpVerified check below for admin role —
+      // old admin sessions can't grandfather their way past the new gate.
+      req.otpVerified = decoded.otpVerified === true;
     } catch {
       // Invalid token, user will not be attached
     }

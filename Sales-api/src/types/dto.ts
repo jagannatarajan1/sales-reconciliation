@@ -26,6 +26,15 @@ export interface AuthResponse {
   user: UserDto;
 }
 
+// Returned by POST /auth/login for an admin account instead of AuthResponse
+// — no token is issued until the OTP is verified.
+export interface OtpChallengeResponse {
+  otpRequired: true;
+  otpSessionId: string;
+  maskedEmail: string;
+  expiresInSeconds: number;
+}
+
 export interface CreateOrderRequest {
   orderNumber: string;
   orderDate: string;

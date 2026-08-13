@@ -23,12 +23,19 @@ export type PermissionModule = (typeof PERMISSION_MODULES)[number];
 //   if (!requirePermission(req, res, "scratchCards")) return;
 //
 // Rules:
-//   - Not authenticated              -> 401
-//   - role === "admin"               -> passes only if moduleKey is in req.userPermissions
+//   - Not authenticated                  -> 401
+//   - role === "admin" but OTP step not
+//     completed (or token predates it)   -> 401
+//   - role === "admin", OTP verified     -> passes only if moduleKey is in req.userPermissions
 //   - role === "user" (or anything else) -> never passes
 export function requirePermission(req: Request, res: Response, moduleKey: string): boolean {
   if (req.userId == null) {
     res.status(401).json({ message: "User not authenticated" });
+    return false;
+  }
+
+  if (req.userRole === "admin" && !req.otpVerified) {
+    res.status(401).json({ message: "Admin email verification required." });
     return false;
   }
 
@@ -45,5 +52,6 @@ export function requirePermission(req: Request, res: Response, moduleKey: string
 // gating the entire handler on this permission alone.
 export function hasPermission(req: Request, moduleKey: string): boolean {
   if (req.userId == null) return false;
+  if (req.userRole === "admin" && !req.otpVerified) return false;
   return req.userRole === "admin" && (req.userPermissions ?? []).includes(moduleKey);
 }

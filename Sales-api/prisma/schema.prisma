@@ -20,6 +20,26 @@ model User {
 
   orders           Order[]
   gmailConnections GmailConnection[]
+  adminLoginOtps   AdminLoginOtp[]
+}
+
+// One row per pending/completed admin login OTP challenge. Only ever created
+// for accounts with role "admin" — regular user logins never touch this
+// table. The code itself is never stored, only its SHA-256 hash.
+model AdminLoginOtp {
+  adminLoginOtpId Int       @id @default(autoincrement())
+  userId          Int
+  sessionToken    String    @unique
+  codeHash        String
+  expiresAt       DateTime
+  attempts        Int       @default(0)
+  lastSentAt      DateTime  @default(now())
+  consumedAt      DateTime?
+  createdAt       DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [userId], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 model AuditLog {
