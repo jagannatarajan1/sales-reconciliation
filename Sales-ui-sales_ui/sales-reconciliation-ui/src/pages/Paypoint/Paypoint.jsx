@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { FiArrowLeft, FiCalendar, FiCheckCircle, FiAlertTriangle, FiEdit2, FiX } from "react-icons/fi";
+import { FiArrowLeft, FiCalendar, FiEdit2, FiX } from "react-icons/fi";
 import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../components/ui/Toast";
+import { ShiftBanner } from "../../components/ShiftBanner";
 import "./Paypoint.css";
 
 const API_BASE    = import.meta.env.VITE_API_URL || "https://localhost:7276/api";
@@ -20,6 +21,10 @@ export const Paypoint = () => {
   const [activeDate, setActiveDate]     = useState(null);
   const [isCommitted, setIsCommitted]   = useState(false);
   const [isPendingAdminReview, setIsPendingAdminReview] = useState(false);
+  const [shift, setShift]               = useState(null);
+  const [shiftLabel, setShiftLabel]     = useState(null);
+  const [shiftCutoff, setShiftCutoff]   = useState(null);
+  const [shiftSource, setShiftSource]   = useState(null);
   const [loading, setLoading]           = useState(true);
   const [saving, setSaving]             = useState(false);
   const [isEditing, setIsEditing]       = useState(false);
@@ -44,6 +49,10 @@ export const Paypoint = () => {
         setActiveDate(s.date ?? null);
         setIsCommitted(s.isCommitted ?? false);
         setIsPendingAdminReview(s.isPendingAdminReview ?? false);
+        setShift(s.shift ?? null);
+        setShiftLabel(s.shiftLabel ?? null);
+        setShiftCutoff(s.shiftCutoff ?? null);
+        setShiftSource(s.shiftSource ?? null);
       }
 
       if (paypointRes.ok) {
@@ -145,11 +154,15 @@ export const Paypoint = () => {
           </div>
         </div>
 
-        {isYesterday && (
-          <div className="date-banner">
-            <span className="date-banner__icon">{isCommitted ? <FiCheckCircle /> : <FiAlertTriangle />}</span>
-            Showing {fmtDate(activeDateStr)} data — {isCommitted ? 'committed' : 'not yet committed'}
-          </div>
+        {(isYesterday || shiftLabel) && (
+          <ShiftBanner
+            date={activeDateStr}
+            isCommitted={isCommitted}
+            shift={shift}
+            shiftLabel={shiftLabel}
+            shiftCutoff={shiftCutoff}
+            shiftSource={shiftSource}
+          />
         )}
 
         <div className="form-card">

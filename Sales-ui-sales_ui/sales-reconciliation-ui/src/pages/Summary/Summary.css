@@ -412,6 +412,21 @@
   color: #9ca3af;
 }
 
+/* ── Active shift panel (Day/Night X-Report total) ── */
+.summary-shift-panel {
+  margin-top: 1.5rem;
+}
+
+.summary-shift-reprint-note {
+  margin: 4px 20px 12px;
+  padding: 6px 10px;
+  font-size: 0.78rem;
+  color: #b45309;
+  background: #fffbeb;
+  border: 1px solid #fcd34d;
+  border-radius: 6px;
+}
+
 /* ── Staff & Shift panel ─────────────────────────────────── */
 .summary-staff-panel {
   margin-top: 1.5rem;

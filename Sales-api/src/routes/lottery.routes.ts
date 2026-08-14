@@ -1,7 +1,8 @@
 import { Router } from "express";
 import { prisma } from "../lib/prisma.js";
-import { getActiveDate } from "../lib/activeDate.js";
+import { getActiveContext } from "../lib/activeDate.js";
 import { syncDailySummaryFields } from "../lib/dailySummarySync.js";
+import { evaluateAndNotify } from "../lib/shiftReconciliation.js";
 
 export const lotteryRouter = Router();
 
@@ -13,8 +14,8 @@ function toNumber(value: unknown): number {
 lotteryRouter.get("/", async (req, res) => {
   if (req.userId == null) return res.status(401).json({ message: "User not authenticated" });
 
-  const date = await getActiveDate();
-  const record = await prisma.lotteryRecord.findUnique({ where: { date } });
+  const { date, shift } = await getActiveContext();
+  const record = await prisma.lotteryRecord.findUnique({ where: { date_shift: { date, shift } } });
   if (!record) return res.status(404).json({ message: "No lottery record found for today." });
 
   res.json({ id: record.lotteryRecordId, lotteryValue: record.lotteryValue, date: record.date });
@@ -23,14 +24,15 @@ lotteryRouter.get("/", async (req, res) => {
 lotteryRouter.post("/", async (req, res) => {
   if (req.userId == null) return res.status(401).json({ message: "User not authenticated" });
 
-  const date = await getActiveDate();
+  const { date, shift } = await getActiveContext();
   const lotteryValue = toNumber(req.body?.lotteryValue);
   const record = await prisma.lotteryRecord.upsert({
-    where: { date },
-    create: { date, lotteryValue },
+    where: { date_shift: { date, shift } },
+    create: { date, shift, lotteryValue },
     update: { lotteryValue },
   });
-  await syncDailySummaryFields(date, { lotteryValue });
+  await syncDailySummaryFields(date, shift, { lotteryValue });
+  void evaluateAndNotify(date, shift);
 
   res.json({ id: record.lotteryRecordId, lotteryValue: record.lotteryValue, date: record.date });
 });
@@ -43,7 +45,8 @@ lotteryRouter.put("/:id", async (req, res) => {
     where: { lotteryRecordId: Number(req.params.id) },
     data: { lotteryValue },
   });
-  await syncDailySummaryFields(record.date, { lotteryValue });
+  await syncDailySummaryFields(record.date, record.shift, { lotteryValue });
+  void evaluateAndNotify(record.date, record.shift);
 
   res.json({ id: record.lotteryRecordId, lotteryValue: record.lotteryValue, date: record.date });
 });

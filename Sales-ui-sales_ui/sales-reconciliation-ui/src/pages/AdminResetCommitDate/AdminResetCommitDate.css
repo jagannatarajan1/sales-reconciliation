@@ -141,6 +141,39 @@
 .arc-btn-danger { background: var(--color-danger); color: white; width: fit-content; }
 .arc-btn-danger:hover:not(:disabled) { background: #b91c1c; }
 
+.arc-label--shift { margin-top: 18px; }
+
+.arc-shift-toggle {
+  display: inline-flex;
+  border: 1.5px solid #d1d5db;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.arc-shift-btn {
+  padding: 8px 18px;
+  border: none;
+  background: white;
+  color: #374151;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  border-right: 1.5px solid #d1d5db;
+}
+
+.arc-shift-btn:last-child { border-right: none; }
+
+.arc-shift-btn:hover { background: #f5f3ff; }
+
+.arc-shift-btn--active {
+  background: var(--brand-500);
+  color: white;
+}
+
+.arc-shift-btn--active:hover {
+  background: var(--brand-600);
+}
+
 .arc-message {
   display: flex;
   align-items: center;

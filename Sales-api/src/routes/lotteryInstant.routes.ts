@@ -1,6 +1,9 @@
 import { Router } from "express";
 import { prisma } from "../lib/prisma.js";
-import { getActiveDate } from "../lib/activeDate.js";
+import { getActiveContext } from "../lib/activeDate.js";
+import { previousShiftEntry } from "../lib/dailyTotals.js";
+import { evaluateAndNotify } from "../lib/shiftReconciliation.js";
+import { Shift } from "@prisma/client";
 
 export const lotteryInstantRouter = Router();
 
@@ -9,33 +12,44 @@ function toInt(value: unknown): number {
   return Number.isFinite(n) ? Math.trunc(n) : 0;
 }
 
-// The Open No shown/expected for a card+date when no inventory row has been
-// saved for that date yet: an admin's explicit "Set Opening" override
+export interface DefaultOpenNoResult {
+  openNo: number;
+  // Surfaced to the UI so a pre-filled Open No never reads as unexplained
+  // magic — staff can see it's an admin override, carried from a specific
+  // prior shift, or a fresh 0 with nothing to carry from.
+  source:
+    | { type: "forced" }
+    | { type: "carried"; fromShift: Shift; fromDate: Date }
+    | { type: "none" };
+}
+
+// The Open No shown/expected for a card+date+shift when no inventory row has
+// been saved for that shift yet: an admin's explicit "Set Opening" override
 // (forcedOpenNo) takes priority, otherwise it carries over from the previous
-// day's Close No. Shared by GET /today (what the UI displays) and POST /
-// (what a "user" role's submission is compared against, below).
+// shift's Close No (see previousShiftEntry in dailyTotals.ts for the exact
+// chronology). Shared by GET /today (what the UI displays) and POST / (what
+// a "user" role's submission is compared against, below).
 async function computeDefaultOpenNo(
   card: { scratchCardId: number; forcedOpenNo: number | null },
-  date: Date
-): Promise<number> {
-  if (card.forcedOpenNo != null) return card.forcedOpenNo;
-  const previous = await prisma.instantLotteryInventoryEntry.findFirst({
-    where: { scratchCardId: card.scratchCardId, date: { lt: date } },
-    orderBy: { date: "desc" },
-  });
-  return previous ? previous.closeNo : 0;
+  date: Date,
+  shift: Shift
+): Promise<DefaultOpenNoResult> {
+  if (card.forcedOpenNo != null) return { openNo: card.forcedOpenNo, source: { type: "forced" } };
+  const previous = await previousShiftEntry(card.scratchCardId, date, shift);
+  if (!previous) return { openNo: 0, source: { type: "none" } };
+  return { openNo: previous.closeNo, source: { type: "carried", fromShift: previous.shift, fromDate: previous.date } };
 }
 
 lotteryInstantRouter.get("/today", async (req, res) => {
   if (req.userId == null) return res.status(401).json({ message: "User not authenticated" });
 
-  const date = await getActiveDate();
+  const { date, shift } = await getActiveContext();
   const cards = await prisma.scratchCard.findMany({ where: { isActive: true }, orderBy: { scratchCardId: "asc" } });
 
   const result = [];
   for (const card of cards) {
     const entry = await prisma.instantLotteryInventoryEntry.findUnique({
-      where: { scratchCardId_date: { scratchCardId: card.scratchCardId, date } },
+      where: { scratchCardId_date_shift: { scratchCardId: card.scratchCardId, date, shift } },
     });
 
     if (entry) {
@@ -52,7 +66,7 @@ lotteryInstantRouter.get("/today", async (req, res) => {
       continue;
     }
 
-    const openNo = await computeDefaultOpenNo(card, date);
+    const { openNo, source } = await computeDefaultOpenNo(card, date, shift);
 
     result.push({
       id: 0,
@@ -60,6 +74,7 @@ lotteryInstantRouter.get("/today", async (req, res) => {
       scratchCardNo: card.scratchCardNo,
       price: card.price,
       openNo,
+      openNoSource: source,
       closeNo: 0,
       totalSold: 0,
       sales: 0,
@@ -72,7 +87,7 @@ lotteryInstantRouter.get("/today", async (req, res) => {
 lotteryInstantRouter.post("/", async (req, res) => {
   if (req.userId == null) return res.status(401).json({ message: "User not authenticated" });
 
-  const date = await getActiveDate();
+  const { date, shift } = await getActiveContext();
   const scratchCardId = toInt(req.body?.lotteryId);
   const openNo = toInt(req.body?.openNo);
   const closeNo = toInt(req.body?.closeNo);
@@ -83,7 +98,7 @@ lotteryInstantRouter.post("/", async (req, res) => {
   if (!card) return res.status(404).json({ message: "Scratch card not found." });
 
   const existingEntry = await prisma.instantLotteryInventoryEntry.findUnique({
-    where: { scratchCardId_date: { scratchCardId, date } },
+    where: { scratchCardId_date_shift: { scratchCardId, date, shift } },
   });
 
   // Role split on this endpoint: an admin may edit Price, Open No and Close
@@ -94,7 +109,7 @@ lotteryInstantRouter.post("/", async (req, res) => {
   // Only reject when the submitted value actually differs from what is
   // currently stored — resubmitting the same value is not a change and must
   // go through, since that is exactly what every normal Close No save does.
-  const storedOpenNo = existingEntry ? existingEntry.openNo : await computeDefaultOpenNo(card, date);
+  const storedOpenNo = existingEntry ? existingEntry.openNo : (await computeDefaultOpenNo(card, date, shift)).openNo;
   const storedPrice = Number(card.price);
   const isAdmin = req.userRole === "admin";
 
@@ -127,8 +142,8 @@ lotteryInstantRouter.post("/", async (req, res) => {
   const sales = totalSold * effectivePrice;
 
   const entry = await prisma.instantLotteryInventoryEntry.upsert({
-    where: { scratchCardId_date: { scratchCardId, date } },
-    create: { scratchCardId, date, openNo: effectiveOpenNo, closeNo, totalSold, sales },
+    where: { scratchCardId_date_shift: { scratchCardId, date, shift } },
+    create: { scratchCardId, date, shift, openNo: effectiveOpenNo, closeNo, totalSold, sales },
     update: { openNo: effectiveOpenNo, closeNo, totalSold, sales },
   });
 
@@ -136,16 +151,18 @@ lotteryInstantRouter.post("/", async (req, res) => {
     await prisma.scratchCard.update({ where: { scratchCardId }, data: { forcedOpenNo: null } });
   }
 
+  void evaluateAndNotify(date, shift);
+
   res.json(entry);
 });
 
 lotteryInstantRouter.delete("/today/:lotteryId", async (req, res) => {
   if (req.userId == null) return res.status(401).json({ message: "User not authenticated" });
 
-  const date = await getActiveDate();
+  const { date, shift } = await getActiveContext();
   const scratchCardId = toInt(req.params.lotteryId);
   await prisma.instantLotteryInventoryEntry
-    .delete({ where: { scratchCardId_date: { scratchCardId, date } } })
+    .delete({ where: { scratchCardId_date_shift: { scratchCardId, date, shift } } })
     .catch(() => null);
 
   res.json({ message: "Inventory cleared" });

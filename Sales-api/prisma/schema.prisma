@@ -69,7 +69,8 @@ model Order {
 
 model DailySummary {
   dailySummaryId Int      @id @default(autoincrement())
-  date           DateTime @unique @db.Date
+  date           DateTime @db.Date
+  shift          Shift    @default(FULL_DAY)
 
   cashback             Decimal @default(0) @db.Decimal(18, 2)
   paypointPayout       Decimal @default(0) @db.Decimal(18, 2)
@@ -99,6 +100,8 @@ model DailySummary {
   updatedAt DateTime @default(now()) @updatedAt
 
   creditCardEntries CreditCardEntry[]
+
+  @@unique([date, shift])
 }
 
 model CreditCardEntry {
@@ -113,7 +116,8 @@ model CreditCardEntry {
 
 model Deduction {
   deductionId Int      @id @default(autoincrement())
-  date        DateTime @unique @db.Date
+  date        DateTime @db.Date
+  shift       Shift    @default(FULL_DAY)
 
   cashback             Decimal @default(0) @db.Decimal(18, 2)
   paypointPayout       Decimal @default(0) @db.Decimal(18, 2)
@@ -124,6 +128,8 @@ model Deduction {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now()) @updatedAt
+
+  @@unique([date, shift])
 }
 
 model Supplier {
@@ -137,6 +143,12 @@ model Supplier {
 model SupplierInvoice {
   supplierInvoiceId Int      @id @default(autoincrement())
   date              DateTime @db.Date
+  // Invoices arrive with deliveries, not shifts — this is a plain column
+  // (no unique-constraint change) purely so a delivery can be attributed to
+  // whichever shift was active when it was entered, consistent with the
+  // other entry tables. createdAt already timestamps it precisely; this is
+  // the coarser, shift-comparable label.
+  shift             Shift    @default(FULL_DAY)
   supplierId        Int?
   supplierName      String
   invoiceNo         String
@@ -168,6 +180,7 @@ model InstantLotteryInventoryEntry {
   inventoryId   Int      @id @default(autoincrement())
   scratchCardId Int
   date          DateTime @db.Date
+  shift         Shift    @default(FULL_DAY)
   openNo        Int      @default(0)
   closeNo       Int      @default(0)
   totalSold     Int      @default(0)
@@ -176,23 +189,29 @@ model InstantLotteryInventoryEntry {
 
   scratchCard ScratchCard @relation(fields: [scratchCardId], references: [scratchCardId], onDelete: Cascade)
 
-  @@unique([scratchCardId, date])
+  @@unique([scratchCardId, date, shift])
 }
 
 model LotteryRecord {
   lotteryRecordId Int      @id @default(autoincrement())
-  date            DateTime @unique @db.Date
+  date            DateTime @db.Date
+  shift           Shift    @default(FULL_DAY)
   lotteryValue    Decimal  @default(0) @db.Decimal(18, 2)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @default(now()) @updatedAt
+
+  @@unique([date, shift])
 }
 
 model PaypointRecord {
   paypointRecordId Int      @id @default(autoincrement())
-  date             DateTime @unique @db.Date
+  date             DateTime @db.Date
+  shift            Shift    @default(FULL_DAY)
   paypointValue    Decimal  @default(0) @db.Decimal(18, 2)
   createdAt        DateTime @default(now())
   updatedAt        DateTime @default(now()) @updatedAt
+
+  @@unique([date, shift])
 }
 
 model ReconciliationRecord {
@@ -233,14 +252,178 @@ model ReconciliationRecord {
   adminSubmittedByName   String?
   adminSubmittedAt       DateTime?
 
+  // End-of-day X_day + X_night vs Z check, using FINAL (admin-approved where
+  // present, else staff-entered, else the till's original) shift totals —
+  // never the raw till totals alone, so an admin correction that resolves a
+  // shift variance also resolves this without a second alert. Nullable: a
+  // date with no X-Reports behind it (anything predating this feature, or a
+  // day the till simply didn't send one) reads as "not applicable" rather
+  // than a false zero variance.
+  xFinalDayTotal   Decimal? @db.Decimal(18, 2)
+  xFinalNightTotal Decimal? @db.Decimal(18, 2)
+  xFinalSumTotal   Decimal? @db.Decimal(18, 2)
+  xVsZDifference   Decimal? @db.Decimal(18, 2) // signed: xFinalSumTotal − zReportTotal
+
+  // De-dupe for the X-vs-Z alert, same purpose as ShiftReconciliation's
+  // notifiedAt/notifiedDifference — without it the poller re-mails an
+  // unchanged day-level variance every cycle.
+  zNotifiedAt         DateTime?
+  zNotifiedDifference Decimal?  @db.Decimal(18, 2)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now()) @updatedAt
 }
 
+// RESOLVED is distinct from OK only so the history shows *why* a shift
+// passes (an admin corrected it) rather than it having been fine all along —
+// both are treated identically as "in tolerance" everywhere this is
+// evaluated (see lib/variance.ts's isWithinTolerance and how shiftReconciliation.ts uses it).
+enum ShiftReconciliationStatus {
+  PENDING // X-Report not in yet, or shift has no entries yet — never alerts
+  OK
+  VARIANCE
+  RESOLVED
+}
+
+// The full provenance chain for one shift's X-Report reconciliation: what
+// the till originally reported, what staff's entered figures actually sum
+// to, and — if a variance needed a human — what an admin corrected it to
+// and why. Never overwrites the till original; an admin edit is an
+// approved adjustment recorded alongside it, not a replacement.
+model ShiftReconciliation {
+  shiftReconciliationId Int      @id @default(autoincrement())
+  date                  DateTime @db.Date
+  shift                 Shift
+
+  // The till's own report, immutable — refreshed from TillReport, never
+  // hand-edited.
+  originalTotal Decimal? @db.Decimal(18, 2)
+  xReportCount  Int      @default(0) // >1 = reprint/duplicate X-Report
+
+  // What staff's entered figures for this shift actually sum to (via
+  // computeShiftTotals), attributed via whichever DailySummary row was last
+  // saved for this (date, shift) — not a separately hand-typed value.
+  staffEnteredTotal  Decimal?  @db.Decimal(18, 2)
+  staffEnteredById   Int?
+  staffEnteredByName String?
+  staffEnteredAt     DateTime?
+
+  // An admin's reviewed, approved correction — set only via the admin edit
+  // endpoint, and only that endpoint. A reason is required by the API
+  // whenever a value is actually being changed.
+  adminEditedTotal  Decimal? @db.Decimal(18, 2)
+  adminEditedById   Int?
+  adminEditedByName String?
+  adminEditedAt     DateTime?
+  adminEditReason   String?
+
+  // Derived, persisted rather than recomputed on every read so "before" and
+  // "after" render without re-deriving history:
+  //   finalTotal         = adminEditedTotal ?? staffEnteredTotal ?? originalTotal
+  //   originalDifference = originalTotal − staffEnteredTotal
+  //   finalDifference    = originalTotal − finalTotal
+  finalTotal         Decimal? @db.Decimal(18, 2)
+  originalDifference Decimal? @db.Decimal(18, 2)
+  finalDifference    Decimal? @db.Decimal(18, 2)
+
+  originalStatus ShiftReconciliationStatus @default(PENDING)
+  finalStatus    ShiftReconciliationStatus @default(PENDING)
+
+  // Is there any staff entry at all for this (date, shift)? Guards
+  // evaluateAndNotify from alerting on a shift nobody has touched yet.
+  hasEntries Boolean @default(false)
+
+  // De-dupe: only re-notify when the difference has actually moved by more
+  // than tolerance since the last email, so the poller doesn't re-mail an
+  // unchanged variance every cycle.
+  notifiedAt         DateTime?
+  notifiedDifference Decimal?  @db.Decimal(18, 2)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
+  @@unique([date, shift])
+  @@index([finalStatus])
+}
+
 model ActiveDateOverride {
-  id         Int       @id @default(1)
-  activeDate DateTime? @db.Date
-  setAt      DateTime?
+  id          Int       @id @default(1)
+  activeDate  DateTime? @db.Date
+  // null = derive the active shift from the wall clock against
+  // SHIFT_CUTOFF_TIME (see lib/activeDate.ts's classifyShift). Set to force
+  // a specific shift regardless of the time — e.g. night staff still
+  // finishing entries after the cutoff has rolled into the next shift.
+  activeShift Shift?
+  setAt       DateTime?
+}
+
+// FULL_DAY is the legacy/unassigned bucket. Every entry-table row that
+// existed before the two-shift feature carries it, and it stays the column
+// default forever — not a one-off backfill value — so that any write path
+// that hasn't been made shift-aware yet lands somewhere countable rather
+// than silently corrupting a shift's figures. computeDailyTotals() sums all
+// three, so a FULL_DAY row contributes to the day exactly as it always did.
+enum Shift {
+  FULL_DAY
+  DAY
+  NIGHT
+}
+
+enum TillReportType {
+  X_REPORT
+  Z_REPORT
+}
+
+// One row per till report EMAIL (X-Report or Z-Report), persisted so
+// reconciliation stops making a live Gmail round-trip on every request.
+// Write-once — an admin correction never mutates this table (see
+// ShiftReconciliation.adminEditedTotal); this table is the immutable record
+// of what the till itself sent.
+model TillReport {
+  tillReportId Int @id @default(autoincrement())
+
+  // True idempotency key — re-ingesting the same inbox is a no-op.
+  gmailMessageId String @unique
+
+  reportType TillReportType
+
+  // The report's OWN "Date:" field (via tillReportParser.ts), NOT the
+  // email's received date — the two have been observed to differ by more
+  // than a day in real emails from this sender.
+  businessDate DateTime @db.Date
+
+  // businessDate + the report's own "Time:" field — shop-local wall clock as
+  // printed on the till slip. This, not the email's received timestamp, is
+  // what shift classification against SHIFT_CUTOFF_TIME must use.
+  printedAt      DateTime
+  printedMinutes Int
+  shift          Shift
+
+  reportRef String? // "Z10409" — Z-Reports only, X-Reports carry no id
+
+  departmentTotal Decimal? @db.Decimal(18, 2)
+  grandTotal      Decimal? @db.Decimal(18, 2)
+  cashTotal       Decimal? @db.Decimal(18, 2)
+  cardTotal       Decimal? @db.Decimal(18, 2)
+  manualCardTotal Decimal? @db.Decimal(18, 2)
+
+  emailReceivedAt DateTime
+  emailSubject    String
+  rawBody         String
+
+  // Non-fatal parse notes (see tillReportParser.ts's ParsedTillReport.parseError)
+  // preserved alongside the parsed fields rather than discarded, so a human
+  // reviewing ingested data can see e.g. a header/Date: field disagreement
+  // that was resolved automatically.
+  parseNotes String?
+
+  createdAt DateTime @default(now())
+
+  // Deliberately NO @@unique on (businessDate, reportType, shift) — a
+  // till reprint must not throw on ingestion. Duplicates are surfaced via
+  // count queries in tillReportIngest.ts instead.
+  @@index([businessDate, reportType])
+  @@index([businessDate, reportType, shift])
 }
 
 model GmailConnection {

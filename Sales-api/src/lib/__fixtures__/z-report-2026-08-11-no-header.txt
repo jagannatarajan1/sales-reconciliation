@@ -1,0 +1,113 @@
+POS ID : 1 Date: 11/08/2026
+
+Staff ID: 101 Time: 22:22
+
+-----------------------------------------
+
+           Z-REPORT ID: Z10409
+
+-----------------------------------------
+
+DEPARTMENT SALES
+
+ALCOHOL 288.71
+
+BAKERY 13.93
+
+BISCUITS 4.57
+
+CAKES 13.95
+
+CARRIER BAGS 0.20
+
+CHILLED FOODS 92.71
+
+CONFECTIONERY 49.88
+
+CRISPS AND SNACS 49.08
+
+FROZEN FOODS 29.92
+
+GREETING CARDS 1.79
+
+GROCERY N.VAT 23.05
+
+HEALTH & BEAUTY 1.29
+
+HOUSEHOLD SUNDRIES 11.97
+
+ICE CREAM 7.50
+
+MEDICINE 5.75
+
+MISC 17.07
+
+NEWS&MAG 12.10
+
+SOFT DRINKS 168.44
+
+STAMPS 1.99
+
+TOBACCO 261.55
+
+SUB TOTAL 1055.45
+
+
+
+INSTANT LOTTERY 14.00
+
+LOTTERY 4.00
+
+PAYPOINT 355.00
+
+SUB TOTAL 373.00
+
+DEPARTMENT TOTAL 1428.45
+
+-----------------------------------------
+
+VAT BREAKDOWN
+
+VatCode SaleExVat Vat SalesInVat
+
+0.00 204.00 0.00 204.00
+
+20.00 709.54 141.91 851.45
+
+Exmt 373.00 0.00 373.00
+
+-----------------------------------------
+
+INCOME / EXPENSE
+
+INST PO -3.00
+
+Income / Expense TOTAL -3.00
+
+-----------------------------------------
+
+TENDER TYPE
+
+CASH 548.07
+
+CARD 639.00
+
+MANUAL CARD 238.38
+
+GRAND TOTAL 1425.45
+
+-----------------------------------------
+
+-----------------------------------------
+
+Issued MyDD Points 0
+
+-----------------------------------------
+
+       SALES AND INVENTORY DETAILS
+
+DESCRIPTION SALES STOCK
+
+ALCOHOL
+
+19 CRIMES 1 -15

@@ -4,8 +4,6 @@ import { motion } from "framer-motion";
 import {
   FiArrowLeft,
   FiCalendar,
-  FiCheckCircle,
-  FiAlertTriangle,
   FiAlertCircle,
   FiEdit2,
   FiLock,
@@ -14,6 +12,7 @@ import {
 import "./InstantLottertInventory.css";
 import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../components/ui/Toast";
+import { ShiftBanner } from "../../components/ShiftBanner";
 
 const API_BASE = `${import.meta.env.VITE_API_URL || "https://localhost:7276/api"}/LotteryInstant`;
 const SCRATCH_CARD_ORDER_KEY = "scratch-card-display-order";
@@ -52,6 +51,18 @@ const getOrderedItems = (items) => {
 // backend, which rejects non-integer values with a raw JSON conversion error.
 const toIntString = (v) => v.replace(/[^0-9]/g, "");
 
+// A pre-filled Open No must never read as unexplained magic — this turns
+// the backend's openNoSource into a short caption shown right under the
+// field. "none" (nothing to carry from, defaulted to 0) has nothing worth
+// saying, so it renders nothing.
+const describeOpenNoSource = (source) => {
+  if (!source || source.type === "none") return null;
+  if (source.type === "forced") return "Set by admin";
+  const shiftLabel = source.fromShift === "NIGHT" ? "Night" : source.fromShift === "DAY" ? "Day" : "previous";
+  const dateStr = new Date(source.fromDate).toLocaleDateString("en-GB", { day: "2-digit", month: "short" });
+  return `Carried from ${shiftLabel} shift close, ${dateStr}`;
+};
+
 /* ══════════════════════════════════
    A. TODAY'S INVENTORY
 ══════════════════════════════════ */
@@ -79,6 +90,10 @@ function TodayInventory({ token, showToast, userRole, isLocked }) {
             scratchCardNo: item.scratchCardNo,
             price: item.price,
             openNo: item.openNo,
+            // Only ever set for an unsaved row (id 0) — once a real entry
+            // exists, its Open No is a deliberately entered value, not
+            // carried-over magic that needs explaining.
+            openNoSource: item.openNoSource ?? null,
             // The backend has no way to represent "not yet entered" for Close No other
             // than 0 (it's a non-nullable int, and 0 is never a realistic real close
             // reading for a sequential ticket counter), so treat it as blank here too.
@@ -319,6 +334,9 @@ function TodayInventory({ token, showToast, userRole, isLocked }) {
                           }
                           title={lockedTitle}
                         />
+                        {item.inventoryId === 0 && describeOpenNoSource(item.openNoSource) && (
+                          <div className="open-no-source-note">{describeOpenNoSource(item.openNoSource)}</div>
+                        )}
                       </td>
                       <td>
                         <input
@@ -391,6 +409,10 @@ export const InstantLotteryInventory = () => {
   const [activeDate, setActiveDate] = useState(null);
   const [isCommitted, setIsCommitted] = useState(false);
   const [isPendingAdminReview, setIsPendingAdminReview] = useState(false);
+  const [shift, setShift] = useState(null);
+  const [shiftLabel, setShiftLabel] = useState(null);
+  const [shiftCutoff, setShiftCutoff] = useState(null);
+  const [shiftSource, setShiftSource] = useState(null);
 
   useEffect(() => {
     fetch(`${SUMMARY_URL}/today`, {
@@ -401,6 +423,10 @@ export const InstantLotteryInventory = () => {
         if (d?.date) setActiveDate(d.date);
         setIsCommitted(d?.isCommitted ?? false);
         setIsPendingAdminReview(d?.isPendingAdminReview ?? false);
+        setShift(d?.shift ?? null);
+        setShiftLabel(d?.shiftLabel ?? null);
+        setShiftCutoff(d?.shiftCutoff ?? null);
+        setShiftSource(d?.shiftSource ?? null);
       })
       .catch(() => {});
   }, [user.token]);
@@ -440,14 +466,15 @@ export const InstantLotteryInventory = () => {
           </div>
         </div>
 
-        {isYesterday && (
-          <div className="date-banner">
-            <span className="date-banner__icon">
-              {isCommitted ? <FiCheckCircle /> : <FiAlertTriangle />}
-            </span>
-            Showing {fmtDate(activeDateStr)} data —{" "}
-            {isCommitted ? "committed" : "not yet committed"}
-          </div>
+        {(isYesterday || shiftLabel) && (
+          <ShiftBanner
+            date={activeDateStr}
+            isCommitted={isCommitted}
+            shift={shift}
+            shiftLabel={shiftLabel}
+            shiftCutoff={shiftCutoff}
+            shiftSource={shiftSource}
+          />
         )}
 
         <TodayInventory

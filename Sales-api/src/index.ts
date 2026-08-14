@@ -21,6 +21,8 @@ import { adminActiveDateRouter } from "./routes/adminActiveDate.routes.js";
 import { adminReconciliationRouter } from "./routes/adminReconciliation.routes.js";
 import { reportsRouter } from "./routes/reports.routes.js";
 import { zReportsRouter } from "./routes/zReports.routes.js";
+import { adminTillReportsRouter } from "./routes/adminTillReports.routes.js";
+import { startTillPoller } from "./lib/tillPoller.js";
 
 const app = express();
 
@@ -90,10 +92,12 @@ app.use("/api/admin/active-date", adminActiveDateRouter);
 app.use("/api/admin/reconciliation", adminReconciliationRouter);
 app.use("/api/admin/reports", reportsRouter);
 app.use("/api/z-reports", zReportsRouter);
+app.use("/api/admin/till-reports", adminTillReportsRouter);
 
 app.use(errorHandler);
 
 const port = process.env.PORT ?? 5000;
 app.listen(port, () => {
   console.log(`Sales API listening on http://localhost:${port}`);
+  startTillPoller();
 });

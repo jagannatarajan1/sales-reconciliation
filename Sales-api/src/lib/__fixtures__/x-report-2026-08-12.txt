@@ -1,0 +1,132 @@
+Subject - X-Report Printed
+
+Mail content
+
+X-Report Printed by VISUAL at 12/08/2026 13:09:00
+           CHENEY MANOR STORES
+
+           84 CHENEY MANOR RD
+
+             SWINDON SN2 2NS
+
+               01793432388
+
+               477 5586 32
+
+POS ID  : 1              Date: 13/08/2026
+
+Staff ID: 101            Time: 13:09
+
+-----------------------------------------
+
+                X-REPORT
+
+-----------------------------------------
+
+DEPARTMENT SALES
+
+ALCOHOL                             61.66
+
+BAKERY                               7.56
+
+CAKES                                1.99
+
+CARRIER BAGS                         0.10
+
+CHILLED FOODS                       34.19
+
+CONFECTIONERY                       15.07
+
+CRISPS AND SNACS                    15.88
+
+FOOD TO GO                           1.45
+
+FROZEN FOODS                         2.99
+
+GROCERY N.VAT                        8.83
+
+HOUSEHOLD SUNDRIES                   1.99
+
+ICE CREAM                           13.77
+
+MISC                                 1.00
+
+NEWS&MAG                             2.10
+
+PARTY ITEMS                          1.45
+
+SOFT DRINKS                         76.97
+
+TOBACCO                             78.61
+
+SUB TOTAL                          325.61
+
+
+
+INSTANT LOTTERY                      7.00
+
+LOTTERY                             23.00
+
+SUB TOTAL                           30.00
+
+DEPARTMENT TOTAL                   355.61
+
+-----------------------------------------
+
+VAT BREAKDOWN
+
+VatCode   SaleExVat       Vat SalesInVat
+
+0.00          66.60      0.00      66.60
+
+20.00        215.84     43.17     259.01
+
+Exmt          30.00      0.00      30.00
+
+-----------------------------------------
+
+INCOME / EXPENSE
+
+LOTTERY PO                          -3.00
+
+Income / Expense TOTAL              -3.00
+
+-----------------------------------------
+
+TENDER TYPE
+
+CASH                               165.34
+
+CARD                               123.09
+
+MANUAL CARD                         64.18
+
+GRAND TOTAL                        352.61
+
+-----------------------------------------
+
+-----------------------------------------
+
+Issued MyDD Points                      0
+
+-----------------------------------------
+
+        REFUNDS / VOIDS BREAKDOWN
+
+Type          Date       Time      Amount
+
+Drawer - 01    12/08/2026 10:23:00  0.00
+
+-----------------------------------------
+
+         No of Transactions : 61
+
+-----------------------------------------
+
+       SALES AND INVENTORY DETAILS
+
+DESCRIPTION                   SALES STOCK
+
+ALCOHOL
+
+1664 BIERE                        1    -6

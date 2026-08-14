@@ -1,7 +1,8 @@
 import { Router } from "express";
 import { prisma } from "../lib/prisma.js";
-import { getActiveDate, dateOnly } from "../lib/activeDate.js";
+import { getActiveDate, getActiveContext, dateOnly } from "../lib/activeDate.js";
 import { writeAuditLog } from "../lib/auditLog.js";
+import { evaluateAndNotify } from "../lib/shiftReconciliation.js";
 import { renderSupplierPayoutPdf, type SupplierPayoutInvoiceRow, type SupplierPayoutGroupBy } from "../lib/pdf.js";
 import { buildSupplierPayoutExcel } from "../lib/excel.js";
 import { requirePermission } from "../lib/permissions.js";
@@ -149,13 +150,14 @@ suppliersRouter.get("/invoices/download-excel", async (req, res) => {
 suppliersRouter.post("/invoices", async (req, res) => {
   if (req.userId == null) return res.status(401).json({ message: "User not authenticated" });
 
-  const date = await getActiveDate();
+  const { date, shift } = await getActiveContext();
   const { supplierId, invoiceNo, value } = req.body ?? {};
   const supplier = supplierId ? await prisma.supplier.findUnique({ where: { supplierId: Number(supplierId) } }) : null;
 
   const created = await prisma.supplierInvoice.create({
     data: {
       date,
+      shift,
       supplierId: supplier?.supplierId ?? null,
       supplierName: supplier?.name ?? "Unknown Supplier",
       invoiceNo: String(invoiceNo ?? ""),
@@ -173,6 +175,8 @@ suppliersRouter.post("/invoices", async (req, res) => {
     entityId: created.supplierInvoiceId,
     newValue: { supplierName: created.supplierName, invoiceNo: created.invoiceNo, value: created.value },
   });
+
+  void evaluateAndNotify(date, shift);
 
   res.json({
     id: created.supplierInvoiceId,

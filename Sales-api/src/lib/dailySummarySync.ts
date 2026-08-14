@@ -1,8 +1,9 @@
-import { Prisma } from "@prisma/client";
+import { Prisma, Shift } from "@prisma/client";
 import { prisma } from "./prisma.js";
 
 export async function syncDailySummaryFields(
   date: Date,
+  shift: Shift,
   fields: Partial<Record<
     "cashback" | "paypointPayout" | "instantLotteryPayout" | "lotteryPayout" | "newsVoucher" | "ddPoint" |
     "lotteryValue" | "paypointValue",
@@ -10,8 +11,8 @@ export async function syncDailySummaryFields(
   >>
 ): Promise<void> {
   await prisma.dailySummary.upsert({
-    where: { date },
-    create: { date, ...fields },
+    where: { date_shift: { date, shift } },
+    create: { date, shift, ...fields },
     update: { ...fields },
   });
 }

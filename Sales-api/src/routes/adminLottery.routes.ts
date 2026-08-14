@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { prisma } from "../lib/prisma.js";
-import { getActiveDate } from "../lib/activeDate.js";
+import { getActiveContext } from "../lib/activeDate.js";
+import { previousShiftEntry } from "../lib/dailyTotals.js";
 import { requirePermission } from "../lib/permissions.js";
 import { writeAuditLog } from "../lib/auditLog.js";
 
@@ -30,9 +31,9 @@ function toCard(card: { scratchCardId: number; scratchCardNo: string; price: unk
 // the Instant Lottery Inventory close number; until they do, it mirrors the
 // opening value.
 async function withValues(card: Awaited<ReturnType<typeof prisma.scratchCard.findUniqueOrThrow>>) {
-  const date = await getActiveDate();
+  const { date, shift } = await getActiveContext();
   const todayEntry = await prisma.instantLotteryInventoryEntry.findUnique({
-    where: { scratchCardId_date: { scratchCardId: card.scratchCardId, date } },
+    where: { scratchCardId_date_shift: { scratchCardId: card.scratchCardId, date, shift } },
   });
 
   let openingValue: number;
@@ -41,10 +42,7 @@ async function withValues(card: Awaited<ReturnType<typeof prisma.scratchCard.fin
   } else if (todayEntry) {
     openingValue = todayEntry.openNo;
   } else {
-    const previous = await prisma.instantLotteryInventoryEntry.findFirst({
-      where: { scratchCardId: card.scratchCardId, date: { lt: date } },
-      orderBy: { date: "desc" },
-    });
+    const previous = await previousShiftEntry(card.scratchCardId, date, shift);
     openingValue = previous?.closeNo ?? 0;
   }
 

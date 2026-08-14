@@ -9,6 +9,7 @@ import {
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../components/ui/Toast';
 import { DownloadBillReports } from './DownloadBillReports';
+import { VARIANCE_TOLERANCE } from '../../constants';
 import './AdminReconciliation.css';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'https://localhost:7276/api';
@@ -177,12 +178,12 @@ function EditableGrid({ form, computedCash, computedSummaryTotal, computedDiffer
               }
               const isDiff = field.key === 'difference';
               const fieldCls = isDiff
-                ? (computedDifference <= 5 ? ' ar-field--ok' : ' ar-field--over')
+                ? (computedDifference <= VARIANCE_TOLERANCE ? ' ar-field--ok' : ' ar-field--over')
                 : '';
               return (
                 <div key={field.key} className={`ar-field${fieldCls}`}>
                   <label className="ar-label">{field.label}</label>
-                  <div className={`ar-input-wrap${isRO ? ' ar-input-wrap--ro' : ''}${isDiff && computedDifference <= 5 ? ' ar-input-wrap--ok' : ''}${isDiff && computedDifference > 5 ? ' ar-input-wrap--over' : ''}`}>
+                  <div className={`ar-input-wrap${isRO ? ' ar-input-wrap--ro' : ''}${isDiff && computedDifference <= VARIANCE_TOLERANCE ? ' ar-input-wrap--ok' : ''}${isDiff && computedDifference > VARIANCE_TOLERANCE ? ' ar-input-wrap--over' : ''}`}>
                     {field.monetary && (
                       <span className={`ar-sym${isRO ? ' ar-sym--ro' : ''}`}>£</span>
                     )}
@@ -234,6 +235,210 @@ function ReadOnlyGrid({ data }) {
         </div>
         );
       })}
+    </div>
+  );
+}
+
+const SHIFT_LABEL = { DAY: 'Day Shift', NIGHT: 'Night Shift' };
+
+const shiftStatusLabel = (status) => ({
+  PENDING: 'Pending',
+  OK: 'OK',
+  VARIANCE: 'Variance',
+  RESOLVED: 'Resolved',
+}[status] ?? status);
+
+/* One shift's full provenance chain — original / staff entered / admin
+   adjusted / final — labelled explicitly throughout per the requirement that
+   this must never read as a single bare "X Report: £nnn" figure, since that
+   loses exactly the history this panel exists to show. */
+function ShiftCard({ shift, date, token, onUpdated }) {
+  const [editing, setEditing] = useState(false);
+  const [amount, setAmount] = useState('');
+  const [reason, setReason] = useState('');
+  const [saving, setSaving] = useState(false);
+  const { showToast } = useToast();
+
+  if (!shift) {
+    return (
+      <div className="ar-shift-card ar-shift-card--empty">
+        <div className="ar-shift-card-header">
+          <span className="ar-shift-card-title">{SHIFT_LABEL.DAY}</span>
+          <span className="ar-shift-status-pill ar-shift-status-pill--pending">No data yet</span>
+        </div>
+      </div>
+    );
+  }
+
+  const isVariance = shift.finalStatus === 'VARIANCE';
+  const wasEdited = shift.adminEditedTotal != null;
+
+  const startEdit = () => {
+    setAmount(shift.originalTotal != null ? String(shift.originalTotal) : '');
+    setReason('');
+    setEditing(true);
+  };
+
+  const submitEdit = async () => {
+    const total = parseFloat(amount);
+    if (isNaN(total)) return showToast('Enter a valid amount', 'error');
+    if (!reason.trim()) return showToast('A reason is required', 'error');
+
+    setSaving(true);
+    try {
+      const res = await fetch(`${API_BASE}/admin/reconciliation/shift/edit`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ date, shift: shift.shift, adminEditedTotal: total, reason: reason.trim() }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message || 'Save failed');
+      }
+      showToast(`${SHIFT_LABEL[shift.shift]} correction saved`);
+      setEditing(false);
+      await onUpdated();
+    } catch (e) {
+      showToast(e.message || 'Save failed', 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className={`ar-shift-card${isVariance ? ' ar-shift-card--variance' : ''}`}>
+      <div className="ar-shift-card-header">
+        <span className="ar-shift-card-title">{SHIFT_LABEL[shift.shift] ?? shift.shift}</span>
+        <span className={`ar-shift-status-pill ar-shift-status-pill--${(shift.finalStatus || '').toLowerCase()}`}>
+          {shiftStatusLabel(shift.finalStatus)}
+        </span>
+      </div>
+
+      <div className="ar-shift-chain">
+        <div className="ar-shift-chain-row">
+          <span className="ar-label">Original X Report</span>
+          <span className="ar-value">{shift.originalTotal != null ? fmtGBP(shift.originalTotal) : '—'}</span>
+        </div>
+        {shift.xReportCount > 1 && (
+          <div className="ar-shift-reprint-note">{shift.xReportCount} X-Reports found — totals summed</div>
+        )}
+        <div className="ar-shift-chain-row">
+          <span className="ar-label">Staff Entered Value</span>
+          <span className="ar-value">{shift.staffEnteredTotal != null ? fmtGBP(shift.staffEnteredTotal) : '—'}</span>
+        </div>
+        <div className="ar-shift-chain-row">
+          <span className="ar-label">Entered By</span>
+          <span className="ar-value">{shift.staffEnteredByName || '—'}</span>
+        </div>
+        <div className="ar-shift-chain-row">
+          <span className="ar-label">Original Difference</span>
+          <span className="ar-value">{shift.originalDifference != null ? fmtGBP(shift.originalDifference) : '—'}</span>
+        </div>
+
+        {wasEdited && (
+          <>
+            <div className="ar-shift-chain-divider" />
+            <div className="ar-shift-chain-row">
+              <span className="ar-label">Admin Adjusted Value</span>
+              <span className="ar-value">{fmtGBP(shift.adminEditedTotal)}</span>
+            </div>
+            <div className="ar-shift-chain-row">
+              <span className="ar-label">Edited By</span>
+              <span className="ar-value">{shift.adminEditedByName || '—'}</span>
+            </div>
+            <div className="ar-shift-chain-row">
+              <span className="ar-label">Edited At</span>
+              <span className="ar-value">{shift.adminEditedAt ? fmtDateTime(shift.adminEditedAt) : '—'}</span>
+            </div>
+            <div className="ar-shift-chain-row">
+              <span className="ar-label">Reason</span>
+              <span className="ar-value">{shift.adminEditReason || '—'}</span>
+            </div>
+          </>
+        )}
+
+        <div className="ar-shift-chain-divider" />
+        <div className="ar-shift-chain-row ar-shift-chain-row--final">
+          <span className="ar-label">Final Approved Value</span>
+          <span className="ar-value">{shift.finalTotal != null ? fmtGBP(shift.finalTotal) : '—'}</span>
+        </div>
+        <div className="ar-shift-chain-row ar-shift-chain-row--final">
+          <span className="ar-label">Final Difference</span>
+          <span className="ar-value">{shift.finalDifference != null ? fmtGBP(shift.finalDifference) : '—'}</span>
+        </div>
+      </div>
+
+      {editing ? (
+        <div className="ar-shift-edit-form">
+          <div className="ar-field">
+            <label className="ar-label">Corrected Amount (£)</label>
+            <input
+              type="number" step="0.01" className="ar-input"
+              value={amount} onChange={(e) => setAmount(e.target.value)}
+            />
+          </div>
+          <div className="ar-field">
+            <label className="ar-label">Reason (required)</label>
+            <textarea
+              className="ar-notes" rows={2}
+              placeholder="e.g. Corrected after checking the physical X report."
+              value={reason} onChange={(e) => setReason(e.target.value)}
+            />
+          </div>
+          <div className="ar-shift-edit-actions">
+            <button className="ar-submit-btn ar-submit-btn--sm" onClick={submitEdit} disabled={saving}>
+              {saving ? 'Saving…' : 'Save Correction'}
+            </button>
+            <button className="ar-cancel-btn ar-cancel-btn--sm" onClick={() => setEditing(false)} disabled={saving}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      ) : (
+        shift.originalTotal != null && (
+          <button className="ar-shift-edit-btn" onClick={startEdit}>
+            <FiEdit2 /> Correct This Shift
+          </button>
+        )
+      )}
+    </div>
+  );
+}
+
+function ShiftBreakdownPanel({ date, shifts, xVsZ, token, onUpdated }) {
+  const dayShift = shifts.find((s) => s.shift === 'DAY') ?? null;
+  const nightShift = shifts.find((s) => s.shift === 'NIGHT') ?? null;
+
+  if (!dayShift && !nightShift && !xVsZ) return null;
+
+  return (
+    <div className="ar-shift-breakdown">
+      <div className="ar-shift-breakdown-title">Shift Breakdown</div>
+      <div className="ar-shift-cards">
+        <ShiftCard shift={dayShift} date={date} token={token} onUpdated={onUpdated} />
+        <ShiftCard shift={nightShift} date={date} token={token} onUpdated={onUpdated} />
+      </div>
+
+      {xVsZ && (
+        <div className={`ar-xvz-summary${xVsZ.inTolerance ? '' : ' ar-xvz-summary--over'}`}>
+          <div className="ar-shift-chain-row">
+            <span className="ar-label">Final X Total (Day + Night)</span>
+            <span className="ar-value">{xVsZ.xSum != null ? fmtGBP(xVsZ.xSum) : '—'}</span>
+          </div>
+          <div className="ar-shift-chain-row">
+            <span className="ar-label">Z-Report Total</span>
+            <span className="ar-value">{xVsZ.zReportTotal != null ? fmtGBP(xVsZ.zReportTotal) : '—'}</span>
+          </div>
+          <div className="ar-shift-chain-row ar-shift-chain-row--final">
+            <span className="ar-label">Z Difference</span>
+            <span className="ar-value">{fmtGBP(xVsZ.difference)}</span>
+          </div>
+          <div className="ar-shift-chain-row">
+            <span className="ar-label">Z Result</span>
+            <span className="ar-value">{xVsZ.inTolerance ? 'OK' : 'Requires Review'}</span>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -317,33 +522,39 @@ export const AdminReconciliation = () => {
     }
   };
 
-  /* fetch pending items on mount */
-  useEffect(() => {
-    const run = async () => {
-      setLoadingPending(true);
-      try {
-        const res  = await fetch(`${API_BASE}/admin/reconciliation/pending`, {
-          headers: { Authorization: `Bearer ${user.token}` },
-        });
-        if (!res.ok) throw new Error();
-        const data = await res.json();
+  /* fetch pending items — reused on mount and after a shift correction is
+     saved, so ShiftBreakdownPanel's edit action can refresh the same list
+     rather than the page needing a full reload to see the resolved status */
+  const loadPendingItems = useCallback(async () => {
+    setLoadingPending(true);
+    try {
+      const res  = await fetch(`${API_BASE}/admin/reconciliation/pending`, {
+        headers: { Authorization: `Bearer ${user.token}` },
+      });
+      if (!res.ok) throw new Error();
+      const data = await res.json();
 
-        if (data.hasPending && Array.isArray(data.items) && data.items.length > 0) {
-          setPendingItems(data.items);
-          /* auto-select first (most recent) date */
-          setSelectedDate(data.items[0].date);
-          setForm(itemToForm(data.items[0]));
-        } else {
-          setPendingItems([]);
-          setSelectedDate(null);
-        }
-      } catch {
-        showToast('Failed to load pending data', 'error');
-      } finally {
-        setLoadingPending(false);
+      if (data.hasPending && Array.isArray(data.items) && data.items.length > 0) {
+        setPendingItems(data.items);
+        /* auto-select first (most recent) date */
+        setSelectedDate((prev) => (prev && data.items.some((i) => i.date === prev) ? prev : data.items[0].date));
+        setForm(itemToForm(data.items.find((i) => i.date === (selectedDate ?? data.items[0].date)) ?? data.items[0]));
+      } else {
+        setPendingItems([]);
+        setSelectedDate(null);
       }
-    };
+    } catch {
+      showToast('Failed to load pending data', 'error');
+    } finally {
+      setLoadingPending(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user.token]);
+
+  useEffect(() => {
+    const run = async () => { await loadPendingItems(); };
     run();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user.token]);
 
   /* switch date chip → reload form from cached item, dropping any in-progress
@@ -663,6 +874,19 @@ export const AdminReconciliation = () => {
                   onClick={() => selectPendingDate(item.date)}
                 >
                   <span className="ar-chip-date">{fmtDateShort(item.date)}</span>
+                  {(item.shifts || []).length > 0 && (
+                    <span className="ar-chip-shift-badges">
+                      {item.shifts.map((s) => (
+                        <span
+                          key={s.shift}
+                          className={`ar-chip-shift-badge${s.finalStatus === 'VARIANCE' ? ' ar-chip-shift-badge--variance' : ''}`}
+                          title={`${SHIFT_LABEL[s.shift] ?? s.shift}: ${shiftStatusLabel(s.finalStatus)}`}
+                        >
+                          {s.shift === 'NIGHT' ? 'N' : 'D'}
+                        </span>
+                      ))}
+                    </span>
+                  )}
                   {item.summaryTotal != null && (
                     <span className="ar-chip-total">{fmtGBP(item.summaryTotal)}</span>
                   )}
@@ -691,6 +915,15 @@ export const AdminReconciliation = () => {
                     }
                   />
                 </div>
+
+                <ShiftBreakdownPanel
+                  date={selectedDate}
+                  shifts={activeItem.shifts || []}
+                  xVsZ={activeItem.xVsZ}
+                  token={user.token}
+                  onUpdated={loadPendingItems}
+                />
+
                 {isEditingPending ? (
                   <EditableGrid
                     form={form}
@@ -703,11 +936,13 @@ export const AdminReconciliation = () => {
                   <ReadOnlyGrid data={pendingView} />
                 )}
                 {form.zReportTotal !== '' && form.zReportTotal !== '0' && form.zReportTotal !== 0 && (
-                  <div className={`ar-diff-bar ${computedDifference <= 5 ? 'ar-diff-bar--ok' : 'ar-diff-bar--over'}`}>
+                  <div className={`ar-diff-bar ${computedDifference <= VARIANCE_TOLERANCE ? 'ar-diff-bar--ok' : 'ar-diff-bar--over'}`}>
                     <span>Difference: <strong>£{computedDifference.toFixed(2)}</strong></span>
                     <span>
-                      {computedDifference <= 5 ? <FiCheckCircle /> : <FiXCircle />}
-                      {computedDifference <= 5 ? ' Within £5.00 limit' : ' Exceeds £5.00 limit'}
+                      {computedDifference <= VARIANCE_TOLERANCE ? <FiCheckCircle /> : <FiXCircle />}
+                      {computedDifference <= VARIANCE_TOLERANCE
+                        ? ` Within £${VARIANCE_TOLERANCE.toFixed(2)} limit`
+                        : ` Exceeds £${VARIANCE_TOLERANCE.toFixed(2)} limit`}
                     </span>
                   </div>
                 )}

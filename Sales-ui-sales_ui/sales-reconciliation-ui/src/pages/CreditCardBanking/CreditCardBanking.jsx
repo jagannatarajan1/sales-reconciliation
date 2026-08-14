@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { FiArrowLeft, FiCheckCircle, FiAlertTriangle, FiEdit2, FiX } from "react-icons/fi";
+import { FiArrowLeft, FiEdit2, FiX } from "react-icons/fi";
 import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../components/ui/Toast";
+import { ShiftBanner } from "../../components/ShiftBanner";
 import "./CreditCardBanking.css";
 
 const SUMMARY_URL = `${import.meta.env.VITE_API_URL || "https://localhost:7276/api"}/Summary`;
@@ -32,6 +33,10 @@ export const CreditCardBanking = () => {
   const [activeDate, setActiveDate]   = useState(null);
   const [isCommitted, setIsCommitted] = useState(false);
   const [isPendingAdminReview, setIsPendingAdminReview] = useState(false);
+  const [shift, setShift]             = useState(null);
+  const [shiftLabel, setShiftLabel]   = useState(null);
+  const [shiftCutoff, setShiftCutoff] = useState(null);
+  const [shiftSource, setShiftSource] = useState(null);
   const [loading, setLoading]         = useState(true);
   const [saving, setSaving]       = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -50,6 +55,10 @@ export const CreditCardBanking = () => {
         setActiveDate(data.date ?? null);
         setIsCommitted(data.isCommitted ?? false);
         setIsPendingAdminReview(data.isPendingAdminReview ?? false);
+        setShift(data.shift ?? null);
+        setShiftLabel(data.shiftLabel ?? null);
+        setShiftCutoff(data.shiftCutoff ?? null);
+        setShiftSource(data.shiftSource ?? null);
 
         const loaded =
           Array.isArray(data.creditCardEntries) && data.creditCardEntries.length > 0
@@ -151,11 +160,15 @@ export const CreditCardBanking = () => {
           </div>
         </div>
 
-        {isYesterday && (
-          <div className="date-banner">
-            <span className="date-banner__icon">{isCommitted ? <FiCheckCircle /> : <FiAlertTriangle />}</span>
-            Showing {fmtDate(activeDateStr)} data — {isCommitted ? 'committed' : 'not yet committed'}
-          </div>
+        {(isYesterday || shiftLabel) && (
+          <ShiftBanner
+            date={activeDateStr}
+            isCommitted={isCommitted}
+            shift={shift}
+            shiftLabel={shiftLabel}
+            shiftCutoff={shiftCutoff}
+            shiftSource={shiftSource}
+          />
         )}
 
         {loading ? (

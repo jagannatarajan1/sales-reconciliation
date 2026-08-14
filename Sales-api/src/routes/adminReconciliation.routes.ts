@@ -9,6 +9,9 @@ import { buildZReportBillsZip } from "../lib/zReportBills.js";
 import * as gmailService from "../services/gmail.service.js";
 import { requirePermission } from "../lib/permissions.js";
 import { writeAuditLog } from "../lib/auditLog.js";
+import { isWithinTolerance } from "../lib/variance.js";
+import { applyAdminEdit, resolveShift, evaluateDay } from "../lib/shiftReconciliation.js";
+import { Shift } from "@prisma/client";
 
 export const adminReconciliationRouter = Router();
 
@@ -21,27 +24,101 @@ function toNumber(value: unknown): number {
   return Number.isFinite(n) ? n : 0;
 }
 
-const VARIANCE_TOLERANCE = 5;
+type ShiftReconciliationRow = Awaited<ReturnType<typeof prisma.shiftReconciliation.findMany>>[number];
+
+function shiftDto(row: ShiftReconciliationRow) {
+  return {
+    shift: row.shift,
+    originalTotal: row.originalTotal,
+    xReportCount: row.xReportCount,
+    staffEnteredTotal: row.staffEnteredTotal,
+    staffEnteredByName: row.staffEnteredByName,
+    staffEnteredAt: row.staffEnteredAt,
+    adminEditedTotal: row.adminEditedTotal,
+    adminEditedByName: row.adminEditedByName,
+    adminEditedAt: row.adminEditedAt,
+    adminEditReason: row.adminEditReason,
+    finalTotal: row.finalTotal,
+    originalDifference: row.originalDifference,
+    finalDifference: row.finalDifference,
+    originalStatus: row.originalStatus,
+    finalStatus: row.finalStatus,
+    hasEntries: row.hasEntries,
+  };
+}
 
 adminReconciliationRouter.get("/pending", async (req, res) => {
   if (!requireAdmin(req, res)) return;
 
-  const [allDays, records] = await Promise.all([
+  const [allDays, records, allShiftRows] = await Promise.all([
     prisma.dailySummary.findMany({ orderBy: { date: "desc" } }),
     prisma.reconciliationRecord.findMany(),
+    prisma.shiftReconciliation.findMany({ where: { shift: { in: [Shift.DAY, Shift.NIGHT] } } }),
   ]);
-  const recordsByDate = new Map(records.map((r) => [r.date.toISOString(), r]));
+  // Only records that actually went through staff commit or admin sign-off
+  // count as "already handled" here. A ReconciliationRecord can also get
+  // written by pure X/Z-report evaluation with a default difference of 0
+  // and neither flag set — if that row were allowed into this map, its
+  // `!record` branch below would never fire and the day would silently
+  // vanish from the pending queue despite never having been reviewed.
+  const recordsByDate = new Map(
+    records
+      .filter((r) => r.isStaffCommitted || r.isAdminReconciled)
+      .map((r) => [r.date.toISOString(), r])
+  );
+  // Unfiltered lookup, separate from the above — used only to read the
+  // xFinal*/xVsZDifference snapshot evaluateDay writes, which can exist on a
+  // day that has neither been staff-committed nor admin-reconciled yet.
+  const anyRecordByDate = new Map(records.map((r) => [r.date.toISOString(), r]));
+
+  const shiftsByDate = new Map<string, (typeof allShiftRows)[number][]>();
+  for (const row of allShiftRows) {
+    const key = row.date.toISOString();
+    const group = shiftsByDate.get(key);
+    if (group) group.push(row);
+    else shiftsByDate.set(key, [row]);
+  }
+
+  // DailySummary now has up to one row per shift (DAY/NIGHT, or a single
+  // FULL_DAY row for anything predating the split) for the same date — group
+  // back down to one entry per day before iterating, or a day with both
+  // shifts entered would render as two identical-looking pending items.
+  const daysByDate = new Map<string, (typeof allDays)[number][]>();
+  for (const day of allDays) {
+    const key = day.date.toISOString();
+    const group = daysByDate.get(key);
+    if (group) group.push(day);
+    else daysByDate.set(key, [day]);
+  }
 
   const items = [];
-  for (const day of allDays) {
-    const record = recordsByDate.get(day.date.toISOString());
+  for (const [dateKey, dayRows] of daysByDate) {
+    const record = recordsByDate.get(dateKey);
+    const date = dayRows[0].date;
+
+    const shifts = (shiftsByDate.get(dateKey) ?? []).map(shiftDto);
+    const anyShiftVariance = shifts.some((s) => s.finalStatus === "VARIANCE");
+
+    const anyRecord = anyRecordByDate.get(dateKey);
+    const xVsZ =
+      anyRecord?.xVsZDifference != null
+        ? {
+            xDay: anyRecord.xFinalDayTotal,
+            xNight: anyRecord.xFinalNightTotal,
+            xSum: anyRecord.xFinalSumTotal,
+            zReportTotal: anyRecord.zReportTotal,
+            difference: anyRecord.xVsZDifference,
+            inTolerance: isWithinTolerance(Number(anyRecord.xVsZDifference)),
+          }
+        : null;
+    const xVsZOutOfTolerance = xVsZ != null && !xVsZ.inTolerance;
 
     // No committed record at all -> always pending.
     if (!record) {
-      const totals = await computeDailyTotals(day.date);
+      const totals = await computeDailyTotals(date);
       let zReportTotal = 0;
       try {
-        const email = await gmailService.findZReportEmail(day.date);
+        const email = await gmailService.findZReportEmail(date);
         const parsed = email ? parseDepartmentTotal(email.body) : null;
         if (parsed != null) zReportTotal = parsed;
       } catch {
@@ -50,24 +127,34 @@ adminReconciliationRouter.get("/pending", async (req, res) => {
       }
       const difference = Math.abs(totals.summaryTotal - zReportTotal);
 
+      // Represent the day with whichever shift's row was touched most
+      // recently — the closest equivalent to the old single-row "who last
+      // edited this day" now that there can be more than one row.
+      const latestRow = dayRows.reduce((a, b) => (b.updatedAt > a.updatedAt ? b : a));
+
       items.push({
-        date: day.date.toISOString().split("T")[0],
+        date: dateKey.split("T")[0],
         ...totals,
         zReportTotal,
         difference,
-        staffNotes: day.staffNotes ?? null,
+        staffNotes: latestRow.staffNotes ?? null,
         isStaffCommitted: false,
-        lastEditedByName: day.lastEditedByName ?? null,
-        lastEditedAt: day.updatedAt,
+        lastEditedByName: latestRow.lastEditedByName ?? null,
+        lastEditedAt: latestRow.updatedAt,
+        shifts,
+        xVsZ,
       });
       continue;
     }
 
-    // A record exists — it only keeps showing up here if it hasn't been
-    // signed off by admin yet AND its variance is over tolerance. Anything
-    // within tolerance, or already admin-reconciled, drops off the list.
-    if (record.isAdminReconciled) continue;
-    if (Math.abs(Number(record.difference)) <= VARIANCE_TOLERANCE) continue;
+    // A record exists. The ORIGINAL rule: keep showing up here only if not
+    // yet signed off by admin AND the day-level variance is over tolerance.
+    // WIDENED: a day also stays pending if a shift is individually flagged
+    // VARIANCE, or the X-vs-Z check disagrees — either can be true
+    // independently of the day-level summary-vs-Z figure the admin already
+    // reconciled, and each has its own dedicated resolution action.
+    const dayLevelPending = !record.isAdminReconciled && !isWithinTolerance(Number(record.difference));
+    if (!dayLevelPending && !anyShiftVariance && !xVsZOutOfTolerance) continue;
 
     items.push({
       date: record.date.toISOString().split("T")[0],
@@ -93,6 +180,8 @@ adminReconciliationRouter.get("/pending", async (req, res) => {
       isStaffCommitted: record.isStaffCommitted,
       committedByName: record.committedByName ?? null,
       committedAt: record.committedAt ?? null,
+      shifts,
+      xVsZ,
     });
   }
 
@@ -207,6 +296,8 @@ adminReconciliationRouter.post("/submit", async (req, res) => {
     difference,
     adminNotes,
   });
+
+  void evaluateDay(date);
 
   res.json({ message: "Reconciliation submitted successfully" });
 });
@@ -326,4 +417,80 @@ adminReconciliationRouter.get("/download-bills-range", async (req, res) => {
   res.setHeader("Content-Type", "application/zip");
   res.setHeader("Content-Disposition", `attachment; filename="zreport-bills-${fromStr}-to-${toStr}.zip"`);
   res.send(zip);
+});
+
+function parseShift(value: unknown): Shift | null {
+  return value === "DAY" ? Shift.DAY : value === "NIGHT" ? Shift.NIGHT : null;
+}
+
+// Admin correction of a shift's X-Report reconciliation — an approved
+// adjustment, never an overwrite of the till's original figure (see
+// applyAdminEdit's doc comment). Authorization comes entirely from the
+// authenticated token (req.userId/req.userName via requirePermission) —
+// nothing in the request body is trusted for identity, only the corrected
+// total and the reason.
+adminReconciliationRouter.post("/shift/edit", async (req, res) => {
+  if (!requireAdmin(req, res)) return;
+
+  const body = req.body ?? {};
+  const shift = parseShift(body.shift);
+  if (!body.date || !shift) {
+    return res.status(400).json({ message: "date and shift ('DAY' or 'NIGHT') are required." });
+  }
+  const total = Number(body.adminEditedTotal);
+  if (!Number.isFinite(total)) {
+    return res.status(400).json({ message: "adminEditedTotal must be a number." });
+  }
+  const reason = typeof body.reason === "string" ? body.reason.trim() : "";
+  if (!reason) {
+    return res.status(400).json({ message: "A reason is required to correct an X-Report total." });
+  }
+  if (req.userId == null) return res.status(401).json({ message: "User not authenticated" });
+
+  const date = dateOnly(body.date);
+  const before = await prisma.shiftReconciliation.findUnique({ where: { date_shift: { date, shift } } });
+
+  const updated = await applyAdminEdit(date, shift, {
+    total,
+    reason,
+    userId: req.userId,
+    userName: req.userName ?? null,
+  });
+
+  void writeAuditLog({
+    userId: req.userId,
+    userName: req.userName,
+    action: "shift_reconciliation_admin_edit",
+    entity: "ShiftReconciliation",
+    entityId: updated.shiftReconciliationId,
+    previousValue: before,
+    newValue: updated,
+  });
+
+  res.json(updated);
+});
+
+adminReconciliationRouter.post("/shift/resolve", async (req, res) => {
+  if (!requireAdmin(req, res)) return;
+
+  const body = req.body ?? {};
+  const shift = parseShift(body.shift);
+  if (!body.date || !shift) {
+    return res.status(400).json({ message: "date and shift ('DAY' or 'NIGHT') are required." });
+  }
+
+  const date = dateOnly(body.date);
+  const notes = typeof body.notes === "string" && body.notes.trim() ? body.notes.trim() : null;
+  const updated = await resolveShift(date, shift, notes);
+
+  void writeAuditLog({
+    userId: req.userId,
+    userName: req.userName,
+    action: "shift_reconciliation_resolve",
+    entity: "ShiftReconciliation",
+    entityId: updated.shiftReconciliationId,
+    newValue: updated,
+  });
+
+  res.json(updated);
 });

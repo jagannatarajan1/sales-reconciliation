@@ -1,0 +1,32 @@
+Z-Report Printed by VISUAL at 05/08/2026 21:00:00
+POS ID : 1 Date: 05/08/2026
+
+Staff ID: 101 Time: 21:00
+
+-----------------------------------------
+
+           Z-REPORT ID: Z99999
+
+-----------------------------------------
+
+DEPARTMENT SALES
+
+CASH 40.00
+
+CARD 5.00
+
+DEPARTMENT TOTAL 45.00
+
+-----------------------------------------
+
+TENDER TYPE
+
+CASH 30.00
+
+CARD 10.00
+
+MANUAL CARD 5.00
+
+GRAND TOTAL 45.00
+
+-----------------------------------------

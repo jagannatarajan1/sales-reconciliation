@@ -17,6 +17,7 @@ interface GoogleProfileResponse {
 
 interface GoogleMessageListResponse {
   messages?: { id: string }[];
+  nextPageToken?: string;
 }
 
 export function buildConsentUrl(state: string): string {
@@ -151,6 +152,7 @@ interface GmailMessagePart {
   mimeType?: string;
   body?: { data?: string };
   parts?: GmailMessagePart[];
+  headers?: { name: string; value: string }[];
 }
 
 function extractPlainTextBody(payload?: GmailMessagePart): string | null {
@@ -170,42 +172,97 @@ function extractPlainTextBody(payload?: GmailMessagePart): string | null {
   return null;
 }
 
-export async function findZReportEmail(targetDate: Date): Promise<ZReportEmailDto | null> {
+function extractHeader(payload: GmailMessagePart | undefined, name: string): string | undefined {
+  return payload?.headers?.find((h) => h.name.toLowerCase() === name.toLowerCase())?.value;
+}
+
+export interface TillEmailMessage {
+  gmailMessageId: string;
+  subject: string;
+  receivedAt: Date;
+  body: string;
+}
+
+// Lists every message from the configured till sender in [after, before),
+// full body + Subject header included. Deliberately does NOT filter by
+// subject server-side: real inbox evidence showed subjects ranging from the
+// documented "X-Report Printed"/"Z-Report Printed" convention down to a bare
+// "REPORT" or nothing at all, so Gmail's `subject:` search operator (which
+// also tokenises hyphens unpredictably) is not a safe filter. Callers
+// classify messages from the parsed body instead (see tillReportParser.ts).
+//
+// Paginates via nextPageToken — findZReportEmail below used to silently
+// take only `messages[0]` (Gmail's newest-first order), which is exactly
+// what let a same-day X-Report be mistaken for the Z-Report once the till
+// started sending both.
+export async function listTillReportEmails(after: Date, before: Date): Promise<TillEmailMessage[]> {
   const accessToken = await getValidAccessToken();
-  if (!accessToken) return null;
+  if (!accessToken) return [];
 
   const senderEmail = process.env.GMAIL_SENDER_EMAIL ?? "";
-  const startOfDay = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate());
-  const nextDay = new Date(startOfDay);
-  nextDay.setDate(nextDay.getDate() + 1);
-
-  const dateFilter = `after:${formatGmailDate(startOfDay)} before:${formatGmailDate(nextDay)}`;
+  const dateFilter = `after:${formatGmailDate(after)} before:${formatGmailDate(before)}`;
   const query = senderEmail ? `from:${senderEmail} ${dateFilter}` : dateFilter;
 
-  const listResponse = await fetch(
-    `${GMAIL_API_BASE}/messages?q=${encodeURIComponent(query)}`,
-    { headers: { Authorization: `Bearer ${accessToken}` } }
-  );
-  if (!listResponse.ok) return null;
+  const ids: string[] = [];
+  let pageToken: string | undefined;
+  do {
+    const params = new URLSearchParams({ q: query, maxResults: "100" });
+    if (pageToken) params.set("pageToken", pageToken);
 
-  const listResult = (await listResponse.json()) as GoogleMessageListResponse;
-  const firstMessageId = listResult.messages?.[0]?.id;
-  if (!firstMessageId) return null;
+    const listResponse = await fetch(`${GMAIL_API_BASE}/messages?${params.toString()}`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    if (!listResponse.ok) break;
 
-  const messageResponse = await fetch(`${GMAIL_API_BASE}/messages/${firstMessageId}?format=full`, {
-    headers: { Authorization: `Bearer ${accessToken}` },
-  });
-  if (!messageResponse.ok) return null;
+    const listResult = (await listResponse.json()) as GoogleMessageListResponse;
+    ids.push(...(listResult.messages ?? []).map((m) => m.id));
+    pageToken = listResult.nextPageToken;
+  } while (pageToken);
 
-  const message = (await messageResponse.json()) as {
-    payload?: GmailMessagePart;
-    internalDate?: string;
-  };
+  const messages: TillEmailMessage[] = [];
+  for (const id of ids) {
+    const messageResponse = await fetch(`${GMAIL_API_BASE}/messages/${id}?format=full`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    if (!messageResponse.ok) continue;
 
-  const body = extractPlainTextBody(message.payload) ?? "";
-  const emailDate = message.internalDate ? new Date(parseInt(message.internalDate, 10)) : startOfDay;
+    const message = (await messageResponse.json()) as {
+      payload?: GmailMessagePart;
+      internalDate?: string;
+    };
 
-  return { date: emailDate, body };
+    messages.push({
+      gmailMessageId: id,
+      subject: extractHeader(message.payload, "Subject") ?? "",
+      receivedAt: message.internalDate ? new Date(parseInt(message.internalDate, 10)) : new Date(),
+      body: extractPlainTextBody(message.payload) ?? "",
+    });
+  }
+
+  return messages;
+}
+
+// Kept as the pre-existing public entry point — every current caller
+// (summary.routes.ts, adminReconciliation.routes.ts, reports.routes.ts,
+// zReportBills.ts, zReports.routes.ts) keeps working unchanged, but the body
+// is now a thin shim over the persisted TillReport table (lib/tillReportIngest.ts)
+// instead of a live Gmail call on every invocation. ensureReportsForDate
+// ingests on demand (subject to a short throttle) and is a no-op for any
+// historical date that already has a Z-Report on file, which is also what
+// turns a 30-day range scan from 30 sequential Gmail round-trips into
+// effectively zero once backfilled.
+//
+// This module and tillReportIngest.ts import each other (ingestion needs
+// listTillReportEmails to fetch new mail; this needs ensureReportsForDate/
+// getZReport to read what's been ingested). That's safe here because neither
+// side calls into the other at module-load time — only from inside functions
+// invoked later, by which point both modules have finished evaluating.
+export async function findZReportEmail(targetDate: Date): Promise<ZReportEmailDto | null> {
+  const { ensureReportsForDate, getZReport } = await import("../lib/tillReportIngest.js");
+
+  await ensureReportsForDate(targetDate);
+  const report = await getZReport(targetDate);
+  return report ? { date: report.emailReceivedAt, body: report.rawBody } : null;
 }
 
 function encodeBase64Url(data: string): string {

@@ -439,6 +439,14 @@
   font-style: italic;
 }
 
+.open-no-source-note {
+  margin-top: 4px;
+  font-size: 11px;
+  line-height: 1.3;
+  color: var(--text-muted, #9aa1b2);
+  max-width: 120px;
+}
+
 /* ── Responsive ── */
 @media (max-width: 768px) {
   .page-container { padding: 1.25rem 1rem 50px; }

@@ -16,6 +16,7 @@ import {
 } from "react-icons/fi";
 import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../components/ui/Toast";
+import { isWithinTolerance } from "../../constants";
 import "./Summary.css";
 
 const API_BASE = import.meta.env.VITE_API_URL || "https://localhost:7276/api";
@@ -178,6 +179,9 @@ export const Summary = () => {
   const [isCommitted, setIsCommitted] = useState(false);
   const [isPendingAdminReview, setIsPendingAdminReview] = useState(false);
   const [departmentTotal, setDepartmentTotal] = useState(null);
+  const [shiftLabel, setShiftLabel] = useState(null);
+  const [shiftReportTotal, setShiftReportTotal] = useState(null);
+  const [shiftReportCount, setShiftReportCount] = useState(0);
 
   // Staff Notes — free-text, per-day, persisted on DailySummary; carried
   // forward to the Commit page via router state when the user proceeds.
@@ -220,6 +224,9 @@ export const Summary = () => {
         setDepartmentTotal(
           typeof data.departmentTotal === "number" ? data.departmentTotal : null,
         );
+        setShiftLabel(data.shiftLabel ?? null);
+        setShiftReportTotal(typeof data.shiftReportTotal === "number" ? data.shiftReportTotal : null);
+        setShiftReportCount(data.shiftReportCount ?? 0);
         // Staff Notes (C-revised) — persisted per-day on DailySummary, loaded
         // here so it round-trips through Save like every other field. Only
         // overwritten from the server on load; typing then hitting Save is
@@ -393,7 +400,7 @@ export const Summary = () => {
   const variance = hasDepartmentTotal
     ? liveSummaryTotal - departmentTotal
     : null;
-  const varianceInTolerance = hasDepartmentTotal && Math.abs(variance) <= 5;
+  const varianceInTolerance = hasDepartmentTotal && isWithinTolerance(variance);
 
   const fmt = (n) => `£${n.toFixed(2)}`;
 
@@ -611,6 +618,26 @@ export const Summary = () => {
             })}
           </motion.div>
 
+          {/* ── Shift (hidden entirely until the feature is live for this shop) ── */}
+          {shiftLabel && (
+            <div className="summary-total-panel summary-shift-panel">
+              <div className="summary-total-panel__title">{shiftLabel}</div>
+              <div className="summary-total-panel__rows">
+                <div className="summary-total-panel__row">
+                  <span>Till X-Report Total (this shift)</span>
+                  <span className={shiftReportTotal == null ? "summary-total-panel__row--muted" : ""}>
+                    {shiftReportTotal != null ? fmt(shiftReportTotal) : "Not yet received"}
+                  </span>
+                </div>
+                {shiftReportCount > 1 && (
+                  <div className="summary-shift-reprint-note">
+                    {shiftReportCount} X-Reports found for this shift — totals summed
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* ── Live Summary Total ── */}
           <div className="summary-total-panel">
             <div className="summary-total-panel__title">Summary Total</div>
@@ -648,7 +675,7 @@ export const Summary = () => {
                 <span>{fmt(liveSummaryTotal)}</span>
               </div>
               <div className="summary-total-panel__row summary-total-panel__row--department-total">
-                <span>Department Total</span>
+                <span>Z-Report Total (full day)</span>
                 <span className={hasDepartmentTotal ? "" : "summary-total-panel__row--muted"}>
                   {hasDepartmentTotal ? fmt(departmentTotal) : "Not yet received"}
                 </span>

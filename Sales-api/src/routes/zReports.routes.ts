@@ -3,6 +3,7 @@ import { dateOnly } from "../lib/activeDate.js";
 import { renderZReportBillPdf } from "../lib/pdf.js";
 import { getZReportStatusRange, buildZReportBillsZip } from "../lib/zReportBills.js";
 import * as gmailService from "../services/gmail.service.js";
+import { parseTillReport } from "../lib/tillReportParser.js";
 import { requirePermission } from "../lib/permissions.js";
 
 // Z Reports admin page — browse historical Z-report emails over a date
@@ -62,6 +63,38 @@ zReportsRouter.get("/:date", async (req, res) => {
     found: !!email,
     receivedAt: email?.date.toISOString() ?? null,
     body: email?.body ?? null,
+  });
+});
+
+// Diagnostic: shows every till email around this date and how the parser
+// reads each one, so a human can eyeball real inbox data against
+// tillReportParser.ts's output — e.g. to check a subject/type mismatch or a
+// header/Date: field disagreement before it ever affects reconciliation.
+zReportsRouter.get("/:date/parsed", async (req, res) => {
+  if (!requireReports(req, res)) return;
+
+  const target = dateOnly(req.params.date);
+  const after = new Date(target);
+  after.setDate(after.getDate() - 1);
+  const before = new Date(target);
+  before.setDate(before.getDate() + 2);
+
+  const messages = await gmailService.listTillReportEmails(after, before);
+  const parsed = messages.map((m) => ({
+    gmailMessageId: m.gmailMessageId,
+    subject: m.subject,
+    receivedAt: m.receivedAt.toISOString(),
+    ...parseTillReport(m.body, m.subject),
+  }));
+
+  const selectedZReport = await gmailService.findZReportEmail(target);
+
+  res.json({
+    date: target.toISOString().split("T")[0],
+    windowFrom: after.toISOString().split("T")[0],
+    windowTo: before.toISOString().split("T")[0],
+    messages: parsed,
+    selectedZReportReceivedAt: selectedZReport?.date.toISOString() ?? null,
   });
 });
 

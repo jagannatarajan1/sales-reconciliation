@@ -538,6 +538,81 @@
   display: inline-block;
 }
 
+/* ── Shift readiness ── */
+.commit-shift-readiness {
+  background: #f8faff;
+  border: 1.5px solid #c7d7fb;
+  border-radius: 10px;
+  padding: 16px 20px;
+  margin-bottom: 1.2rem;
+}
+
+.commit-shift-readiness-title {
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #4b5563;
+  margin-bottom: 10px;
+}
+
+.commit-shift-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.commit-shift-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 0.88rem;
+}
+
+.commit-shift-row-label {
+  font-weight: 600;
+  color: #1f2937;
+  flex: 1;
+}
+
+.commit-shift-row-value {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: #1f2937;
+}
+
+.commit-shift-row-pill {
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: #f3f4f6;
+  color: #6b7280;
+}
+
+.commit-shift-row-pill--ok { background: #f0fdf4; color: #15803d; }
+.commit-shift-row-pill--resolved { background: #eef2ff; color: #4338ca; }
+.commit-shift-row-pill--variance { background: #fef2f2; color: #dc2626; }
+.commit-shift-row-pill--pending { background: #f3f4f6; color: #6b7280; }
+
+.commit-shift-xvz {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px dashed #c7d7fb;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  font-size: 0.82rem;
+  color: #374151;
+}
+
+.commit-shift-xvz--over {
+  color: #dc2626;
+}
+
 @media (max-width: 480px) {
   .commit-page { padding: 1.2rem; }
   .commit-title { font-size: 1.4rem; }
@@ -545,4 +620,5 @@
   .commit-input-wrap { width: 100%; }
   .commit-select { width: 100%; }
   .commit-done-badge { flex-direction: column; align-items: flex-start; }
+  .commit-shift-row { flex-wrap: wrap; }
 }

@@ -1,7 +1,8 @@
 import { Router } from "express";
 import { prisma } from "../lib/prisma.js";
-import { getActiveDate } from "../lib/activeDate.js";
+import { getActiveContext } from "../lib/activeDate.js";
 import { syncDailySummaryFields } from "../lib/dailySummarySync.js";
+import { evaluateAndNotify } from "../lib/shiftReconciliation.js";
 
 export const paypointRouter = Router();
 
@@ -13,8 +14,8 @@ function toNumber(value: unknown): number {
 paypointRouter.get("/", async (req, res) => {
   if (req.userId == null) return res.status(401).json({ message: "User not authenticated" });
 
-  const date = await getActiveDate();
-  const record = await prisma.paypointRecord.findUnique({ where: { date } });
+  const { date, shift } = await getActiveContext();
+  const record = await prisma.paypointRecord.findUnique({ where: { date_shift: { date, shift } } });
   if (!record) return res.status(404).json({ message: "No paypoint record found for today." });
 
   res.json({ id: record.paypointRecordId, paypointValue: record.paypointValue, date: record.date });
@@ -23,14 +24,15 @@ paypointRouter.get("/", async (req, res) => {
 paypointRouter.post("/", async (req, res) => {
   if (req.userId == null) return res.status(401).json({ message: "User not authenticated" });
 
-  const date = await getActiveDate();
+  const { date, shift } = await getActiveContext();
   const paypointValue = toNumber(req.body?.paypointValue);
   const record = await prisma.paypointRecord.upsert({
-    where: { date },
-    create: { date, paypointValue },
+    where: { date_shift: { date, shift } },
+    create: { date, shift, paypointValue },
     update: { paypointValue },
   });
-  await syncDailySummaryFields(date, { paypointValue });
+  await syncDailySummaryFields(date, shift, { paypointValue });
+  void evaluateAndNotify(date, shift);
 
   res.json({ id: record.paypointRecordId, paypointValue: record.paypointValue, date: record.date });
 });
@@ -43,7 +45,8 @@ paypointRouter.put("/:id", async (req, res) => {
     where: { paypointRecordId: Number(req.params.id) },
     data: { paypointValue },
   });
-  await syncDailySummaryFields(record.date, { paypointValue });
+  await syncDailySummaryFields(record.date, record.shift, { paypointValue });
+  void evaluateAndNotify(record.date, record.shift);
 
   res.json({ id: record.paypointRecordId, paypointValue: record.paypointValue, date: record.date });
 });

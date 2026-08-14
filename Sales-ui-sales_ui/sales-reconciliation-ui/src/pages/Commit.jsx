@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { motion } from "framer-motion";
 import { FiArrowLeft, FiCheckCircle, FiMail, FiAlertCircle } from "react-icons/fi";
 import { useAuth } from "../context/AuthContext";
+import { VARIANCE_TOLERANCE } from "../constants";
 import "./Commit.css";
 
 const API_BASE = import.meta.env.VITE_API_URL || "https://localhost:7276/api";
@@ -35,6 +36,10 @@ export const Commit = () => {
   // sees why the button is unavailable instead of being refused on click.
   const [zReportAvailable, setZReportAvailable] = useState(true);
   const [zReportMessage, setZReportMessage]     = useState("");
+  // Shift readiness — empty shifts array (feature not active yet, or no
+  // shift data for today) simply hides the panel; nothing here blocks commit.
+  const [shifts, setShifts] = useState([]);
+  const [xVsZ, setXVsZ]     = useState(null);
 
   // If Summary passed staffNotes through (already filled in there), pre-fill
   // this page's textarea with it.
@@ -50,10 +55,17 @@ export const Commit = () => {
     setErrorMsg("");
     setZReportMessage("");
     try {
-      const [summaryRes, zReportRes] = await Promise.all([
+      const [summaryRes, zReportRes, shiftStatusRes] = await Promise.all([
         fetch(`${SUMMARY_URL}/today`,          { headers: authHeaders() }),
         fetch(`${SUMMARY_URL}/zreport-status`, { headers: authHeaders() }),
+        fetch(`${SUMMARY_URL}/shift-status`,   { headers: authHeaders() }),
       ]);
+
+      if (shiftStatusRes.ok) {
+        const shiftStatus = await shiftStatusRes.json();
+        setShifts(Array.isArray(shiftStatus.shifts) ? shiftStatus.shifts : []);
+        setXVsZ(shiftStatus.xVsZ ?? null);
+      }
 
       if (!summaryRes.ok) {
         setErrorMsg("Failed to load today's data.");
@@ -147,6 +159,15 @@ export const Commit = () => {
       hour: "2-digit", minute: "2-digit",
     });
 
+  const fmtGBP = (val) => {
+    const n = parseFloat(val);
+    return isNaN(n) ? "£0.00" : `£${n.toFixed(2)}`;
+  };
+
+  const SHIFT_LABEL = { DAY: "Day Shift", NIGHT: "Night Shift" };
+  const dayShift = shifts.find((s) => s.shift === "DAY");
+  const nightShift = shifts.find((s) => s.shift === "NIGHT");
+
   return (
     <motion.div
       className="commit-page"
@@ -205,6 +226,35 @@ export const Commit = () => {
                 </div>
               )}
 
+              {/* Shift readiness — only rendered once there is actual shift
+                  data to show; stays invisible entirely until that feature
+                  is live, same as every other shift UI in this app. */}
+              {(dayShift || nightShift) && (
+                <div className="commit-shift-readiness">
+                  <div className="commit-shift-readiness-title">Shift Readiness</div>
+                  <div className="commit-shift-rows">
+                    {[dayShift, nightShift].filter(Boolean).map((s) => (
+                      <div key={s.shift} className="commit-shift-row">
+                        <span className="commit-shift-row-label">{SHIFT_LABEL[s.shift]}</span>
+                        <span className="commit-shift-row-value">
+                          {s.finalTotal != null ? fmtGBP(s.finalTotal) : "Pending"}
+                        </span>
+                        <span className={`commit-shift-row-pill commit-shift-row-pill--${(s.finalStatus || '').toLowerCase()}`}>
+                          {s.finalStatus === 'VARIANCE' ? 'Variance' : s.finalStatus === 'RESOLVED' ? 'Resolved' : s.finalStatus === 'OK' ? 'OK' : 'Pending'}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                  {xVsZ && (
+                    <div className={`commit-shift-xvz${xVsZ.inTolerance ? '' : ' commit-shift-xvz--over'}`}>
+                      <span>X Total (Day + Night): <strong>{xVsZ.xSum != null ? fmtGBP(xVsZ.xSum) : '—'}</strong></span>
+                      <span>Z-Report: <strong>{xVsZ.zReportTotal != null ? fmtGBP(xVsZ.zReportTotal) : '—'}</strong></span>
+                      <span>{xVsZ.inTolerance ? 'Within tolerance' : 'Requires review'}</span>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {errorMsg && (
                 <div className="commit-error-msg"><FiAlertCircle /> {errorMsg}</div>
               )}
@@ -244,7 +294,7 @@ export const Commit = () => {
                       : alreadyAttempted
                         ? "Already Attempted — Commit Locked for This Date"
                         : limitExceeded
-                          ? "Commit Blocked — Exceeds £5.00 Limit"
+                          ? `Commit Blocked — Exceeds £${VARIANCE_TOLERANCE.toFixed(2)} Limit`
                           : "Confirm Commit"
                   }
                 </button>

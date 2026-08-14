@@ -1044,6 +1044,212 @@
   .ar-rpt-print-header p { margin: 4px 0 0; color: #6b7280; }
 }
 
+/* ── Shift day-chip badges (D/N) ── */
+.ar-chip-shift-badges {
+  display: flex;
+  gap: 3px;
+}
+
+.ar-chip-shift-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+  font-size: 0.62rem;
+  font-weight: 800;
+  background: #e5e7eb;
+  color: #4b5563;
+}
+
+.ar-chip-shift-badge--variance {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+.ar-chip--active .ar-chip-shift-badge {
+  background: rgba(255, 255, 255, 0.25);
+  color: white;
+}
+
+.ar-chip--active .ar-chip-shift-badge--variance {
+  background: rgba(255, 255, 255, 0.4);
+  color: #fff1f1;
+}
+
+/* ── Shift Breakdown panel ── */
+.ar-shift-breakdown {
+  margin: 0 0 1.25rem;
+  padding: 1rem;
+  border: 1.5px solid #e5e7eb;
+  border-radius: 12px;
+  background: #fafafa;
+}
+
+.ar-shift-breakdown-title {
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #374151;
+  margin-bottom: 0.75rem;
+}
+
+.ar-shift-cards {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+@media (max-width: 640px) {
+  .ar-shift-cards { grid-template-columns: 1fr; }
+}
+
+.ar-shift-card {
+  background: white;
+  border: 1.5px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 14px;
+}
+
+.ar-shift-card--empty {
+  opacity: 0.6;
+}
+
+.ar-shift-card--variance {
+  border-color: #fca5a5;
+  background: #fffafa;
+}
+
+.ar-shift-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.ar-shift-card-title {
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: #1f2937;
+}
+
+.ar-shift-status-pill {
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: #f3f4f6;
+  color: #4b5563;
+}
+
+.ar-shift-status-pill--ok { background: #f0fdf4; color: #15803d; }
+.ar-shift-status-pill--resolved { background: #eef2ff; color: #4338ca; }
+.ar-shift-status-pill--variance { background: #fef2f2; color: #dc2626; }
+.ar-shift-status-pill--pending { background: #f3f4f6; color: #6b7280; }
+
+.ar-shift-chain {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ar-shift-chain-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.ar-shift-chain-row .ar-label {
+  font-size: 0.68rem;
+}
+
+.ar-shift-chain-row .ar-value {
+  font-size: 0.85rem;
+  text-align: right;
+}
+
+.ar-shift-chain-row--final .ar-value {
+  color: var(--brand-600);
+}
+
+.ar-shift-chain-divider {
+  border-top: 1px dashed #e5e7eb;
+  margin: 4px 0;
+}
+
+.ar-shift-reprint-note {
+  font-size: 0.72rem;
+  color: #b45309;
+  background: #fffbeb;
+  border: 1px solid #fcd34d;
+  border-radius: 6px;
+  padding: 4px 8px;
+}
+
+.ar-shift-edit-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  margin-top: 12px;
+  padding: 9px;
+  background: white;
+  border: 1.5px solid var(--brand-500);
+  color: var(--brand-600);
+  border-radius: 8px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.ar-shift-edit-btn:hover {
+  background: var(--brand-50);
+}
+
+.ar-shift-edit-form {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 12px;
+  border-top: 1px solid #e5e7eb;
+}
+
+.ar-shift-edit-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.ar-submit-btn--sm,
+.ar-cancel-btn--sm {
+  width: auto;
+  flex: 1;
+  padding: 9px;
+  font-size: 0.82rem;
+}
+
+.ar-xvz-summary {
+  margin-top: 14px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: #f0fdf4;
+  border: 1.5px solid #86efac;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ar-xvz-summary--over {
+  background: #fef2f2;
+  border-color: #fca5a5;
+}
+
 /* ── Responsive ── */
 @media (max-width: 640px) {
   .ar-page    { padding: 1rem; }

@@ -12,7 +12,8 @@ export const AdminResetCommitDate = () => {
   const { user } = useAuth();
 
   const [selectedDate, setSelectedDate]     = useState("");
-  const [currentOverride, setCurrentOverride] = useState(null); // { hasOverride, activeDate, setAt }
+  const [selectedShift, setSelectedShift]   = useState("auto"); // 'auto' | 'DAY' | 'NIGHT'
+  const [currentOverride, setCurrentOverride] = useState(null); // { hasOverride, activeDate, activeShift, setAt }
   const [loadingOverride, setLoadingOverride] = useState(true);
   const [saving, setSaving]         = useState(false);
   const [message, setMessage]       = useState(null); // { type: "success"|"error", text }
@@ -32,7 +33,11 @@ export const AdminResetCommitDate = () => {
     setLoadingOverride(true);
     try {
       const res = await fetch(BASE, { headers: authHeaders() });
-      if (res.ok) setCurrentOverride(await res.json());
+      if (res.ok) {
+        const data = await res.json();
+        setCurrentOverride(data);
+        setSelectedShift(data.activeShift ?? "auto");
+      }
     } finally {
       setLoadingOverride(false);
     }
@@ -46,7 +51,10 @@ export const AdminResetCommitDate = () => {
       const res = await fetch(BASE, {
         method: "POST",
         headers: authHeaders(),
-        body: JSON.stringify({ activeDate: selectedDate }),
+        body: JSON.stringify({
+          activeDate: selectedDate,
+          activeShift: selectedShift === "auto" ? null : selectedShift,
+        }),
       });
       const data = await res.json();
       if (res.ok) {
@@ -116,6 +124,9 @@ export const AdminResetCommitDate = () => {
               <span>
                 Active date is set to <strong>{formatDate(currentOverride.activeDate)}</strong>
                 {currentOverride.setAt && ` (set ${formatDate(currentOverride.setAt)})`}
+                {currentOverride.activeShift && (
+                  <> — shift forced to <strong>{currentOverride.activeShift === "NIGHT" ? "Night" : "Day"}</strong></>
+                )}
               </span>
               <button
                 className="arc-btn arc-btn-danger"
@@ -151,6 +162,28 @@ export const AdminResetCommitDate = () => {
           </div>
           <p className="arc-hint">
             All staff will see this date as their active commit date immediately after saving.
+          </p>
+
+          <label className="arc-label arc-label--shift">Shift</label>
+          <div className="arc-shift-toggle">
+            {[
+              { value: "auto", label: "Auto" },
+              { value: "DAY", label: "Day" },
+              { value: "NIGHT", label: "Night" },
+            ].map((opt) => (
+              <button
+                key={opt.value}
+                type="button"
+                className={`arc-shift-btn${selectedShift === opt.value ? " arc-shift-btn--active" : ""}`}
+                onClick={() => setSelectedShift(opt.value)}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+          <p className="arc-hint">
+            Auto derives the shift from the clock. Day/Night forces it — e.g. for night staff still
+            finishing entries after the cutoff has rolled into the next shift.
           </p>
         </div>
 

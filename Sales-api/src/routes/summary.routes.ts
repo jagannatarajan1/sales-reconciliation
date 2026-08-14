@@ -1,11 +1,14 @@
 import { Router } from "express";
 import { prisma } from "../lib/prisma.js";
-import { getActiveDate, dateOnly } from "../lib/activeDate.js";
+import { getActiveDate, getActiveContext, dateOnly, shiftCutoffMinutes } from "../lib/activeDate.js";
 import { computeDailyTotals } from "../lib/dailyTotals.js";
 import { parseDepartmentTotal } from "../lib/departmentTotal.js";
 import { sendCommitNotificationEmail } from "../lib/commitEmail.js";
 import * as gmailService from "../services/gmail.service.js";
+import { getShiftXTotal } from "../lib/tillReportIngest.js";
+import { evaluateAndNotify, evaluateDay, getShiftBreakdown } from "../lib/shiftReconciliation.js";
 import { writeAuditLog } from "../lib/auditLog.js";
+import { Shift } from "@prisma/client";
 
 export const summaryRouter = Router();
 
@@ -42,11 +45,18 @@ summaryRouter.get("/today", async (req, res) => {
     return res.status(401).json({ message: "User not authenticated" });
   }
 
-  const date = await getActiveDate();
-  const [record, totals, reconciliation] = await Promise.all([
-    prisma.dailySummary.findUnique({ where: { date }, include: { creditCardEntries: true } }),
+  const { date, shift, shiftSource } = await getActiveContext();
+  const [record, totals, reconciliation, shiftX] = await Promise.all([
+    prisma.dailySummary.findUnique({ where: { date_shift: { date, shift } }, include: { creditCardEntries: true } }),
     computeDailyTotals(date),
     prisma.reconciliationRecord.findUnique({ where: { date } }),
+    // Never allowed to fail the whole endpoint: Summary must keep loading
+    // before any X-Report for the shift has arrived. While
+    // SHIFT_ENTRY_ENABLED is off, shift is always FULL_DAY here, and
+    // TillReport rows are never classified FULL_DAY (till reports are always
+    // DAY/NIGHT) — so this naturally comes back empty rather than needing a
+    // separate on/off branch.
+    getShiftXTotal(date, shift).catch(() => ({ total: null, count: 0 })),
   ]);
 
   // Best-effort live comparison against today's Z-Report, if it has arrived
@@ -61,6 +71,20 @@ summaryRouter.get("/today", async (req, res) => {
   }
   const variance = departmentTotal != null ? Math.round((totals.summaryTotal - departmentTotal) * 100) / 100 : null;
 
+  // While shift entry is disabled, shift is always FULL_DAY — surfaced as no
+  // shift info at all (null label) rather than a misleading "Day Shift",
+  // which keeps the frontend's shift pill hidden and the page looking
+  // exactly as it did before this feature existed.
+  const shiftLabel = shift === Shift.DAY ? "Day Shift" : shift === Shift.NIGHT ? "Night Shift" : null;
+  const shiftFields = {
+    shift,
+    shiftLabel,
+    shiftSource,
+    shiftCutoff: `${String(Math.floor(shiftCutoffMinutes() / 60)).padStart(2, "0")}:${String(shiftCutoffMinutes() % 60).padStart(2, "0")}`,
+    shiftReportTotal: shiftLabel ? shiftX.total : null,
+    shiftReportCount: shiftLabel ? shiftX.count : 0,
+  };
+
   if (!record) {
     return res.json({
       date,
@@ -70,6 +94,7 @@ summaryRouter.get("/today", async (req, res) => {
       supplierInvoicesTotal: totals.supplierInvoicesTotal,
       instantLotteryTotalCount: totals.instantLotteryTotalCount,
       instantLotteryTotalSales: totals.instantLotteryTotalSales,
+      ...shiftFields,
       ...(departmentTotal != null ? { departmentTotal, variance } : {}),
     });
   }
@@ -100,6 +125,7 @@ summaryRouter.get("/today", async (req, res) => {
       cardAmount: e.cardAmount,
       createdDate: e.createdDate,
     })),
+    ...shiftFields,
     ...(departmentTotal != null ? { departmentTotal, variance } : {}),
   });
 });
@@ -109,7 +135,7 @@ summaryRouter.put("/", async (req, res) => {
     return res.status(401).json({ message: "User not authenticated" });
   }
 
-  const date = await getActiveDate();
+  const { date, shift } = await getActiveContext();
   const body = req.body ?? {};
 
   const fieldData = Object.fromEntries(EDITABLE_KEYS.map((k) => [k, toNumber(body[k])]));
@@ -124,8 +150,8 @@ summaryRouter.put("/", async (req, res) => {
   const lastEditedByName = req.userName ?? null;
 
   const record = await prisma.dailySummary.upsert({
-    where: { date },
-    create: { date, ...fieldData, lastSafe, safeDropAmount, staffNotes, lastEditedByUserId, lastEditedByName },
+    where: { date_shift: { date, shift } },
+    create: { date, shift, ...fieldData, lastSafe, safeDropAmount, staffNotes, lastEditedByUserId, lastEditedByName },
     update: { ...fieldData, lastSafe, safeDropAmount, staffNotes, lastEditedByUserId, lastEditedByName },
   });
 
@@ -155,6 +181,12 @@ summaryRouter.put("/", async (req, res) => {
     where: { dailySummaryId: record.dailySummaryId, creditCardEntryId: { notIn: keepIds } },
   });
 
+  // Fire-and-forget, same pattern as the existing writeAuditLog calls —
+  // staff correcting their figures should clear a variance without waiting
+  // for the next poller cycle. No-ops on its own while SHIFT_ENTRY_ENABLED
+  // is off (see evaluateAndNotify's doc comment).
+  void evaluateAndNotify(date, shift);
+
   res.json({ message: "Summary saved successfully" });
 });
 
@@ -168,7 +200,10 @@ summaryRouter.get("/zreport-email", async (req, res) => {
   }
 
   const targetDate = await getActiveDate();
-  const summary = await prisma.dailySummary.findUnique({ where: { date: targetDate } });
+  // isCommitted/isPendingAdminReview are set nowhere in the codebase (dead
+  // fields, always false) — findFirst rather than findUnique only because
+  // `date` alone is no longer a unique key; behaviour here is unchanged.
+  const summary = await prisma.dailySummary.findFirst({ where: { date: targetDate } });
   if (summary?.isCommitted) {
     return res.json({ isCommitted: true, targetDate, message: "Today's values are already committed. Next Z-report available tomorrow." });
   }
@@ -228,6 +263,22 @@ summaryRouter.get("/zreport-status", async (req, res) => {
     available,
     message: available ? null : Z_REPORT_MISSING_MESSAGE,
   });
+});
+
+// Non-admin-gated (same reasoning as /committed-dates below): the Commit
+// page's readiness panel needs to show "how are today's shifts looking"
+// before committing, which is a staff concern, not an admin one. Shares its
+// read model with the admin pending queue via getShiftBreakdown, so the two
+// surfaces can never disagree about a shift's status.
+summaryRouter.get("/shift-status", async (req, res) => {
+  if (req.userId == null) {
+    return res.status(401).json({ message: "User not authenticated" });
+  }
+
+  const targetDate = req.query.date ? dateOnly(req.query.date as string) : await getActiveDate();
+  const breakdown = await getShiftBreakdown(targetDate);
+
+  res.json({ date: targetDate, ...breakdown });
 });
 
 summaryRouter.post("/commit", async (req, res) => {
@@ -306,6 +357,11 @@ summaryRouter.post("/commit", async (req, res) => {
     difference,
     staffNotes,
   });
+
+  // Refresh the X-vs-Z snapshot on the record we just committed. No-ops
+  // (writes nulls) while SHIFT_ENTRY_ENABLED is off or no shifts have final
+  // totals yet — never fails the commit itself.
+  void evaluateDay(date);
 
   res.json({ message: "Committed successfully", committedAt: record.committedAt });
 });
