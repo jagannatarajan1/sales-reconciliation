@@ -4,6 +4,8 @@ import { motion } from "framer-motion";
 import { FiArrowLeft, FiCheckCircle, FiAlertTriangle, FiEdit2, FiX } from "react-icons/fi";
 import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../components/ui/Toast";
+import PhotoAttachments from "../../components/PhotoAttachments";
+import { PHOTO_SECTIONS } from "../../constants/photoSections";
 import "./CreditCardBanking.css";
 
 const SUMMARY_URL = `${import.meta.env.VITE_API_URL || "https://localhost:7276/api"}/Summary`;
@@ -223,6 +225,14 @@ export const CreditCardBanking = () => {
                 </button>
               </div>
             )}
+
+            <PhotoAttachments
+              section={PHOTO_SECTIONS.creditCardBanking}
+              date={activeDateStr ?? todayStr}
+              readOnly={isLocked}
+              title="Credit Card Photos"
+              description="Attach a photo of the card machine totals from your camera or a file on this device."
+            />
           </>
         )}
       </div>

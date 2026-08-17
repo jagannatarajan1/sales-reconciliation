@@ -16,6 +16,8 @@ import {
 } from "react-icons/fi";
 import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../components/ui/Toast";
+import PhotoAttachments from "../../components/PhotoAttachments";
+import { PHOTO_SECTIONS } from "../../constants/photoSections";
 import "./Summary.css";
 
 const API_BASE = import.meta.env.VITE_API_URL || "https://localhost:7276/api";
@@ -701,6 +703,14 @@ export const Summary = () => {
               </div>
             </div>
           </div>
+
+          <PhotoAttachments
+            section={PHOTO_SECTIONS.summary}
+            date={(date || new Date().toISOString()).split("T")[0]}
+            readOnly={isLocked}
+            title="Summary Photos"
+            description="Attach any photo backing up today's figures, from your camera or a file on this device."
+          />
 
           <div className="summary-footer">
             {isLocked ? (

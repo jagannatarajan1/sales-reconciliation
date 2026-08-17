@@ -7,6 +7,8 @@ import {
 } from 'react-icons/fi';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../components/ui/Toast';
+import PhotoAttachments from '../../components/PhotoAttachments';
+import { PHOTO_SECTIONS } from '../../constants/photoSections';
 import './AdminZReports.css';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'https://localhost:7276/api';
@@ -324,6 +326,13 @@ export const AdminZReports = () => {
               <FiXCircle /> No Z-report email found for this date.
             </div>
           )}
+
+          <PhotoAttachments
+            section={PHOTO_SECTIONS.zReports}
+            date={detail.date}
+            title="Z-Report Photos"
+            description="Attach a photo of the printed Z-report or till roll for this date, from your camera or a file on this device."
+          />
         </div>
       ) : hasSearched && items.length === 0 ? (
         <div className="zr-empty-panel zr-no-print">

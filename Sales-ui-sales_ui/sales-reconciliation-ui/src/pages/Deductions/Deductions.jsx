@@ -4,6 +4,8 @@ import { motion } from 'framer-motion';
 import { FiArrowLeft, FiCalendar, FiAlertCircle, FiPlus, FiX, FiEdit2, FiCheck, FiLock } from 'react-icons/fi';
 import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../components/ui/Toast";
+import PhotoAttachments from "../../components/PhotoAttachments";
+import { PHOTO_SECTIONS } from "../../constants/photoSections";
 import "./Deductions.css";
 
 const API = import.meta.env.VITE_API_URL || 'https://localhost:7276/api';
@@ -159,7 +161,7 @@ const blankInvoiceRow = () => ({ id: Date.now(), supplierId: '', invoiceNo: '', 
 
 // Supplier invoice values are always editable, regardless of the day's
 // commit status — there is no invoice-specific lock/reopen mechanism.
-function SupplierInvoices({ token, showToast, isLocked }) {
+function SupplierInvoices({ token, showToast, isLocked, date }) {
   const [suppliers, setSuppliers] = useState([]);
   const [invoices, setInvoices]   = useState([]);
   const [loading, setLoading]     = useState(true);
@@ -465,6 +467,16 @@ function SupplierInvoices({ token, showToast, isLocked }) {
           </button>
         </div>
       )}
+
+      {date && (
+        <PhotoAttachments
+          section={PHOTO_SECTIONS.supplierInvoices}
+          date={date}
+          readOnly={invoicesLocked}
+          title="Invoice Photos"
+          description="Photograph each supplier invoice as it is entered, or attach a file from this device."
+        />
+      )}
     </div>
   );
 }
@@ -498,6 +510,7 @@ export const Deductions = () => {
   const isLocked = isCommitted || isPendingAdminReview;
 
   const displayDate = fmtDate(activeDate ?? new Date().toISOString());
+  const photoDate = (activeDate ?? new Date().toISOString()).split('T')[0];
 
   if (!user || !user.token) {
     return <div className="ded-loading">Authenticating…</div>;
@@ -518,7 +531,15 @@ export const Deductions = () => {
           <span className="ded-date-chip"><FiCalendar /> {displayDate}</span>
         </div>
         <DeductionsGrid   token={user.token} showToast={showToast} isLocked={isLocked} />
-        <SupplierInvoices token={user.token} showToast={showToast} isLocked={isLocked} />
+        <SupplierInvoices token={user.token} showToast={showToast} isLocked={isLocked} date={photoDate} />
+
+        <PhotoAttachments
+          section={PHOTO_SECTIONS.deductions}
+          date={photoDate}
+          readOnly={isLocked}
+          title="Deduction Photos"
+          description="Attach a photo of the receipt or voucher backing these deductions, from your camera or a file on this device."
+        />
       </div>
     </motion.div>
   );

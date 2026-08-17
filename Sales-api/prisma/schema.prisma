@@ -42,6 +42,39 @@ model AdminLoginOtp {
   @@index([userId])
 }
 
+// Photo evidence attached to a data-entry page. Deliberately generic rather
+// than one relation per page: every module scopes its work to a single day,
+// so (section, date) addresses the day's entry on that page, and the optional
+// entityId narrows it further to one row within the page (a supplier invoice,
+// a scratch card) for the modules that are list-shaped rather than form-shaped.
+// Keep `section` values in sync with ATTACHMENT_SECTIONS in lib/attachments.ts.
+//
+// Only metadata lives here — the bytes are on disk under UPLOAD_DIR, named by
+// storedName. Nothing derived from the client's filename ever reaches the
+// filesystem.
+model Attachment {
+  attachmentId Int      @id @default(autoincrement())
+  section      String
+  date         DateTime @db.Date
+  entityId     String?
+
+  fileName   String
+  storedName String @unique
+  mimeType   String
+  sizeBytes  Int
+  // "camera" when captured live in the browser, "file" when picked from the
+  // device. Recorded because a receipt photographed at the till and one
+  // uploaded later are different kinds of evidence during a dispute.
+  source     String @default("file")
+
+  uploadedByUserId Int?
+  uploadedByName   String?
+  createdAt        DateTime @default(now())
+
+  @@index([section, date])
+  @@index([date])
+}
+
 model AuditLog {
   auditLogId    Int      @id @default(autoincrement())
   userId        Int?

@@ -1,12 +1,14 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { Fragment, useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
-  FiArrowLeft, FiRotateCcw, FiClipboard, FiPlus, FiX,
+  FiArrowLeft, FiRotateCcw, FiClipboard, FiPlus, FiX, FiCamera,
 } from 'react-icons/fi';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../components/ui/Toast';
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
+import PhotoAttachments from '../../components/PhotoAttachments';
+import { PHOTO_SECTIONS } from '../../constants/photoSections';
 import './ScratchCards.css';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'https://localhost:7276/api';
@@ -143,6 +145,9 @@ export const ScratchCards = () => {
   const [newPrice,  setNewPrice]  = useState('');
   const [adding, setAdding]       = useState(false);
   const [draggedCardId, setDraggedCardId] = useState(null);
+  // Which card's photo row is open. Only one at a time, and only mounted
+  // while open, so the page does not fetch every card's images on load.
+  const [photosForCardId, setPhotosForCardId] = useState(null);
 
   const fetchCards = useCallback(async (options = {}) => {
     const { silent = false } = options;
@@ -350,8 +355,8 @@ export const ScratchCards = () => {
               </thead>
               <tbody>
                 {cards.map((card) => (
+                  <Fragment key={card.id}>
                   <tr
-                    key={card.id}
                     className={`${card.isActive ? '' : 'sc-row--inactive'} ${draggedCardId === card.id ? 'sc-row--dragging' : ''}`}
                     draggable={canManage}
                     onDragStart={() => setDraggedCardId(card.id)}
@@ -418,6 +423,14 @@ export const ScratchCards = () => {
                             : card.isActive ? 'Deactivate' : 'Activate'}
                         </button>
 
+                        <button
+                          className="sc-action-btn sc-action-btn--photos"
+                          onClick={() => setPhotosForCardId((id) => (id === card.id ? null : card.id))}
+                          aria-expanded={photosForCardId === card.id}
+                        >
+                          <FiCamera /> {photosForCardId === card.id ? 'Hide Photos' : 'Photos'}
+                        </button>
+
                         {canManage && (
                           <button
                             className="sc-action-btn sc-action-btn--delete"
@@ -431,6 +444,21 @@ export const ScratchCards = () => {
                       </div>
                     </td>
                   </tr>
+
+                  {photosForCardId === card.id && (
+                    <tr className="sc-photos-row">
+                      <td colSpan={6}>
+                        <PhotoAttachments
+                          section={PHOTO_SECTIONS.scratchCards}
+                          entityId={card.id}
+                          readOnly={!canManage}
+                          compact
+                          title={`Photos — ${card.scratchCardNo || 'card'}`}
+                        />
+                      </td>
+                    </tr>
+                  )}
+                  </Fragment>
                 ))}
               </tbody>
             </table>

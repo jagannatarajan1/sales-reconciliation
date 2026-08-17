@@ -4,6 +4,8 @@ import { motion } from "framer-motion";
 import { FiArrowLeft, FiCalendar, FiCheckCircle, FiAlertTriangle, FiEdit2, FiX } from "react-icons/fi";
 import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../components/ui/Toast";
+import PhotoAttachments from "../../components/PhotoAttachments";
+import { PHOTO_SECTIONS } from "../../constants/photoSections";
 import "./Paypoint.css";
 
 const API_BASE    = import.meta.env.VITE_API_URL || "https://localhost:7276/api";
@@ -175,6 +177,14 @@ export const Paypoint = () => {
             </div>
           )}
         </div>
+
+        <PhotoAttachments
+          section={PHOTO_SECTIONS.paypoint}
+          date={activeDateStr ?? todayStr}
+          readOnly={isLocked}
+          title="Paypoint Photos"
+          description="Attach a photo of the Paypoint terminal report from your camera or a file on this device."
+        />
       </div>
     </motion.div>
   );

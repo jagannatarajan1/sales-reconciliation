@@ -21,6 +21,7 @@ import { adminActiveDateRouter } from "./routes/adminActiveDate.routes.js";
 import { adminReconciliationRouter } from "./routes/adminReconciliation.routes.js";
 import { reportsRouter } from "./routes/reports.routes.js";
 import { zReportsRouter } from "./routes/zReports.routes.js";
+import { attachmentsRouter } from "./routes/attachments.routes.js";
 
 const app = express();
 
@@ -63,6 +64,21 @@ const otpLimiter = rateLimit({
 });
 app.use("/api/auth/otp", otpLimiter);
 
+// Photo reads are one request per thumbnail, so a few pages of evidence can
+// legitimately outnumber every other call a user makes in a session. They get
+// their own generous bucket and are excluded from the general limiter below,
+// which is sized for actions rather than assets.
+const ATTACHMENT_FILE_PATH = /^\/api\/attachments\/\d+\/file$/;
+
+const attachmentFileLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 2000,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { message: "Too many requests. Please try again later." },
+});
+app.use(ATTACHMENT_FILE_PATH, attachmentFileLimiter);
+
 // General limiter across all API traffic: generous for normal use, well
 // below what a scripted flood would generate.
 const apiLimiter = rateLimit({
@@ -71,6 +87,7 @@ const apiLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   message: { message: "Too many requests. Please try again later." },
+  skip: (req) => req.method === "GET" && ATTACHMENT_FILE_PATH.test(req.path),
 });
 app.use("/api", apiLimiter);
 
@@ -90,6 +107,7 @@ app.use("/api/admin/active-date", adminActiveDateRouter);
 app.use("/api/admin/reconciliation", adminReconciliationRouter);
 app.use("/api/admin/reports", reportsRouter);
 app.use("/api/z-reports", zReportsRouter);
+app.use("/api/attachments", attachmentsRouter);
 
 app.use(errorHandler);
 

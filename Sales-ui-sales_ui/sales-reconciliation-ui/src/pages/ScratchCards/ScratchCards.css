@@ -482,3 +482,16 @@
   .sc-table td  { padding: 8px 10px; font-size: 0.8rem; }
   .sc-popover   { flex-direction: column; align-items: flex-start; }
 }
+
+/* Photo evidence row — expands under a card when its Photos button is
+   toggled. Spans the full table so the thumbnail grid has room to breathe. */
+.sc-action-btn--photos {
+  background: var(--brand-50);
+  color: var(--brand-700);
+  border-color: var(--brand-100);
+}
+
+.sc-photos-row > td {
+  padding: 0 var(--space-4) var(--space-4);
+  background: var(--bg-surface-muted);
+}

@@ -3,6 +3,8 @@ import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { FiArrowLeft, FiRefreshCw, FiAlertCircle, FiCheckCircle, FiChevronLeft, FiChevronRight } from "react-icons/fi";
 import { useAuth } from "../../context/AuthContext";
+import PhotoAttachments from "../../components/PhotoAttachments";
+import { PHOTO_SECTIONS } from "../../constants/photoSections";
 import "./ShopSale.css";
 
 const SUMMARY_URL = `${import.meta.env.VITE_API_URL || "https://localhost:7276/api"}/Summary`;
@@ -266,6 +268,10 @@ const ShopSale = () => {
         })
       : "";
 
+  // Whichever day the page is currently showing: the calendar selection if
+  // the user picked one, otherwise the active date the API resolved for us.
+  const photoDate = selectedDate || (targetDate ? String(targetDate).split("T")[0] : null);
+
   const subtitle = isCommitted
     ? "Values are committed"
     : emailReceivedDate
@@ -331,6 +337,16 @@ const ShopSale = () => {
           <div className="error-container">
             <FiAlertCircle /> No Z-report email found. Please ensure the plain-text Z-report has been received.
           </div>
+        )}
+
+        {!loading && photoDate && (
+          <PhotoAttachments
+            section={PHOTO_SECTIONS.shopSale}
+            date={photoDate}
+            readOnly={isCommitted}
+            title="Shop Sale Photos"
+            description="Attach a photo of the till roll or Z-report printout from your camera or a file on this device."
+          />
         )}
 
       </div>
