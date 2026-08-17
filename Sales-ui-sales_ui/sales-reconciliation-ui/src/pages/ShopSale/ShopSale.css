@@ -180,8 +180,33 @@
   color: #1f2937;
   cursor: pointer;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 3px;
+}
+
+.sc-day-dots {
+  display: flex;
+  gap: 3px;
+}
+
+.sc-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  display: inline-block;
+  background: #d1d5db;
+}
+
+.sc-dot--ok { background: #15803d; }
+.sc-dot--resolved { background: #4338ca; }
+.sc-dot--variance { background: #dc2626; }
+.sc-dot--pending { background: #9ca3af; }
+
+.sc-legend-item .sc-dot {
+  width: 9px;
+  height: 9px;
 }
 
 .sc-day--outside {
@@ -232,15 +257,6 @@
   gap: 6px;
 }
 
-.sc-legend-swatch {
-  width: 12px;
-  height: 12px;
-  border-radius: 4px;
-  display: inline-block;
-}
-
-.sc-legend-swatch--pending { background: #eef2ff; border: 1px solid #c7d2fe; }
-
 .sc-legend-note {
   margin: 0.35rem 0 0;
   text-align: center;
@@ -266,23 +282,96 @@
   .sc-nav-label { min-width: 130px; font-size: 0.85rem; }
 }
 
-/* ── White content card ─────────────────────────────────── */
-.report-card {
+/* ── Shift status cards (§2/§6 — staff view, no Z anywhere) ─ */
+.ss-shift-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1.25rem;
+}
+
+.ss-shift-card {
   background: white;
   border-radius: 16px;
-  padding: 1.75rem 2rem;
+  padding: 1.25rem 1.5rem;
   box-shadow: 0 4px 24px rgba(0, 0, 0, 0.16);
 }
 
-.report-content {
+.ss-shift-card-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.ss-shift-card-icon {
+  font-size: 1.15rem;
+}
+
+.ss-shift-card-title {
+  font-weight: 700;
+  font-size: 1.02rem;
+  color: #1f2937;
+  flex: 1;
+}
+
+.ss-status-pill {
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: #f3f4f6;
+  color: #6b7280;
+}
+
+.ss-status-pill--ok { background: #f0fdf4; color: #15803d; }
+.ss-status-pill--resolved { background: #eef2ff; color: #4338ca; }
+.ss-status-pill--variance { background: #fef2f2; color: #dc2626; }
+.ss-status-pill--pending { background: #f3f4f6; color: #6b7280; }
+
+.ss-shift-card-empty {
   margin: 0;
-  white-space: pre-wrap;
-  word-break: break-word;
-  overflow-x: auto;
-  font-family: 'Consolas', 'Courier New', monospace;
-  font-size: 14px;
-  line-height: 1.6;
-  color: #111827;
+  font-size: 0.88rem;
+  color: #6b7280;
+}
+
+.ss-shift-card-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ss-shift-card-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 0.88rem;
+  color: #1f2937;
+}
+
+.ss-shift-card-row span:first-child {
+  color: #6b7280;
+}
+
+.ss-shift-card-row span:last-child {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.ss-shift-card-row--final span:first-child {
+  color: #1f2937;
+  font-weight: 600;
+}
+
+.ss-shift-card-row--final span:last-child {
+  font-size: 0.98rem;
+}
+
+.ss-shift-card-divider {
+  border-top: 1px dashed #e5e7eb;
+  margin: 2px 0;
 }
 
 /* ── Loading / states ───────────────────────────────────── */
@@ -293,21 +382,6 @@
   padding: 2rem;
   box-shadow: 0 4px 24px rgba(0, 0, 0, 0.16);
   color: #6b7280;
-}
-
-.committed-notice {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  background: var(--color-success-bg);
-  border: 1.5px solid var(--color-success-border);
-  color: var(--color-success);
-  padding: 20px;
-  border-radius: var(--radius-md);
-  text-align: center;
-  font-size: 1rem;
-  font-weight: 600;
 }
 
 .error-container {
@@ -327,5 +401,5 @@
 @media (max-width: 600px) {
   .shop-sale-page { padding: 1.25rem 1rem; }
   .report-header h1 { font-size: 1.4rem; }
-  .report-card { padding: 1.25rem 1rem; }
+  .ss-shift-card { padding: 1rem; }
 }

@@ -303,12 +303,27 @@ export async function getShiftBreakdown(
 ): Promise<{ shifts: ShiftBreakdownDto[]; xVsZ: XvsZDto | null }> {
   const d = dateOnly(date);
 
-  const [rows, record] = await Promise.all([
-    prisma.shiftReconciliation.findMany({ where: { date: d, shift: { in: [Shift.DAY, Shift.NIGHT] } } }),
-    prisma.reconciliationRecord.findUnique({ where: { date: d } }),
-  ]);
+  // Refresh on every view rather than only reading whatever is already on
+  // file. TillReport ingestion is unconditional (runs regardless of
+  // SHIFT_ENTRY_ENABLED — see tillPoller.ts), but evaluateShift/evaluateDay
+  // are otherwise only invoked reactively (the poller's rolling 3-day
+  // window, or a staff save while the flag is on) — a date outside that
+  // window whose X-Report has already been ingested would otherwise show
+  // nothing here even though the report is sitting right there in
+  // TillReport. evaluateShift is a pure local recomputation (no Gmail call)
+  // and never touches the admin-edit columns, so it's safe and cheap to
+  // rerun on every read.
+  const [dayRow, nightRow] = await Promise.all([evaluateShift(d, Shift.DAY), evaluateShift(d, Shift.NIGHT)]);
+  // Read straight off evaluateDay's own return value rather than re-fetching
+  // ReconciliationRecord.zReportTotal — that column is a separate, legacy
+  // field written only by the day-level commit/submit flow (POST
+  // /Summary/commit, POST /admin/reconciliation/submit) and can disagree
+  // with the Z-Report value evaluateDay actually just compared xSum
+  // against, producing a zReportTotal that doesn't reconcile with the
+  // displayed difference.
+  const dayResult = await evaluateDay(d);
 
-  const shifts: ShiftBreakdownDto[] = rows.map((row) => ({
+  const shifts: ShiftBreakdownDto[] = [dayRow, nightRow].map((row) => ({
     shift: row.shift,
     originalTotal: row.originalTotal != null ? Number(row.originalTotal) : null,
     xReportCount: row.xReportCount,
@@ -328,16 +343,106 @@ export async function getShiftBreakdown(
   }));
 
   const xVsZ: XvsZDto | null =
-    record?.xVsZDifference != null
+    dayResult.xVsZDifference != null
       ? {
-          xDay: record.xFinalDayTotal != null ? Number(record.xFinalDayTotal) : null,
-          xNight: record.xFinalNightTotal != null ? Number(record.xFinalNightTotal) : null,
-          xSum: record.xFinalSumTotal != null ? Number(record.xFinalSumTotal) : null,
-          zReportTotal: record.zReportTotal != null ? Number(record.zReportTotal) : null,
-          difference: Number(record.xVsZDifference),
-          inTolerance: isWithinTolerance(Number(record.xVsZDifference)),
+          xDay: dayResult.xFinalDayTotal,
+          xNight: dayResult.xFinalNightTotal,
+          xSum: dayResult.xFinalSumTotal,
+          zReportTotal: dayResult.zReportTotal,
+          difference: dayResult.xVsZDifference,
+          inTolerance: isWithinTolerance(dayResult.xVsZDifference),
         }
       : null;
 
   return { shifts, xVsZ };
+}
+
+// Staff-safe view of a shift's reconciliation chain — everything a staff
+// member is allowed to know about their own shift (original till total,
+// what was entered and by whom, any admin adjustment amount, the final
+// approved value, and status), but never the admin's identity, their edit
+// reason, or the reprint count. Centralized here (not inline in a route
+// handler) because it is derived directly from ShiftBreakdownDto and must
+// stay in lockstep with it.
+export type StaffShiftDto = Omit<
+  ShiftBreakdownDto,
+  "xReportCount" | "adminEditedByName" | "adminEditedAt" | "adminEditReason"
+>;
+
+export function toStaffShiftDto(dto: ShiftBreakdownDto): StaffShiftDto {
+  const { xReportCount: _xReportCount, adminEditedByName: _adminEditedByName, adminEditedAt: _adminEditedAt, adminEditReason: _adminEditReason, ...rest } = dto;
+  return rest;
+}
+
+// Staff-safe equivalent of getShiftBreakdown — same read model, but the
+// Z-Report comparison is not merely omitted from the DTO type, it is never
+// computed into the response at all: there is no `xVsZ` key, not even null.
+// Backs GET /Summary/shift-status, which any authenticated staff member can
+// call directly.
+export async function getStaffShiftBreakdown(date: Date): Promise<{ shifts: StaffShiftDto[] }> {
+  const { shifts } = await getShiftBreakdown(date);
+  return { shifts: shifts.map(toStaffShiftDto) };
+}
+
+export interface DateStatusDto {
+  date: string; // yyyy-mm-dd
+  dayStatus: ShiftReconciliationStatus;
+  nightStatus: ShiftReconciliationStatus;
+  // Only ever PENDING/OK/VARIANCE in practice — there is no day-level
+  // "resolve" action for xVsZDifference (only per-shift resolveShift
+  // exists), so RESOLVED is never assigned here despite the shared type.
+  zStatus: ShiftReconciliationStatus;
+}
+
+// Per-date DAY/NIGHT/Z status rollup for a date range. Backs both the admin
+// Calendar tab's month grid (full, via GET /admin/reconciliation/calendar)
+// and the staff shift-review calendar (stripped by toStaffStatusDto, via
+// GET /Summary/shift-calendar) — one query, one source of truth, so the two
+// dot-grids can never disagree about a shift's status. A date only appears
+// if it has at least one ShiftReconciliation row or ReconciliationRecord;
+// a missing shift within an included date defaults to PENDING.
+export async function getStatusCalendar(fromDate: Date, toDate: Date): Promise<DateStatusDto[]> {
+  const from = dateOnly(fromDate);
+  const to = dateOnly(toDate);
+
+  const [shiftRows, records] = await Promise.all([
+    prisma.shiftReconciliation.findMany({
+      where: { date: { gte: from, lte: to }, shift: { in: [Shift.DAY, Shift.NIGHT] } },
+    }),
+    prisma.reconciliationRecord.findMany({ where: { date: { gte: from, lte: to } } }),
+  ]);
+
+  const shiftByDate = new Map<string, Partial<Record<"DAY" | "NIGHT", ShiftReconciliationStatus>>>();
+  for (const row of shiftRows) {
+    const key = row.date.toISOString().split("T")[0];
+    const entry = shiftByDate.get(key) ?? {};
+    entry[row.shift as "DAY" | "NIGHT"] = row.finalStatus;
+    shiftByDate.set(key, entry);
+  }
+  const recordByDate = new Map(records.map((r) => [r.date.toISOString().split("T")[0], r]));
+
+  const dates = new Set<string>([...shiftByDate.keys(), ...recordByDate.keys()]);
+  return Array.from(dates)
+    .sort()
+    .map((date) => {
+      const shifts = shiftByDate.get(date) ?? {};
+      const record = recordByDate.get(date);
+      const zStatus =
+        record?.xVsZDifference == null
+          ? ShiftReconciliationStatus.PENDING
+          : isWithinTolerance(Number(record.xVsZDifference))
+            ? ShiftReconciliationStatus.OK
+            : ShiftReconciliationStatus.VARIANCE;
+      return {
+        date,
+        dayStatus: shifts.DAY ?? ShiftReconciliationStatus.PENDING,
+        nightStatus: shifts.NIGHT ?? ShiftReconciliationStatus.PENDING,
+        zStatus,
+      };
+    });
+}
+
+export function toStaffStatusDto(dto: DateStatusDto): Omit<DateStatusDto, "zStatus"> {
+  const { zStatus: _zStatus, ...rest } = dto;
+  return rest;
 }

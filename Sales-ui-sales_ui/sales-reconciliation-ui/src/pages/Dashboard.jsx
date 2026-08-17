@@ -13,7 +13,7 @@ const API = import.meta.env.VITE_API_URL || 'https://localhost:7276/api';
 const LOCKABLE_IDS = new Set([1, 2, 3, 4, 5, 6, 7, 9]);
 
 const menuItems = [
-  { id: 1,  name: 'Shop Sale',             icon: FiShoppingBag,  path: '/shop-sale',                desc: 'Record daily shop sales',          color: '#3b82f6' },
+  { id: 1,  name: 'Shift Reconciliation',  icon: FiShoppingBag,  path: '/shop-sale',                desc: 'Review your Day/Night shift totals', color: '#3b82f6' },
   { id: 2,  name: 'Credit Card Banking',   icon: FiCreditCard,   path: '/credit-card-banking',       desc: 'Manage card transactions',         color: '#8b5cf6' },
   { id: 3,  name: 'Cash Banking',          icon: FiDollarSign,   path: '/cash-banking',              desc: 'Cash float & safe drops',          color: '#10b981' },
   { id: 4,  name: 'Deductions',            icon: FiTrendingDown, path: '/deductions',                desc: 'Cashback, payouts & vouchers',     color: '#f59e0b' },

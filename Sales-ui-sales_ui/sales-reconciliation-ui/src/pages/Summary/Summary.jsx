@@ -16,7 +16,6 @@ import {
 } from "react-icons/fi";
 import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../components/ui/Toast";
-import { isWithinTolerance } from "../../constants";
 import "./Summary.css";
 
 const API_BASE = import.meta.env.VITE_API_URL || "https://localhost:7276/api";
@@ -178,7 +177,6 @@ export const Summary = () => {
   const { showToast } = useToast();
   const [isCommitted, setIsCommitted] = useState(false);
   const [isPendingAdminReview, setIsPendingAdminReview] = useState(false);
-  const [departmentTotal, setDepartmentTotal] = useState(null);
   const [shiftLabel, setShiftLabel] = useState(null);
   const [shiftReportTotal, setShiftReportTotal] = useState(null);
   const [shiftReportCount, setShiftReportCount] = useState(0);
@@ -221,9 +219,6 @@ export const Summary = () => {
         setDate(data.date ?? "");
         setIsCommitted(data.isCommitted ?? false);
         setIsPendingAdminReview(data.isPendingAdminReview ?? false);
-        setDepartmentTotal(
-          typeof data.departmentTotal === "number" ? data.departmentTotal : null,
-        );
         setShiftLabel(data.shiftLabel ?? null);
         setShiftReportTotal(typeof data.shiftReportTotal === "number" ? data.shiftReportTotal : null);
         setShiftReportCount(data.shiftReportCount ?? 0);
@@ -393,14 +388,6 @@ export const Summary = () => {
     paypointNum +
     supplierNum;
   const liveSummaryTotal = incomeNum + deductionsNum;
-
-  // Staff total vs. the till's own reported total, when today's Z-Report
-  // email has been read (see /Summary/today's departmentTotal field).
-  const hasDepartmentTotal = typeof departmentTotal === "number";
-  const variance = hasDepartmentTotal
-    ? liveSummaryTotal - departmentTotal
-    : null;
-  const varianceInTolerance = hasDepartmentTotal && isWithinTolerance(variance);
 
   const fmt = (n) => `£${n.toFixed(2)}`;
 
@@ -673,26 +660,6 @@ export const Summary = () => {
               <div className="summary-total-panel__row summary-total-panel__row--staff-total">
                 <span>Staff Total</span>
                 <span>{fmt(liveSummaryTotal)}</span>
-              </div>
-              <div className="summary-total-panel__row summary-total-panel__row--department-total">
-                <span>Z-Report Total (full day)</span>
-                <span className={hasDepartmentTotal ? "" : "summary-total-panel__row--muted"}>
-                  {hasDepartmentTotal ? fmt(departmentTotal) : "Not yet received"}
-                </span>
-              </div>
-              <div className="summary-total-panel__row">
-                <span>Variance</span>
-                <span
-                  className={
-                    !hasDepartmentTotal
-                      ? "summary-total-panel__row--muted"
-                      : varianceInTolerance
-                        ? "summary-total-panel__row--ok"
-                        : "summary-total-panel__row--warn"
-                  }
-                >
-                  {hasDepartmentTotal ? fmt(variance) : "—"}
-                </span>
               </div>
             </div>
             <div className="summary-total-panel__net">

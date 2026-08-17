@@ -6,7 +6,13 @@ import { parseDepartmentTotal } from "../lib/departmentTotal.js";
 import { sendCommitNotificationEmail } from "../lib/commitEmail.js";
 import * as gmailService from "../services/gmail.service.js";
 import { getShiftXTotal } from "../lib/tillReportIngest.js";
-import { evaluateAndNotify, evaluateDay, getShiftBreakdown } from "../lib/shiftReconciliation.js";
+import {
+  evaluateAndNotify,
+  evaluateDay,
+  getStaffShiftBreakdown,
+  getStatusCalendar,
+  toStaffStatusDto,
+} from "../lib/shiftReconciliation.js";
 import { writeAuditLog } from "../lib/auditLog.js";
 import { Shift } from "@prisma/client";
 
@@ -32,14 +38,6 @@ function toNumber(value: unknown): number {
 export const Z_REPORT_MISSING_MESSAGE =
   "Commit cannot be completed because the Z Report is not available for the selected date.";
 
-// A date is off-limits to the user-facing Shop Sale / Commit flow once it has
-// been committed by a user or signed off by an admin — the same predicate the
-// committed-dates calendar feed uses, so the two can never disagree.
-async function isDateCommitted(date: Date): Promise<boolean> {
-  const record = await prisma.reconciliationRecord.findUnique({ where: { date } });
-  return !!record && (record.isStaffCommitted || record.isAdminReconciled);
-}
-
 summaryRouter.get("/today", async (req, res) => {
   if (req.userId == null) {
     return res.status(401).json({ message: "User not authenticated" });
@@ -59,17 +57,10 @@ summaryRouter.get("/today", async (req, res) => {
     getShiftXTotal(date, shift).catch(() => ({ total: null, count: 0 })),
   ]);
 
-  // Best-effort live comparison against today's Z-Report, if it has arrived
-  // yet. This must never fail/error the whole endpoint — Summary has to keep
-  // loading even before the day's report shows up in the inbox.
-  let departmentTotal: number | null = null;
-  try {
-    const email = await gmailService.findZReportEmail(date);
-    if (email) departmentTotal = parseDepartmentTotal(email.body);
-  } catch {
-    departmentTotal = null;
-  }
-  const variance = departmentTotal != null ? Math.round((totals.summaryTotal - departmentTotal) * 100) / 100 : null;
+  // Z-Report data (department total / variance) is intentionally never
+  // looked up or returned here — this endpoint is reachable by any
+  // authenticated staff member, and staff must never see Z-Report figures.
+  // Admins get the full picture via GET /admin/reconciliation/day/:date.
 
   // While shift entry is disabled, shift is always FULL_DAY — surfaced as no
   // shift info at all (null label) rather than a misleading "Day Shift",
@@ -95,7 +86,6 @@ summaryRouter.get("/today", async (req, res) => {
       instantLotteryTotalCount: totals.instantLotteryTotalCount,
       instantLotteryTotalSales: totals.instantLotteryTotalSales,
       ...shiftFields,
-      ...(departmentTotal != null ? { departmentTotal, variance } : {}),
     });
   }
 
@@ -126,7 +116,6 @@ summaryRouter.get("/today", async (req, res) => {
       createdDate: e.createdDate,
     })),
     ...shiftFields,
-    ...(departmentTotal != null ? { departmentTotal, variance } : {}),
   });
 });
 
@@ -194,52 +183,6 @@ async function getZReportForDate(targetDate: Date) {
   return gmailService.findZReportEmail(targetDate);
 }
 
-summaryRouter.get("/zreport-email", async (req, res) => {
-  if (req.userId == null) {
-    return res.status(401).json({ message: "User not authenticated" });
-  }
-
-  const targetDate = await getActiveDate();
-  // isCommitted/isPendingAdminReview are set nowhere in the codebase (dead
-  // fields, always false) — findFirst rather than findUnique only because
-  // `date` alone is no longer a unique key; behaviour here is unchanged.
-  const summary = await prisma.dailySummary.findFirst({ where: { date: targetDate } });
-  if (summary?.isCommitted) {
-    return res.json({ isCommitted: true, targetDate, message: "Today's values are already committed. Next Z-report available tomorrow." });
-  }
-
-  const email = await getZReportForDate(targetDate);
-  if (!email) {
-    return res.status(400).json({ message: "No Z-report email found for this date." });
-  }
-
-  res.json({ isCommitted: false, targetDate, email });
-});
-
-summaryRouter.get("/zreport-email/by-date", async (req, res) => {
-  if (req.userId == null) {
-    return res.status(401).json({ message: "User not authenticated" });
-  }
-
-  const targetDate = dateOnly(req.query.date as string);
-
-  // Only uncommitted dates are selectable in Shop Sale. The calendar already
-  // withholds committed days, but that is presentation only — refuse them
-  // here too so the rule holds for anyone calling the endpoint directly.
-  if (await isDateCommitted(targetDate)) {
-    return res.status(403).json({
-      message: "This date has already been committed and can no longer be selected.",
-    });
-  }
-
-  const email = await getZReportForDate(targetDate);
-  if (!email) {
-    return res.status(400).json({ message: "No Z-report email found for this date." });
-  }
-
-  res.json({ isCommitted: false, targetDate, email });
-});
-
 // Whether a Z-Report exists for a date, without shipping the email body.
 // Backs the Commit page's pre-flight check so it can block the button and
 // show the same wording POST /commit would reject with. Defaults to the
@@ -267,18 +210,39 @@ summaryRouter.get("/zreport-status", async (req, res) => {
 
 // Non-admin-gated (same reasoning as /committed-dates below): the Commit
 // page's readiness panel needs to show "how are today's shifts looking"
-// before committing, which is a staff concern, not an admin one. Shares its
-// read model with the admin pending queue via getShiftBreakdown, so the two
-// surfaces can never disagree about a shift's status.
+// before committing, which is a staff concern, not an admin one. Deliberately
+// role-agnostic AND Z-blind: this route calls getStaffShiftBreakdown, which
+// never computes an xVsZ figure in the first place, so it is physically
+// incapable of leaking Z-Report data to anyone who calls it — admin or
+// staff. Admins get the full picture (including Z) via the dedicated
+// GET /admin/reconciliation/day/:date route instead.
 summaryRouter.get("/shift-status", async (req, res) => {
   if (req.userId == null) {
     return res.status(401).json({ message: "User not authenticated" });
   }
 
   const targetDate = req.query.date ? dateOnly(req.query.date as string) : await getActiveDate();
-  const breakdown = await getShiftBreakdown(targetDate);
+  const breakdown = await getStaffShiftBreakdown(targetDate);
 
   res.json({ date: targetDate, ...breakdown });
+});
+
+// Staff-safe DAY/NIGHT status calendar for a date range — no Z-Report
+// figures anywhere in the response (see getStatusCalendar/toStaffStatusDto).
+// Backs the repurposed Shift Reconciliation calendar page.
+summaryRouter.get("/shift-calendar", async (req, res) => {
+  if (req.userId == null) {
+    return res.status(401).json({ message: "User not authenticated" });
+  }
+
+  const fromParam = req.query.fromDate as string | undefined;
+  const toParam = req.query.toDate as string | undefined;
+  if (!fromParam || !toParam) {
+    return res.status(400).json({ message: "fromDate and toDate query parameters are required." });
+  }
+
+  const dates = await getStatusCalendar(dateOnly(fromParam), dateOnly(toParam));
+  res.json({ dates: dates.map(toStaffStatusDto) });
 });
 
 summaryRouter.post("/commit", async (req, res) => {

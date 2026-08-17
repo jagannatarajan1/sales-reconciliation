@@ -38,8 +38,9 @@ export const Commit = () => {
   const [zReportMessage, setZReportMessage]     = useState("");
   // Shift readiness — empty shifts array (feature not active yet, or no
   // shift data for today) simply hides the panel; nothing here blocks commit.
+  // Never includes Z-Report data — this page is staff-facing and
+  // GET /Summary/shift-status is Z-blind by design (see summary.routes.ts).
   const [shifts, setShifts] = useState([]);
-  const [xVsZ, setXVsZ]     = useState(null);
 
   // If Summary passed staffNotes through (already filled in there), pre-fill
   // this page's textarea with it.
@@ -64,7 +65,6 @@ export const Commit = () => {
       if (shiftStatusRes.ok) {
         const shiftStatus = await shiftStatusRes.json();
         setShifts(Array.isArray(shiftStatus.shifts) ? shiftStatus.shifts : []);
-        setXVsZ(shiftStatus.xVsZ ?? null);
       }
 
       if (!summaryRes.ok) {
@@ -245,13 +245,6 @@ export const Commit = () => {
                       </div>
                     ))}
                   </div>
-                  {xVsZ && (
-                    <div className={`commit-shift-xvz${xVsZ.inTolerance ? '' : ' commit-shift-xvz--over'}`}>
-                      <span>X Total (Day + Night): <strong>{xVsZ.xSum != null ? fmtGBP(xVsZ.xSum) : '—'}</strong></span>
-                      <span>Z-Report: <strong>{xVsZ.zReportTotal != null ? fmtGBP(xVsZ.zReportTotal) : '—'}</strong></span>
-                      <span>{xVsZ.inTolerance ? 'Within tolerance' : 'Requires review'}</span>
-                    </div>
-                  )}
                 </div>
               )}
 

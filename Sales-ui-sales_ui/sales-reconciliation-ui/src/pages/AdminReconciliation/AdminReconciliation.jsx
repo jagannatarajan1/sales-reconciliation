@@ -4,7 +4,7 @@ import { motion } from 'framer-motion';
 import {
   FiArrowLeft, FiClipboard, FiCalendar, FiFileText, FiCreditCard, FiDollarSign,
   FiTrendingDown, FiPackage, FiAward, FiGrid, FiBarChart2, FiCheckCircle,
-  FiXCircle, FiEdit2, FiDownload,
+  FiXCircle, FiEdit2, FiDownload, FiChevronLeft, FiChevronRight,
 } from 'react-icons/fi';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../components/ui/Toast';
@@ -31,6 +31,44 @@ const fmtDateTime = (str) =>
   new Date(str).toLocaleString('en-GB', {
     day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
   });
+
+/* ── Calendar tab helpers ──────────────────────────────────────────────
+   Month-grid math analogous to ShopSale.jsx's ShopSaleCalendar — kept
+   separate rather than shared since the two grids' cell semantics differ
+   (three-way Day/Night/Z admin status vs. staff-safe two-way status). */
+const MONTH_LABELS = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December',
+];
+const WEEKDAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const calPad2 = (n) => String(n).padStart(2, '0');
+const calYmd = (year, month, day) => `${year}-${calPad2(month + 1)}-${calPad2(day)}`;
+
+function buildCalendarCells(year, month) {
+  const firstOfMonth = new Date(year, month, 1);
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const leadingBlanks = firstOfMonth.getDay();
+  const totalCells = Math.ceil((leadingBlanks + daysInMonth) / 7) * 7;
+
+  const cells = [];
+  for (let i = 0; i < totalCells; i++) {
+    const dayNum = i - leadingBlanks + 1;
+    const inMonth = dayNum >= 1 && dayNum <= daysInMonth;
+    cells.push({ dayNum, inMonth, dateStr: inMonth ? calYmd(year, month, dayNum) : null });
+  }
+  return cells;
+}
+
+// Single-dot day/night/Z rollup per the "🟢 both shifts OK / 🟡 one shift
+// pending / 🔴 variance requires review" legend — VARIANCE anywhere wins,
+// then PENDING anywhere, otherwise OK (RESOLVED counts as resolved-ok).
+function combinedCalendarStatus(entry) {
+  if (!entry) return null;
+  const statuses = [entry.dayStatus, entry.nightStatus, entry.zStatus];
+  if (statuses.includes('VARIANCE')) return 'variance';
+  if (statuses.includes('PENDING')) return 'pending';
+  return 'ok';
+}
 
 /* Committed-by / last-edited-by audit block — shared shape across the
    Uncommitted Data and Committed Records tabs so the same record always
@@ -477,6 +515,16 @@ export const AdminReconciliation = () => {
   const [savingEdit, setSavingEdit]             = useState(false);
   const [downloadingBill, setDownloadingBill]   = useState(false);
 
+  /* calendar (admin-only — full Day/Night/Z visibility for any date) */
+  const calToday = new Date();
+  const [calYear, setCalYear]                 = useState(calToday.getFullYear());
+  const [calMonth, setCalMonth]               = useState(calToday.getMonth()); // 0-indexed
+  const [calDates, setCalDates]               = useState(new Map());
+  const [loadingCal, setLoadingCal]           = useState(true);
+  const [calSelectedDate, setCalSelectedDate] = useState(null);
+  const [calDayDetail, setCalDayDetail]       = useState(null);
+  const [loadingCalDay, setLoadingCalDay]     = useState(false);
+
   const showToast = (message, type = 'success') => notify(message, type);
 
   /* ── Download bill helpers ── */
@@ -627,6 +675,61 @@ export const AdminReconciliation = () => {
     setToDate('');
     setDateFilterError('');
     loadCommittedDates();
+  };
+
+  /* calendar tab — month grid of Day/Night/Z status dots, admin-only via
+     GET /admin/reconciliation/calendar (includes zStatus, unlike the
+     staff-safe GET /Summary/shift-calendar this mirrors). */
+  const loadCalendarMonth = useCallback(async (year, month) => {
+    setLoadingCal(true);
+    try {
+      const daysInMonth = new Date(year, month + 1, 0).getDate();
+      const fromDate = calYmd(year, month, 1);
+      const toDate = calYmd(year, month, daysInMonth);
+      const res = await fetch(`${API_BASE}/admin/reconciliation/calendar?fromDate=${fromDate}&toDate=${toDate}`, {
+        headers: { Authorization: `Bearer ${user.token}` },
+      });
+      if (!res.ok) throw new Error();
+      const data = await res.json();
+      const map = new Map();
+      (Array.isArray(data.dates) ? data.dates : []).forEach((d) => map.set(d.date, d));
+      setCalDates(map);
+    } catch {
+      setCalDates(new Map());
+    } finally {
+      setLoadingCal(false);
+    }
+  }, [user.token]);
+
+  useEffect(() => {
+    const run = async () => { await loadCalendarMonth(calYear, calMonth); };
+    run();
+  }, [loadCalendarMonth, calYear, calMonth]);
+
+  const loadCalendarDay = useCallback(async (dateStr) => {
+    setLoadingCalDay(true);
+    try {
+      const res = await fetch(`${API_BASE}/admin/reconciliation/day/${dateStr}`, {
+        headers: { Authorization: `Bearer ${user.token}` },
+      });
+      if (!res.ok) throw new Error();
+      setCalDayDetail(await res.json());
+    } catch {
+      setCalDayDetail(null);
+      showToast('Failed to load that date', 'error');
+    } finally {
+      setLoadingCalDay(false);
+    }
+  }, [user.token]);
+
+  const selectCalendarDate = (dateStr) => {
+    setCalSelectedDate(dateStr);
+    loadCalendarDay(dateStr);
+  };
+
+  const refreshCalendarDay = async () => {
+    if (calSelectedDate) await loadCalendarDay(calSelectedDate);
+    await loadCalendarMonth(calYear, calMonth);
   };
 
   /* fetch a specific committed record */
@@ -833,6 +936,12 @@ export const AdminReconciliation = () => {
           onClick={() => setActiveTab('download')}
         >
           <FiFileText /> Download Bill
+        </button>
+        <button
+          className={`ar-tab ${activeTab === 'calendar' ? 'ar-tab--active' : ''}`}
+          onClick={() => setActiveTab('calendar')}
+        >
+          <FiCalendar /> Calendar
         </button>
       </div>
 
@@ -1249,6 +1358,96 @@ export const AdminReconciliation = () => {
         </div>
 
         <DownloadBillReports />
+      </div>
+      )}
+
+      {activeTab === 'calendar' && (
+      <div className="ar-panel">
+        <div className="ar-panel-header">
+          <div>
+            <h2 className="ar-panel-title"><FiCalendar /> Reconciliation Calendar</h2>
+            <p className="ar-panel-sub">Day, Night and Z-Report status for every date. Click a date for the full breakdown.</p>
+          </div>
+        </div>
+
+        <div className="ar-cal-nav">
+          <button
+            type="button"
+            className="ar-cal-nav-btn"
+            onClick={() => {
+              if (calMonth === 0) { setCalYear((y) => y - 1); setCalMonth(11); }
+              else setCalMonth((m) => m - 1);
+            }}
+            aria-label="Previous month"
+          >
+            <FiChevronLeft />
+          </button>
+          <span className="ar-cal-nav-label">{MONTH_LABELS[calMonth]} {calYear}</span>
+          <button
+            type="button"
+            className="ar-cal-nav-btn"
+            onClick={() => {
+              if (calYear === calToday.getFullYear() && calMonth === calToday.getMonth()) return;
+              if (calMonth === 11) { setCalYear((y) => y + 1); setCalMonth(0); }
+              else setCalMonth((m) => m + 1);
+            }}
+            disabled={calYear === calToday.getFullYear() && calMonth === calToday.getMonth()}
+            aria-label="Next month"
+          >
+            <FiChevronRight />
+          </button>
+        </div>
+
+        <div className="ar-cal-weekday-row">
+          {WEEKDAY_LABELS.map((w) => <span key={w} className="ar-cal-weekday">{w}</span>)}
+        </div>
+
+        <div className={`ar-cal-grid${loadingCal ? ' ar-cal-grid--loading' : ''}`}>
+          {buildCalendarCells(calYear, calMonth).map((cell, idx) => {
+            if (!cell.inMonth) return <span key={idx} className="ar-cal-day ar-cal-day--outside" />;
+            const status = combinedCalendarStatus(calDates.get(cell.dateStr));
+            const isSelected = calSelectedDate === cell.dateStr;
+            return (
+              <button
+                key={idx}
+                type="button"
+                className={`ar-cal-day${isSelected ? ' ar-cal-day--selected' : ''}`}
+                onClick={() => selectCalendarDate(cell.dateStr)}
+              >
+                <span>{cell.dayNum}</span>
+                <span className={`ar-cal-dot${status ? ` ar-cal-dot--${status}` : ''}`} />
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="ar-cal-legend">
+          <span className="ar-cal-legend-item"><span className="ar-cal-dot ar-cal-dot--ok" /> Both shifts OK</span>
+          <span className="ar-cal-legend-item"><span className="ar-cal-dot ar-cal-dot--pending" /> Pending</span>
+          <span className="ar-cal-legend-item"><span className="ar-cal-dot ar-cal-dot--variance" /> Variance — needs review</span>
+        </div>
+
+        {calSelectedDate && (
+          <div className="ar-form-section">
+            <div className="ar-status-block">
+              <span className="ar-date-badge">{fmtDateLong(calSelectedDate)}</span>
+            </div>
+
+            {loadingCalDay ? (
+              <div className="ar-center"><div className="ar-spinner" /></div>
+            ) : calDayDetail && ((calDayDetail.shifts || []).length > 0 || calDayDetail.xVsZ) ? (
+              <ShiftBreakdownPanel
+                date={calSelectedDate}
+                shifts={calDayDetail.shifts || []}
+                xVsZ={calDayDetail.xVsZ}
+                token={user.token}
+                onUpdated={refreshCalendarDay}
+              />
+            ) : (
+              <p className="ar-panel-sub">No reconciliation data for this date yet.</p>
+            )}
+          </div>
+        )}
       </div>
       )}
 

@@ -10,7 +10,7 @@ import * as gmailService from "../services/gmail.service.js";
 import { requirePermission } from "../lib/permissions.js";
 import { writeAuditLog } from "../lib/auditLog.js";
 import { isWithinTolerance } from "../lib/variance.js";
-import { applyAdminEdit, resolveShift, evaluateDay } from "../lib/shiftReconciliation.js";
+import { applyAdminEdit, resolveShift, evaluateDay, getShiftBreakdown, getStatusCalendar } from "../lib/shiftReconciliation.js";
 import { Shift } from "@prisma/client";
 
 export const adminReconciliationRouter = Router();
@@ -100,13 +100,23 @@ adminReconciliationRouter.get("/pending", async (req, res) => {
     const anyShiftVariance = shifts.some((s) => s.finalStatus === "VARIANCE");
 
     const anyRecord = anyRecordByDate.get(dateKey);
+    // zReportTotal is deliberately NOT read from anyRecord.zReportTotal —
+    // that's a separate, legacy column written only by the day-level
+    // commit/submit flow (POST /Summary/commit, POST /admin/reconciliation/
+    // submit) and can disagree with the Z-Report value xVsZDifference was
+    // actually computed against by evaluateDay, producing a zReportTotal
+    // that doesn't reconcile with the displayed difference (see
+    // getShiftBreakdown's identical fix). Derived algebraically instead —
+    // xFinalSumTotal and xVsZDifference are written atomically together by
+    // the same evaluateDay upsert, so they're always mutually consistent,
+    // and this avoids an evaluateDay call per pending row (N+1).
     const xVsZ =
-      anyRecord?.xVsZDifference != null
+      anyRecord?.xVsZDifference != null && anyRecord.xFinalSumTotal != null
         ? {
             xDay: anyRecord.xFinalDayTotal,
             xNight: anyRecord.xFinalNightTotal,
             xSum: anyRecord.xFinalSumTotal,
-            zReportTotal: anyRecord.zReportTotal,
+            zReportTotal: Math.round((Number(anyRecord.xFinalSumTotal) - Number(anyRecord.xVsZDifference)) * 100) / 100,
             difference: anyRecord.xVsZDifference,
             inTolerance: isWithinTolerance(Number(anyRecord.xVsZDifference)),
           }
@@ -375,6 +385,36 @@ adminReconciliationRouter.get("/committed/:date", async (req, res) => {
     adminSubmittedByName: record.adminSubmittedByName,
     adminSubmittedAt: record.adminSubmittedAt,
   });
+});
+
+// Full DAY/NIGHT + Z breakdown for a single date, for the admin Calendar
+// tab's drill-down — the admin-only counterpart to the staff-safe
+// GET /Summary/shift-status. Reuses getShiftBreakdown verbatim (full
+// ShiftBreakdownDto fields including admin attribution, plus xVsZ with the
+// actual Z-Report total) since this route is already gated on "commitHistory".
+adminReconciliationRouter.get("/day/:date", async (req, res) => {
+  if (!requireAdmin(req, res)) return;
+
+  const date = dateOnly(req.params.date);
+  const breakdown = await getShiftBreakdown(date);
+  res.json({ date: date.toISOString().split("T")[0], ...breakdown });
+});
+
+// Per-date DAY/NIGHT/Z status rollup for the admin Calendar tab's month
+// grid. Same getStatusCalendar helper GET /Summary/shift-calendar uses, but
+// unstripped — zStatus (and therefore the fact that a Z variance exists) is
+// admin-only information.
+adminReconciliationRouter.get("/calendar", async (req, res) => {
+  if (!requireAdmin(req, res)) return;
+
+  const fromParam = req.query.fromDate as string | undefined;
+  const toParam = req.query.toDate as string | undefined;
+  if (!fromParam || !toParam) {
+    return res.status(400).json({ message: "fromDate and toDate query parameters are required." });
+  }
+
+  const dates = await getStatusCalendar(dateOnly(fromParam), dateOnly(toParam));
+  res.json({ dates });
 });
 
 // "Download Bill" — renders the full, properly formatted reconciliation

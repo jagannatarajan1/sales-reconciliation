@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { FiArrowLeft, FiRefreshCw, FiAlertCircle, FiCheckCircle, FiChevronLeft, FiChevronRight } from "react-icons/fi";
+import { FiArrowLeft, FiRefreshCw, FiAlertCircle, FiChevronLeft, FiChevronRight } from "react-icons/fi";
 import { useAuth } from "../../context/AuthContext";
 import "./ShopSale.css";
 
@@ -13,21 +13,33 @@ const MONTH_LABELS = [
   "July", "August", "September", "October", "November", "December",
 ];
 
+const SHIFT_META = {
+  DAY: { label: "Day Shift", icon: "☀" },
+  NIGHT: { label: "Night Shift", icon: "🌙" },
+};
+
+const STATUS_LABEL = { OK: "OK", VARIANCE: "Variance", RESOLVED: "Resolved", PENDING: "Pending" };
+
 const pad2 = (n) => String(n).padStart(2, "0");
 const ymd = (year, month, day) => `${year}-${pad2(month + 1)}-${pad2(day)}`;
+const fmtGBP = (val) => {
+  const n = parseFloat(val);
+  return isNaN(n) ? "£0.00" : `£${n.toFixed(2)}`;
+};
 
-// ── Shop Sale calendar ───────────────────────────────────────────────────
-// Full month grid showing uncommitted dates only. Any date already committed
-// (per GET /Summary/committed-dates, which any authenticated user can call)
-// is rendered as an empty cell — not visible and not selectable — so the only
-// dates on offer are ones still awaiting a commit. Future dates stay in the
-// grid but disabled, since they are not committed, just not reachable yet.
-// The same rule is enforced server-side by GET /Summary/zreport-email/by-date.
+// ── Shift Reconciliation calendar ───────────────────────────────────────
+// Full month grid. Every in-month, non-future date is selectable — unlike
+// the old committed/uncommitted gate this page used to enforce, this is a
+// read-only status view, so past (including already-committed) dates stay
+// visible and browsable. Each cell shows two small dots for that date's
+// DAY/NIGHT status, sourced from GET /Summary/shift-calendar — a staff-safe
+// endpoint that never computes or returns a Z-Report figure (see
+// getStatusCalendar/toStaffStatusDto server-side).
 function ShopSaleCalendar({ token, selectedDate, onSelectDate, onShowActiveDate }) {
   const today = new Date();
   const [viewYear, setViewYear] = useState(today.getFullYear());
   const [viewMonth, setViewMonth] = useState(today.getMonth()); // 0-indexed
-  const [committedDates, setCommittedDates] = useState(new Set());
+  const [statusByDate, setStatusByDate] = useState(new Map());
   const [loadingDates, setLoadingDates] = useState(false);
 
   const todayYmd = ymd(today.getFullYear(), today.getMonth(), today.getDate());
@@ -40,12 +52,16 @@ function ShopSaleCalendar({ token, selectedDate, onSelectDate, onShowActiveDate 
     const toDate = ymd(viewYear, viewMonth, daysInMonth);
 
     setLoadingDates(true);
-    fetch(`${SUMMARY_URL}/committed-dates?fromDate=${fromDate}&toDate=${toDate}`, {
+    fetch(`${SUMMARY_URL}/shift-calendar?fromDate=${fromDate}&toDate=${toDate}`, {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then((res) => (res.ok ? res.json() : { dates: [] }))
-      .then((data) => setCommittedDates(new Set(Array.isArray(data.dates) ? data.dates : [])))
-      .catch(() => setCommittedDates(new Set()))
+      .then((data) => {
+        const map = new Map();
+        (Array.isArray(data.dates) ? data.dates : []).forEach((d) => map.set(d.date, d));
+        setStatusByDate(map);
+      })
+      .catch(() => setStatusByDate(new Map()))
       .finally(() => setLoadingDates(false));
   }, [token, viewYear, viewMonth]);
 
@@ -104,15 +120,11 @@ function ShopSaleCalendar({ token, selectedDate, onSelectDate, onShowActiveDate 
           if (!cell.inMonth) {
             return <span key={idx} className="sc-day sc-day--outside" />;
           }
-          // Committed days are withheld entirely — the cell is left blank so
-          // the date is neither shown nor clickable.
-          if (committedDates.has(cell.dateStr)) {
-            return <span key={idx} className="sc-day sc-day--outside" />;
-          }
 
           const isFuture = cell.dateStr > todayYmd;
           const isSelected = selectedDate === cell.dateStr;
           const isToday = cell.dateStr === todayYmd;
+          const status = statusByDate.get(cell.dateStr);
 
           return (
             <button
@@ -128,16 +140,24 @@ function ShopSaleCalendar({ token, selectedDate, onSelectDate, onShowActiveDate 
               title={isFuture ? "Future date" : undefined}
               onClick={() => onSelectDate(cell.dateStr)}
             >
-              {cell.dayNum}
+              <span>{cell.dayNum}</span>
+              {status && (
+                <span className="sc-day-dots">
+                  <span className={`sc-dot sc-dot--${(status.dayStatus || "pending").toLowerCase()}`} title={`Day: ${STATUS_LABEL[status.dayStatus] ?? status.dayStatus}`} />
+                  <span className={`sc-dot sc-dot--${(status.nightStatus || "pending").toLowerCase()}`} title={`Night: ${STATUS_LABEL[status.nightStatus] ?? status.nightStatus}`} />
+                </span>
+              )}
             </button>
           );
         })}
       </div>
 
       <div className="sc-legend">
-        <span className="sc-legend-item"><span className="sc-legend-swatch sc-legend-swatch--pending" /> Uncommitted — available to select</span>
+        <span className="sc-legend-item"><span className="sc-dot sc-dot--ok" /> OK</span>
+        <span className="sc-legend-item"><span className="sc-dot sc-dot--variance" /> Variance</span>
+        <span className="sc-legend-item"><span className="sc-dot sc-dot--pending" /> Pending</span>
       </div>
-      <p className="sc-legend-note">Committed dates are not shown.</p>
+      <p className="sc-legend-note">Each date shows Day / Night shift status.</p>
 
       {selectedDate && (
         <button type="button" className="active-date-btn sc-active-date-btn" onClick={onShowActiveDate}>
@@ -148,95 +168,105 @@ function ShopSaleCalendar({ token, selectedDate, onSelectDate, onShowActiveDate 
   );
 }
 
+// Read-only per-shift card. Deliberately renders only fields staff are
+// allowed to see (see StaffShiftDto server-side) — no admin name, no edit
+// reason, no reprint count, and never a Z-Report figure anywhere.
+function ShiftStatusCard({ shift, data }) {
+  const meta = SHIFT_META[shift];
+
+  if (!data || !data.hasEntries) {
+    return (
+      <div className="ss-shift-card">
+        <div className="ss-shift-card-header">
+          <span className="ss-shift-card-icon">{meta.icon}</span>
+          <span className="ss-shift-card-title">{meta.label}</span>
+          <span className="ss-status-pill ss-status-pill--pending">Pending</span>
+        </div>
+        <p className="ss-shift-card-empty">
+          {data?.originalTotal != null
+            ? "X-Report received — enter your shift figures in Summary."
+            : "Awaiting the till's X-Report for this shift."}
+        </p>
+      </div>
+    );
+  }
+
+  const hasAdjustment = data.adminEditedTotal != null;
+  const statusKey = (data.finalStatus || "PENDING").toLowerCase();
+
+  return (
+    <div className="ss-shift-card">
+      <div className="ss-shift-card-header">
+        <span className="ss-shift-card-icon">{meta.icon}</span>
+        <span className="ss-shift-card-title">{meta.label}</span>
+        <span className={`ss-status-pill ss-status-pill--${statusKey}`}>
+          {STATUS_LABEL[data.finalStatus] ?? "Pending"}
+        </span>
+      </div>
+      <div className="ss-shift-card-rows">
+        <div className="ss-shift-card-row">
+          <span>Original X Report</span>
+          <span>{data.originalTotal != null ? fmtGBP(data.originalTotal) : "—"}</span>
+        </div>
+        <div className="ss-shift-card-row">
+          <span>Staff Entered{data.staffEnteredByName ? ` — ${data.staffEnteredByName}` : ""}</span>
+          <span>{data.staffEnteredTotal != null ? fmtGBP(data.staffEnteredTotal) : "—"}</span>
+        </div>
+        <div className="ss-shift-card-row">
+          <span>Original Difference</span>
+          <span>{data.originalDifference != null ? fmtGBP(data.originalDifference) : "—"}</span>
+        </div>
+        {hasAdjustment && (
+          <>
+            <div className="ss-shift-card-divider" />
+            <div className="ss-shift-card-row">
+              <span>Admin Adjustment</span>
+              <span>{fmtGBP(data.adminEditedTotal)}</span>
+            </div>
+          </>
+        )}
+        <div className="ss-shift-card-row ss-shift-card-row--final">
+          <span>Final Approved Value</span>
+          <span>{data.finalTotal != null ? fmtGBP(data.finalTotal) : "—"}</span>
+        </div>
+        <div className="ss-shift-card-row">
+          <span>Final Difference</span>
+          <span>{data.finalDifference != null ? fmtGBP(data.finalDifference) : "—"}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 const ShopSale = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
 
-  const [emailBody, setEmailBody]               = useState("");
-  const [targetDate, setTargetDate]             = useState(null);
-  const [emailReceivedDate, setEmailReceivedDate] = useState(null);
-  const [isCommitted, setIsCommitted]           = useState(false);
-  const [committedMessage, setCommittedMessage] = useState("");
-  const [loading, setLoading]                   = useState(true);
-  const [error, setError]                       = useState("");
-  const [selectedDate, setSelectedDate]         = useState("");
+  const [viewDate, setViewDate]         = useState(null);
+  const [shifts, setShifts]             = useState([]);
+  const [loading, setLoading]           = useState(true);
+  const [error, setError]               = useState("");
+  const [selectedDate, setSelectedDate] = useState("");
 
   const authHeaders = () => ({ Authorization: `Bearer ${user.token}` });
 
-  useEffect(() => { fetchActiveReport(); }, []);
+  useEffect(() => { loadShiftStatus(""); }, []);
 
-  const resetState = () => {
+  const loadShiftStatus = async (dateStr) => {
     setLoading(true);
     setError("");
-    setEmailBody("");
-    setIsCommitted(false);
-    setCommittedMessage("");
-    setTargetDate(null);
-    setEmailReceivedDate(null);
-  };
-
-  const applyResult = (data) => {
-    if (data.isCommitted) {
-      setIsCommitted(true);
-      setCommittedMessage(data.message || "Values are already committed.");
-      return;
-    }
-    setTargetDate(data.targetDate ?? null);
-    if (data.email?.date) {
-      const parsed = new Date(data.email.date);
-      if (!isNaN(parsed)) setEmailReceivedDate(parsed.toISOString().split("T")[0]);
-    }
-    setEmailBody(data.email?.body ?? "");
-  };
-
-  const fetchActiveReport = async () => {
-    resetState();
     try {
-      const [emailRes, summaryRes] = await Promise.all([
-        fetch(`${SUMMARY_URL}/zreport-email`, { headers: authHeaders() }),
-        fetch(`${SUMMARY_URL}/today`,          { headers: authHeaders() }),
-      ]);
-
-      // If the day is already committed per Summary/today, show committed state
-      // regardless of what zreport-email returns (the two can be out of sync)
-      if (summaryRes.ok) {
-        const summary = await summaryRes.json();
-        if (summary.isCommitted) {
-          setIsCommitted(true);
-          setCommittedMessage("Values are already committed.");
-          return;
-        }
-      }
-
-      if (emailRes.status === 400) {
-        const body = await emailRes.json().catch(() => ({}));
-        setError(body.message || "No Z-report email found.");
-        return;
-      }
-      if (!emailRes.ok) { setError("Failed to load Z-report."); return; }
-      applyResult(await emailRes.json());
-    } catch (err) {
-      setError(err.message || "Something went wrong.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchReportByDate = async (dateStr) => {
-    resetState();
-    try {
-      const res = await fetch(
-        `${SUMMARY_URL}/zreport-email/by-date?date=${dateStr}`,
-        { headers: authHeaders() }
-      );
-      // 400 = no email for the date, 403 = the date is committed and is no
-      // longer selectable. Both carry an explanatory message worth showing.
+      const url = dateStr
+        ? `${SUMMARY_URL}/shift-status?date=${dateStr}`
+        : `${SUMMARY_URL}/shift-status`;
+      const res = await fetch(url, { headers: authHeaders() });
       if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        setError(body.message || "Failed to load Z-report.");
+        setError("Failed to load shift reconciliation.");
         return;
       }
-      applyResult(await res.json());
+      const data = await res.json();
+      setViewDate(data.date ?? dateStr);
+      setShifts(Array.isArray(data.shifts) ? data.shifts : []);
     } catch (err) {
       setError(err.message || "Something went wrong.");
     } finally {
@@ -246,35 +276,25 @@ const ShopSale = () => {
 
   const handleSelectDate = (dateStr) => {
     setSelectedDate(dateStr);
-    if (dateStr) fetchReportByDate(dateStr);
+    loadShiftStatus(dateStr);
   };
 
-  const handleRefresh = () => {
-    if (selectedDate) fetchReportByDate(selectedDate);
-    else fetchActiveReport();
-  };
+  const handleRefresh = () => loadShiftStatus(selectedDate);
 
   const clearDateSelection = () => {
     setSelectedDate("");
-    fetchActiveReport();
+    loadShiftStatus("");
   };
 
   const formatDate = (dateStr) =>
     dateStr
       ? new Date(dateStr).toLocaleDateString("en-GB", {
-          day: "2-digit", month: "short", year: "numeric",
+          weekday: "long", day: "2-digit", month: "long", year: "numeric",
         })
       : "";
 
-  const subtitle = isCommitted
-    ? "Values are committed"
-    : emailReceivedDate
-    ? `Z-report received ${formatDate(emailReceivedDate)} — pending commit`
-    : targetDate
-    ? `Showing report for ${formatDate(targetDate)} — pending commit`
-    : selectedDate
-    ? `Showing report for ${formatDate(selectedDate)}`
-    : "Latest report imported from Gmail";
+  const dayData = shifts.find((s) => s.shift === "DAY");
+  const nightData = shifts.find((s) => s.shift === "NIGHT");
 
   return (
     <motion.div
@@ -290,11 +310,11 @@ const ShopSale = () => {
         </button>
 
         <div className="report-header">
-          <h1>Z-Report Viewer</h1>
-          <p>{subtitle}</p>
+          <h1>Shift Reconciliation</h1>
+          <p>{viewDate ? formatDate(viewDate) : "Loading…"}</p>
 
           <button className="refresh-btn" onClick={handleRefresh}>
-            <FiRefreshCw /> Refresh Report
+            <FiRefreshCw /> Refresh
           </button>
         </div>
 
@@ -307,13 +327,7 @@ const ShopSale = () => {
 
         {loading && (
           <div className="loading-container">
-            <p>Loading report...</p>
-          </div>
-        )}
-
-        {!loading && isCommitted && (
-          <div className="committed-notice">
-            <FiCheckCircle /> {committedMessage}
+            <p>Loading shift reconciliation…</p>
           </div>
         )}
 
@@ -321,15 +335,10 @@ const ShopSale = () => {
           <div className="error-container"><FiAlertCircle /> {error}</div>
         )}
 
-        {!loading && !isCommitted && !error && emailBody && (
-          <div className="report-card">
-            <pre className="report-content">{emailBody}</pre>
-          </div>
-        )}
-
-        {!loading && !isCommitted && !error && !emailBody && (
-          <div className="error-container">
-            <FiAlertCircle /> No Z-report email found. Please ensure the plain-text Z-report has been received.
+        {!loading && !error && (
+          <div className="ss-shift-cards">
+            <ShiftStatusCard shift="DAY" data={dayData} />
+            <ShiftStatusCard shift="NIGHT" data={nightData} />
           </div>
         )}
 
