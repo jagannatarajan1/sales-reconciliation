@@ -19,6 +19,7 @@ import { Paypoint } from './pages/Paypoint/Paypoint';
 import { Commit } from './pages/Commit';
 import { AdminReconciliation } from './pages/AdminReconciliation/AdminReconciliation';
 import { AdminZReports } from './pages/AdminZReports/AdminZReports';
+import { AdminSessionPhotos } from './pages/AdminSessionPhotos/AdminSessionPhotos';
 import { AdminSuppliers } from './pages/AdminSuppliers/AdminSuppliers';
 import { SupplierInvoices } from './pages/SupplierInvoices/SupplierInvoices';
 import { ScratchCards } from './pages/ScratchCards/ScratchCards';
@@ -126,6 +127,14 @@ function App() {
             element={
               <ProtectedRoute requiredRole="admin" requiredPermission="reports">
                 <AdminZReports />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/session-photos"
+            element={
+              <ProtectedRoute requiredRole="admin" requiredPermission="sessionPhotos">
+                <AdminSessionPhotos />
               </ProtectedRoute>
             }
           />

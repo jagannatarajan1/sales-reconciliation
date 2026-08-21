@@ -24,6 +24,7 @@ const PERMISSION_MODULES = [
   { key: 'lottery', label: 'Lottery' },
   { key: 'paypoint', label: 'PayPoint' },
   { key: 'commitHistory', label: 'Commit History' },
+  { key: 'sessionPhotos', label: 'Session Photos' },
 ];
 
 const ROLES = ['user', 'admin'];

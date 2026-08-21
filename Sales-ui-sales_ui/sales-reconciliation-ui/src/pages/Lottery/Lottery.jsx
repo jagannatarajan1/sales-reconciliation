@@ -6,6 +6,8 @@ import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../components/ui/Toast";
 import { ShiftBanner } from "../../components/ShiftBanner";
 import "./Lottery.css";
+import PhotoAttachments from "../../components/PhotoAttachments";
+import { PHOTO_SECTIONS } from "../../constants/photoSections";
 
 const API_BASE     = import.meta.env.VITE_API_URL || "https://localhost:7276/api";
 const SUMMARY_URL  = `${API_BASE}/Summary`;
@@ -188,6 +190,13 @@ export const Lottery = () => {
             </div>
           )}
         </div>
+
+        <PhotoAttachments
+          section={PHOTO_SECTIONS.lottery}
+          readOnly={isLocked}
+          title="Lottery Photos"
+          description="Attach a photo of the lottery terminal report from your camera or a file on this device."
+        />
       </div>
     </motion.div>
   );

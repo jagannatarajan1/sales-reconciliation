@@ -4,6 +4,8 @@ import { motion } from "framer-motion";
 import { FiArrowLeft, FiCheckCircle, FiMail, FiAlertCircle } from "react-icons/fi";
 import { useAuth } from "../context/AuthContext";
 import { VARIANCE_TOLERANCE } from "../constants";
+import PhotoAttachments from "../components/PhotoAttachments";
+import { PHOTO_SECTIONS } from "../constants/photoSections";
 import "./Commit.css";
 
 const API_BASE = import.meta.env.VITE_API_URL || "https://localhost:7276/api";
@@ -297,6 +299,15 @@ export const Commit = () => {
 
         </div>
       )}
+
+      <PhotoAttachments
+        section={PHOTO_SECTIONS.commit}
+        // Once the day is committed the evidence freezes with it — the backend
+        // enforces the same rule, this just hides the controls.
+        readOnly={isCommitted || committed}
+        title="Supporting Photos"
+        description="Attach any photo the admin should see with this commit, from your camera or a file on this device."
+      />
     </motion.div>
   );
 };

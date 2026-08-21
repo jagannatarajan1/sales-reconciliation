@@ -3,8 +3,15 @@ import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
-  FiUsers, FiBarChart2, FiRotateCcw,
-  FiShoppingBag, FiFileText, FiCalendar, FiMail, FiClipboard,
+  FiBarChart2,
+  FiCalendar,
+  FiCamera,
+  FiClipboard,
+  FiFileText,
+  FiMail,
+  FiRotateCcw,
+  FiShoppingBag,
+  FiUsers,
 } from 'react-icons/fi';
 import '../styles/AdminDashboard.css';
 
@@ -58,6 +65,15 @@ const cards = [
     path: '/admin/z-reports',
     color: '#0ea5e9',
     permission: 'reports',
+  },
+  {
+    icon: FiCamera,
+    title: 'Session Photos',
+    desc: 'Browse photo evidence attached by staff, by user, session and date',
+    label: 'View Session Photos',
+    path: '/admin/session-photos',
+    color: '#8b5cf6',
+    permission: 'sessionPhotos',
   },
   {
     icon: FiRotateCcw,

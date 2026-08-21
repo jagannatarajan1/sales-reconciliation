@@ -12,6 +12,7 @@ export const PERMISSION_MODULES = [
   "lottery",
   "paypoint",
   "commitHistory",
+  "sessionPhotos",
 ] as const;
 
 export type PermissionModule = (typeof PERMISSION_MODULES)[number];

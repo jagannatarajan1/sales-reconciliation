@@ -1,0 +1,327 @@
+/* Admin session photo browser. Prefix `asp-`, matching the per-page
+   convention used by the other admin pages. */
+
+.asp-page {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 1.5rem 1.25rem 3rem;
+}
+
+.asp-back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-bottom: 1.25rem;
+  padding: 0.45rem 0.85rem;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  background: #fff;
+  color: #374151;
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.asp-back-btn:hover { background: #f9fafb; border-color: #9ca3af; }
+
+.asp-page-header { margin-bottom: 1.5rem; }
+
+.asp-page-title {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  margin: 0 0 0.35rem;
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #111827;
+}
+
+.asp-page-sub {
+  margin: 0;
+  max-width: 60ch;
+  color: #6b7280;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+/* ── Filters ────────────────────────────────────────────────────────────── */
+.asp-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.85rem;
+  align-items: flex-end;
+  margin-bottom: 1rem;
+  padding: 1rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  background: #f9fafb;
+}
+
+.asp-filter { display: flex; flex-direction: column; gap: 0.3rem; min-width: 9rem; }
+
+.asp-filter label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #4b5563;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.asp-filter select,
+.asp-filter input {
+  padding: 0.45rem 0.6rem;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  background: #fff;
+  color: #111827;
+  font-size: 0.875rem;
+}
+
+.asp-filter-actions { display: flex; gap: 0.5rem; }
+
+.asp-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.5rem 0.9rem;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  background: #fff;
+  color: #374151;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.asp-btn:hover:not(:disabled) { background: #f3f4f6; }
+.asp-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.asp-btn--primary {
+  border-color: #4f46e5;
+  background: #4f46e5;
+  color: #fff;
+}
+
+.asp-btn--primary:hover:not(:disabled) { background: #4338ca; }
+
+/* ── Status lines ───────────────────────────────────────────────────────── */
+.asp-alert {
+  margin-bottom: 1rem;
+  padding: 0.65rem 0.9rem;
+  border-radius: 8px;
+  font-size: 0.85rem;
+}
+
+.asp-alert--warn { background: #fffbeb; border: 1px solid #fde68a; color: #92400e; }
+.asp-alert--error { background: #fef2f2; border: 1px solid #fecaca; color: #b91c1c; }
+
+.asp-summary { margin-bottom: 0.85rem; color: #6b7280; font-size: 0.85rem; }
+
+.asp-center,
+.asp-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  padding: 3rem 1rem;
+  color: #6b7280;
+  font-size: 0.9rem;
+}
+
+.asp-center { flex-direction: row; }
+.asp-empty svg { width: 2rem; height: 2rem; opacity: 0.5; }
+.asp-empty p { margin: 0; }
+
+.asp-spin { animation: asp-spin 0.9s linear infinite; }
+@keyframes asp-spin { to { transform: rotate(360deg); } }
+
+/* ── Grid ───────────────────────────────────────────────────────────────── */
+.asp-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: 1rem;
+}
+
+.asp-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  background: #fff;
+  overflow: hidden;
+  transition: box-shadow 0.15s ease, transform 0.15s ease;
+}
+
+.asp-card:hover { box-shadow: 0 4px 12px rgba(16, 24, 40, 0.08); transform: translateY(-1px); }
+
+.asp-card__btn {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: #f3f4f6;
+  cursor: zoom-in;
+}
+
+.asp-card__img { display: block; width: 100%; aspect-ratio: 4 / 3; object-fit: cover; }
+
+.asp-card__fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  color: #9ca3af;
+  font-size: 0.8rem;
+}
+
+.asp-card__meta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.7rem 0.8rem 0.8rem;
+  font-size: 0.78rem;
+  color: #4b5563;
+}
+
+.asp-card__section { font-weight: 700; color: #111827; font-size: 0.85rem; }
+
+.asp-card__row { display: inline-flex; align-items: center; gap: 0.35rem; }
+.asp-card__row svg { width: 0.8rem; height: 0.8rem; flex-shrink: 0; opacity: 0.7; }
+
+.asp-card__sub { color: #9ca3af; font-size: 0.72rem; }
+
+.asp-card__del {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  display: grid;
+  place-items: center;
+  width: 1.9rem;
+  height: 1.9rem;
+  border: 0;
+  border-radius: 8px;
+  background: rgba(17, 24, 39, 0.62);
+  color: #fff;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s ease, background 0.15s ease;
+}
+
+.asp-card:hover .asp-card__del,
+.asp-card__del:focus-visible { opacity: 1; }
+.asp-card__del:hover { background: #dc2626; }
+
+/* Touch devices have no hover, so the control must always be visible. */
+@media (hover: none) {
+  .asp-card__del { opacity: 1; }
+}
+
+/* ── Pager ──────────────────────────────────────────────────────────────── */
+.asp-pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.85rem;
+  margin-top: 1.5rem;
+}
+
+.asp-pager-btn {
+  display: grid;
+  place-items: center;
+  width: 2.1rem;
+  height: 2.1rem;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  background: #fff;
+  color: #374151;
+  cursor: pointer;
+}
+
+.asp-pager-btn:hover:not(:disabled) { background: #f3f4f6; }
+.asp-pager-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.asp-pager-status { color: #6b7280; font-size: 0.85rem; }
+
+/* ── Lightbox ───────────────────────────────────────────────────────────── */
+.asp-lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  padding: 2rem 1rem;
+  background: rgba(3, 7, 18, 0.92);
+}
+
+.asp-lightbox__img {
+  max-width: min(100%, 1100px);
+  max-height: 74vh;
+  object-fit: contain;
+  border-radius: 8px;
+  cursor: default;
+}
+
+.asp-lightbox__loading {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: #e5e7eb;
+  font-size: 0.9rem;
+}
+
+.asp-lightbox__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 1rem;
+  align-items: center;
+  justify-content: center;
+  max-width: 90vw;
+  color: #d1d5db;
+  font-size: 0.82rem;
+  text-align: center;
+}
+
+.asp-lightbox__meta strong { color: #fff; }
+
+.asp-lightbox__close {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  display: grid;
+  place-items: center;
+  width: 2.4rem;
+  height: 2.4rem;
+  border: 0;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+  cursor: pointer;
+}
+
+.asp-lightbox__close:hover { background: rgba(255, 255, 255, 0.26); }
+
+@media (max-width: 640px) {
+  .asp-filters { flex-direction: column; align-items: stretch; }
+  .asp-filter { min-width: 0; }
+  .asp-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+}
+
+@media (prefers-color-scheme: dark) {
+  .asp-page-title { color: #f9fafb; }
+  .asp-back-btn,
+  .asp-btn,
+  .asp-pager-btn { background: #1f2937; border-color: #374151; color: #e5e7eb; }
+  .asp-filters { background: #111827; border-color: #1f2937; }
+  .asp-filter select,
+  .asp-filter input { background: #1f2937; border-color: #374151; color: #f9fafb; }
+  .asp-card { background: #1f2937; border-color: #374151; }
+  .asp-card__section { color: #f9fafb; }
+  .asp-card__meta { color: #d1d5db; }
+}

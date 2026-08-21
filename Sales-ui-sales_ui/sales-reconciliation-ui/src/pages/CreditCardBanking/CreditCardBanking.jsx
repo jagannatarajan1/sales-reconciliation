@@ -6,6 +6,8 @@ import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../components/ui/Toast";
 import { ShiftBanner } from "../../components/ShiftBanner";
 import "./CreditCardBanking.css";
+import PhotoAttachments from "../../components/PhotoAttachments";
+import { PHOTO_SECTIONS } from "../../constants/photoSections";
 
 const SUMMARY_URL = `${import.meta.env.VITE_API_URL || "https://localhost:7276/api"}/Summary`;
 
@@ -238,6 +240,13 @@ export const CreditCardBanking = () => {
             )}
           </>
         )}
+
+        <PhotoAttachments
+          section={PHOTO_SECTIONS.creditCardBanking}
+          readOnly={isLocked}
+          title="Credit Card Banking Photos"
+          description="Attach a photo of the card terminal summary from your camera or a file on this device."
+        />
       </div>
     </motion.div>
   );

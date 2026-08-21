@@ -22,6 +22,8 @@ import { adminReconciliationRouter } from "./routes/adminReconciliation.routes.j
 import { reportsRouter } from "./routes/reports.routes.js";
 import { zReportsRouter } from "./routes/zReports.routes.js";
 import { adminTillReportsRouter } from "./routes/adminTillReports.routes.js";
+import { sessionPhotosRouter } from "./routes/sessionPhotos.routes.js";
+import { adminSessionPhotosRouter } from "./routes/adminSessionPhotos.routes.js";
 import { startTillPoller } from "./lib/tillPoller.js";
 
 const app = express();
@@ -65,6 +67,21 @@ const otpLimiter = rateLimit({
 });
 app.use("/api/auth/otp", otpLimiter);
 
+// Photo file reads get their own, much larger budget. A single admin grid or
+// entry page is one request per thumbnail, so these would otherwise burn
+// through the general allowance in a couple of page loads. They are cheap
+// (nginx serves the bytes in production) and always authorised first.
+const PHOTO_FILE_PATH = /^\/(?:api\/session-photos|api\/admin\/session-photos)\/\d+\/file$/;
+
+const photoFileLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 2000,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { message: "Too many requests. Please try again later." },
+});
+app.use(PHOTO_FILE_PATH, photoFileLimiter);
+
 // General limiter across all API traffic: generous for normal use, well
 // below what a scripted flood would generate.
 const apiLimiter = rateLimit({
@@ -73,6 +90,8 @@ const apiLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   message: { message: "Too many requests. Please try again later." },
+  // Already counted against photoFileLimiter above.
+  skip: (req) => req.method === "GET" && PHOTO_FILE_PATH.test(req.path),
 });
 app.use("/api", apiLimiter);
 
@@ -93,6 +112,8 @@ app.use("/api/admin/reconciliation", adminReconciliationRouter);
 app.use("/api/admin/reports", reportsRouter);
 app.use("/api/z-reports", zReportsRouter);
 app.use("/api/admin/till-reports", adminTillReportsRouter);
+app.use("/api/session-photos", sessionPhotosRouter);
+app.use("/api/admin/session-photos", adminSessionPhotosRouter);
 
 app.use(errorHandler);
 

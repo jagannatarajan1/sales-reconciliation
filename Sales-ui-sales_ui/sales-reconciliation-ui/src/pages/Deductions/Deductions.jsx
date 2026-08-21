@@ -5,6 +5,8 @@ import { FiArrowLeft, FiCalendar, FiAlertCircle, FiPlus, FiX, FiEdit2, FiCheck, 
 import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../components/ui/Toast";
 import "./Deductions.css";
+import PhotoAttachments from "../../components/PhotoAttachments";
+import { PHOTO_SECTIONS } from "../../constants/photoSections";
 
 const API = import.meta.env.VITE_API_URL || 'https://localhost:7276/api';
 
@@ -519,6 +521,20 @@ export const Deductions = () => {
         </div>
         <DeductionsGrid   token={user.token} showToast={showToast} isLocked={isLocked} />
         <SupplierInvoices token={user.token} showToast={showToast} isLocked={isLocked} />
+
+        <PhotoAttachments
+          section={PHOTO_SECTIONS.supplierInvoices}
+          readOnly={isLocked}
+          title="Supplier Invoice Photos"
+          description="Attach a photo of each supplier invoice or delivery note for this session."
+        />
+
+        <PhotoAttachments
+          section={PHOTO_SECTIONS.deductions}
+          readOnly={isLocked}
+          title="Deduction Photos"
+          description="Attach a photo of any receipt or voucher behind these deductions."
+        />
       </div>
     </motion.div>
   );

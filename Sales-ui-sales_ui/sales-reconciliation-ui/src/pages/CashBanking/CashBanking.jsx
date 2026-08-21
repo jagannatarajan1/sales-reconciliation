@@ -6,6 +6,8 @@ import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../components/ui/Toast";
 import { ShiftBanner } from "../../components/ShiftBanner";
 import "./CashBanking.css";
+import PhotoAttachments from "../../components/PhotoAttachments";
+import { PHOTO_SECTIONS } from "../../constants/photoSections";
 
 const SUMMARY_URL = `${import.meta.env.VITE_API_URL || "https://localhost:7276/api"}/Summary`;
 
@@ -254,6 +256,13 @@ export const CashBanking = () => {
             )}
           </>
         )}
+
+        <PhotoAttachments
+          section={PHOTO_SECTIONS.cashBanking}
+          readOnly={isLocked}
+          title="Cash Banking Photos"
+          description="Attach a photo of the banking slip or cash count from your camera or a file on this device."
+        />
       </div>
     </motion.div>
   );

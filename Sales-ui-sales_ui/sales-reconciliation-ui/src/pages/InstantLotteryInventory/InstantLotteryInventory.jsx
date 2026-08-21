@@ -13,6 +13,8 @@ import "./InstantLottertInventory.css";
 import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../components/ui/Toast";
 import { ShiftBanner } from "../../components/ShiftBanner";
+import PhotoAttachments from "../../components/PhotoAttachments";
+import { PHOTO_SECTIONS } from "../../constants/photoSections";
 
 const API_BASE = `${import.meta.env.VITE_API_URL || "https://localhost:7276/api"}/LotteryInstant`;
 const SCRATCH_CARD_ORDER_KEY = "scratch-card-display-order";
@@ -482,6 +484,13 @@ export const InstantLotteryInventory = () => {
           showToast={showToast}
           userRole={user.role}
           isLocked={isLocked}
+        />
+
+        <PhotoAttachments
+          section={PHOTO_SECTIONS.instantLotteryInventory}
+          readOnly={isLocked}
+          title="Instant Lottery Photos"
+          description="Attach a photo of the instant lottery count sheet from your camera or a file on this device."
         />
       </div>
     </motion.div>

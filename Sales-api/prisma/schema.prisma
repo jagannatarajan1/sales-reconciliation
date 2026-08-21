@@ -311,7 +311,7 @@ model ShiftReconciliation {
   // An admin's reviewed, approved correction — set only via the admin edit
   // endpoint, and only that endpoint. A reason is required by the API
   // whenever a value is actually being changed.
-  adminEditedTotal  Decimal? @db.Decimal(18, 2)
+  adminEditedTotal  Decimal?  @db.Decimal(18, 2)
   adminEditedById   Int?
   adminEditedByName String?
   adminEditedAt     DateTime?
@@ -438,4 +438,47 @@ model GmailConnection {
 
   connectedByUserId Int
   connectedByUser   User @relation(fields: [connectedByUserId], references: [userId])
+}
+
+// Photographic evidence attached to one entry session. The "session" here is
+// the same (date, shift) pair every other entry model is keyed by — resolved
+// server-side from getActiveContext(), never taken from the client, so a
+// photo can't be filed against a session the uploader isn't actually working.
+//
+// Only metadata lives here. The bytes live behind the storage driver
+// (lib/storage), addressed by storageKey — a driver-relative key, not a
+// filesystem path, so moving to S3/R2 is a driver swap and not a schema
+// change. Nothing in this table is safe to build a public URL from.
+model SessionPhoto {
+  sessionPhotoId Int @id @default(autoincrement())
+
+  section  String
+  date     DateTime @db.Date
+  shift    Shift    @default(FULL_DAY)
+  // Set only for catalogue-style sections (Scratch Cards), where a photo
+  // belongs to a thing rather than to a day. Null for the daily pages.
+  entityId String?
+
+  uploadedByUserId Int
+  uploadedByName   String?
+
+  // Kept for display and audit only. Never used to build a path — the file
+  // on disk is named from storageKey, which the server generates.
+  originalFilename String
+  storageKey       String  @unique
+  thumbnailKey     String?
+  mimeType         String
+  fileSize         Int
+  width            Int?
+  height           Int?
+  source           String  @default("file") // "camera" | "file"
+  status           String  @default("ready") // "ready" | "failed"
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
+  @@index([uploadedByUserId])
+  @@index([date, shift])
+  @@index([section, date, shift])
+  @@index([createdAt])
 }

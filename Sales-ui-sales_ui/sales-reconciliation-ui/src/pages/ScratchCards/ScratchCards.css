@@ -482,3 +482,23 @@
   .sc-table td  { padding: 8px 10px; font-size: 0.8rem; }
   .sc-popover   { flex-direction: column; align-items: flex-start; }
 }
+
+/* Expandable photo panel row. The cell spans the full table so the photo
+   block lays out normally rather than being squeezed into one column. */
+.sc-photos-row > td {
+  padding: 0.75rem 1rem 1rem;
+  background: #f9fafb;
+}
+
+.sc-action-btn--photos {
+  border-color: #c7d2fe;
+  color: #4338ca;
+}
+
+.sc-action-btn--photos:hover {
+  background: #eef2ff;
+}
+
+@media (prefers-color-scheme: dark) {
+  .sc-photos-row > td { background: #111827; }
+}

@@ -1,0 +1,43 @@
+[Unit]
+Description=Sales Reconciliation API
+Documentation=https://github.com/jagannatarajan1/sales-reconciliation
+After=network-online.target postgresql.service
+Wants=network-online.target
+Requires=postgresql.service
+
+[Service]
+Type=simple
+User=@APP_USER@
+Group=@APP_USER@
+WorkingDirectory=@APP_ROOT@/Sales-api
+EnvironmentFile=@ENV_DIR@/api.env
+ExecStart=/usr/bin/node dist/index.js
+
+Restart=always
+RestartSec=5
+# Give up only if it fails repeatedly in a short window, so a bad deploy
+# surfaces as a failed unit instead of an endless restart loop.
+StartLimitBurst=5
+StartLimitIntervalSec=60
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=sales-api
+
+# ── Hardening ──
+# The API only ever needs to write to the upload directory; everything else,
+# including its own source tree, is read-only at runtime.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+RestrictNamespaces=true
+LockPersonality=true
+ReadWritePaths=@UPLOAD_DIR@
+
+[Install]
+WantedBy=multi-user.target
