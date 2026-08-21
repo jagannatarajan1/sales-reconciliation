@@ -443,15 +443,94 @@ function ShiftCard({ shift, date, token, onUpdated }) {
   );
 }
 
+// Fetches a protected file with the bearer token and hands it to the browser.
+// Module scope so both the page and ShiftBreakdownPanel can call it; the
+// filename comes from content-disposition, falling back to a supplied name.
+async function downloadWithToken(url, token, fallbackFileName) {
+  const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.message || 'Download failed. Please try again.');
+  }
+  const blob = await res.blob();
+  const disposition = res.headers.get('content-disposition') || '';
+  const match = disposition.match(/filename="?([^";]+)"?/);
+
+  const objectUrl = window.URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = objectUrl;
+  link.download = match ? match[1] : fallbackFileName;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.URL.revokeObjectURL(objectUrl);
+}
+
 function ShiftBreakdownPanel({ date, shifts, xVsZ, token, onUpdated }) {
   const dayShift = shifts.find((s) => s.shift === 'DAY') ?? null;
   const nightShift = shifts.find((s) => s.shift === 'NIGHT') ?? null;
+  const [downloading, setDownloading] = useState('');
+  const [downloadError, setDownloadError] = useState('');
 
   if (!dayShift && !nightShift && !xVsZ) return null;
 
+  const download = async (kind, url, fallbackName) => {
+    setDownloadError('');
+    setDownloading(kind);
+    try {
+      await downloadWithToken(url, token, fallbackName);
+    } catch (err) {
+      setDownloadError(err.message || 'Download failed.');
+    } finally {
+      setDownloading('');
+    }
+  };
+
+  const shiftUrl = (shift) =>
+    `${API_BASE}/admin/reconciliation/download-shift?date=${date}&shift=${shift}`;
+
   return (
     <div className="ar-shift-breakdown">
-      <div className="ar-shift-breakdown-title">Shift Breakdown</div>
+      <div className="ar-shift-breakdown-head">
+        <div className="ar-shift-breakdown-title">Shift Breakdown</div>
+        <div className="ar-shift-downloads">
+          {dayShift && (
+            <button
+              type="button"
+              className="ar-shift-dl-btn"
+              disabled={downloading !== ''}
+              onClick={() => download('DAY', shiftUrl('DAY'), `x-report-day-${date}.pdf`)}
+            >
+              {downloading === 'DAY' ? 'Preparing…' : 'Day X PDF'}
+            </button>
+          )}
+          {nightShift && (
+            <button
+              type="button"
+              className="ar-shift-dl-btn"
+              disabled={downloading !== ''}
+              onClick={() => download('NIGHT', shiftUrl('NIGHT'), `x-report-night-${date}.pdf`)}
+            >
+              {downloading === 'NIGHT' ? 'Preparing…' : 'Night X PDF'}
+            </button>
+          )}
+          <button
+            type="button"
+            className="ar-shift-dl-btn ar-shift-dl-btn--primary"
+            disabled={downloading !== ''}
+            onClick={() =>
+              download(
+                'DAILY',
+                `${API_BASE}/admin/reconciliation/download-daily?date=${date}`,
+                `daily-reconciliation-${date}.pdf`
+              )
+            }
+          >
+            {downloading === 'DAILY' ? 'Preparing…' : 'Full Daily Report'}
+          </button>
+        </div>
+      </div>
+      {downloadError && <div className="ar-shift-dl-error">{downloadError}</div>}
       <div className="ar-shift-cards">
         <ShiftCard shift={dayShift} date={date} token={token} onUpdated={onUpdated} />
         <ShiftCard shift={nightShift} date={date} token={token} onUpdated={onUpdated} />
@@ -528,28 +607,8 @@ export const AdminReconciliation = () => {
   const showToast = (message, type = 'success') => notify(message, type);
 
   /* ── Download bill helpers ── */
-  const downloadFile = async (url, fallbackFileName) => {
-    const res = await fetch(url, {
-      headers: { Authorization: `Bearer ${user.token}` },
-    });
-    if (!res.ok) {
-      const data = await res.json().catch(() => ({}));
-      throw new Error(data.message || 'Download failed. Please try again.');
-    }
-    const blob = await res.blob();
-    const disposition = res.headers.get('content-disposition') || '';
-    const match = disposition.match(/filename="?([^";]+)"?/);
-    const fileName = match ? match[1] : fallbackFileName;
-
-    const objectUrl = window.URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = objectUrl;
-    link.download = fileName;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    window.URL.revokeObjectURL(objectUrl);
-  };
+  const downloadFile = (url, fallbackFileName) =>
+    downloadWithToken(url, user.token, fallbackFileName);
 
   // Download the full Sales Reconciliation report (Stage 3's single-date PDF
   // renderer) for the currently viewed committed record — the properly

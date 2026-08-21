@@ -150,6 +150,10 @@ suppliersRouter.get("/invoices/download-excel", async (req, res) => {
 suppliersRouter.post("/invoices", async (req, res) => {
   if (req.userId == null) return res.status(401).json({ message: "User not authenticated" });
 
+  // Deliberately NOT lock-guarded, matching the rule stated on the edit
+  // handler below: supplier payout values must remain editable at all times.
+  // Invoices arrive with deliveries rather than on the shift schedule, so a
+  // committed shift must not stop a late delivery note being recorded.
   const { date, shift } = await getActiveContext();
   const { supplierId, invoiceNo, value } = req.body ?? {};
   const supplier = supplierId ? await prisma.supplier.findUnique({ where: { supplierId: Number(supplierId) } }) : null;

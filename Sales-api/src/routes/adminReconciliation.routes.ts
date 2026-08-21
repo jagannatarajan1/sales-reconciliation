@@ -3,7 +3,12 @@ import { prisma } from "../lib/prisma.js";
 import { dateOnly } from "../lib/activeDate.js";
 import { computeDailyTotals } from "../lib/dailyTotals.js";
 import { parseDepartmentTotal } from "../lib/departmentTotal.js";
-import { renderReconciliationReportPdf } from "../lib/pdf.js";
+import {
+  renderReconciliationReportPdf,
+  renderShiftReportPdf,
+  renderDailyReconciliationPdf,
+  ShiftReportPdfInput,
+} from "../lib/pdf.js";
 import { sendCommitNotificationEmail } from "../lib/commitEmail.js";
 import { buildZReportBillsZip } from "../lib/zReportBills.js";
 import * as gmailService from "../services/gmail.service.js";
@@ -436,6 +441,124 @@ adminReconciliationRouter.get("/download-bill", async (req, res) => {
   const dateStr = date.toISOString().split("T")[0];
   res.setHeader("Content-Type", "application/pdf");
   res.setHeader("Content-Disposition", `attachment; filename="reconciliation-report-${dateStr}.pdf"`);
+  res.send(pdf);
+});
+
+// Maps one shift's stored row onto the PDF input. Kept next to the endpoints
+// that use it rather than in pdf.ts, so the renderer stays ignorant of Prisma.
+function toShiftPdfInput(
+  date: Date,
+  shift: Shift,
+  row: {
+    originalTotal: unknown; xReportCount: number;
+    staffEnteredTotal: unknown; staffEnteredByName: string | null; staffEnteredAt: Date | null;
+    adminEditedTotal: unknown; adminEditedByName: string | null; adminEditedAt: Date | null;
+    adminEditReason: string | null;
+    finalTotal: unknown; originalDifference: unknown; finalDifference: unknown;
+    finalStatus: string;
+    shiftCommittedByName: string | null; shiftCommittedAt: Date | null; shiftStaffNotes: string | null;
+  } | null
+): ShiftReportPdfInput {
+  const num = (v: unknown) => (v == null ? null : Number(v));
+  return {
+    date,
+    shiftLabel: shift === Shift.DAY ? "Day Shift" : shift === Shift.NIGHT ? "Night Shift" : "Full Day",
+    originalTotal: num(row?.originalTotal),
+    xReportCount: row?.xReportCount ?? 0,
+    staffEnteredTotal: num(row?.staffEnteredTotal),
+    staffEnteredByName: row?.staffEnteredByName ?? null,
+    staffEnteredAt: row?.staffEnteredAt ?? null,
+    adminEditedTotal: num(row?.adminEditedTotal),
+    adminEditedByName: row?.adminEditedByName ?? null,
+    adminEditedAt: row?.adminEditedAt ?? null,
+    adminEditReason: row?.adminEditReason ?? null,
+    finalTotal: num(row?.finalTotal),
+    originalDifference: num(row?.originalDifference),
+    finalDifference: num(row?.finalDifference),
+    finalStatus: row?.finalStatus ?? "PENDING",
+    committedByName: row?.shiftCommittedByName ?? null,
+    committedAt: row?.shiftCommittedAt ?? null,
+    staffNotes: row?.shiftStaffNotes ?? null,
+  };
+}
+
+// One shift's X-Report chain as a PDF.
+adminReconciliationRouter.get("/download-shift", async (req, res) => {
+  if (!requireAdmin(req, res)) return;
+
+  const dateParam = req.query.date as string | undefined;
+  const shiftParam = req.query.shift as string | undefined;
+  if (!dateParam) return res.status(400).json({ message: "date query parameter is required." });
+  if (shiftParam !== Shift.DAY && shiftParam !== Shift.NIGHT) {
+    return res.status(400).json({ message: "shift must be DAY or NIGHT." });
+  }
+
+  const date = dateOnly(dateParam);
+  const row = await prisma.shiftReconciliation.findUnique({
+    where: { date_shift: { date, shift: shiftParam } },
+  });
+  if (!row) {
+    return res.status(404).json({ message: "No shift reconciliation found for this date and shift." });
+  }
+
+  const pdf = await renderShiftReportPdf(toShiftPdfInput(date, shiftParam, row), {
+    generatedByName: req.userName,
+  });
+  const dateStr = date.toISOString().split("T")[0];
+  res.setHeader("Content-Type", "application/pdf");
+  res.setHeader(
+    "Content-Disposition",
+    `attachment; filename="x-report-${shiftParam.toLowerCase()}-${dateStr}.pdf"`
+  );
+  res.send(pdf);
+});
+
+// The whole day: both shifts, corrections, combined X, Z, and the comparison.
+adminReconciliationRouter.get("/download-daily", async (req, res) => {
+  if (!requireAdmin(req, res)) return;
+
+  const dateParam = req.query.date as string | undefined;
+  if (!dateParam) return res.status(400).json({ message: "date query parameter is required." });
+
+  const date = dateOnly(dateParam);
+
+  const [dayRow, nightRow, record] = await Promise.all([
+    prisma.shiftReconciliation.findUnique({ where: { date_shift: { date, shift: Shift.DAY } } }),
+    prisma.shiftReconciliation.findUnique({ where: { date_shift: { date, shift: Shift.NIGHT } } }),
+    prisma.reconciliationRecord.findUnique({ where: { date } }),
+  ]);
+
+  if (!dayRow && !nightRow && !record) {
+    return res.status(404).json({ message: "Nothing recorded for this date." });
+  }
+
+  // evaluateDay is the single writer of the X-vs-Z figures and returns them,
+  // so calling it here keeps the PDF consistent with the dashboard instead of
+  // recomputing the comparison a second, divergent way.
+  const { xFinalDayTotal, xFinalNightTotal, xFinalSumTotal, xVsZDifference, zReportTotal } =
+    await evaluateDay(date);
+
+  const pdf = await renderDailyReconciliationPdf(
+    {
+      date,
+      shifts: [
+        toShiftPdfInput(date, Shift.DAY, dayRow),
+        toShiftPdfInput(date, Shift.NIGHT, nightRow),
+      ],
+      xDay: xFinalDayTotal,
+      xNight: xFinalNightTotal,
+      xSum: xFinalSumTotal,
+      zReportTotal,
+      xVsZDifference,
+      inTolerance: xVsZDifference == null || isWithinTolerance(xVsZDifference),
+      record,
+    },
+    { generatedByName: req.userName }
+  );
+
+  const dateStr = date.toISOString().split("T")[0];
+  res.setHeader("Content-Type", "application/pdf");
+  res.setHeader("Content-Disposition", `attachment; filename="daily-reconciliation-${dateStr}.pdf"`);
   res.send(pdf);
 });
 

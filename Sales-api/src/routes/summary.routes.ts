@@ -14,6 +14,8 @@ import {
   toStaffStatusDto,
 } from "../lib/shiftReconciliation.js";
 import { writeAuditLog } from "../lib/auditLog.js";
+import { blockIfLocked, getLockState } from "../lib/entryLock.js";
+import { computeShiftTotals } from "../lib/dailyTotals.js";
 import { Shift } from "@prisma/client";
 
 export const summaryRouter = Router();
@@ -44,7 +46,7 @@ summaryRouter.get("/today", async (req, res) => {
   }
 
   const { date, shift, shiftSource } = await getActiveContext();
-  const [record, totals, reconciliation, shiftX] = await Promise.all([
+  const [record, totals, reconciliation, shiftX, lockState] = await Promise.all([
     prisma.dailySummary.findUnique({ where: { date_shift: { date, shift } }, include: { creditCardEntries: true } }),
     computeDailyTotals(date),
     prisma.reconciliationRecord.findUnique({ where: { date } }),
@@ -55,6 +57,7 @@ summaryRouter.get("/today", async (req, res) => {
     // DAY/NIGHT) — so this naturally comes back empty rather than needing a
     // separate on/off branch.
     getShiftXTotal(date, shift).catch(() => ({ total: null, count: 0 })),
+    getLockState(date, shift),
   ]);
 
   // Z-Report data (department total / variance) is intentionally never
@@ -80,8 +83,11 @@ summaryRouter.get("/today", async (req, res) => {
     return res.json({
       date,
       hasTodayData: false,
-      isCommitted: false,
+      isCommitted: lockState.dayLocked,
       isPendingAdminReview: false,
+      isShiftCommitted: lockState.shiftLocked,
+      isLocked: lockState.locked,
+      lockReason: lockState.reason,
       supplierInvoicesTotal: totals.supplierInvoicesTotal,
       instantLotteryTotalCount: totals.instantLotteryTotalCount,
       instantLotteryTotalSales: totals.instantLotteryTotalSales,
@@ -92,8 +98,18 @@ summaryRouter.get("/today", async (req, res) => {
   res.json({
     date: record.date,
     hasTodayData: true,
-    isCommitted: record.isCommitted,
-    isPendingAdminReview: record.isPendingAdminReview,
+    // Deliberately NOT record.isCommitted / record.isPendingAdminReview: those
+    // DailySummary columns are never written by anything and are permanently
+    // false. The real locks live on ReconciliationRecord (day) and
+    // ShiftReconciliation (shift) — see lib/entryLock.ts.
+    isCommitted: lockState.dayLocked,
+    // Kept in the payload for backward compatibility with the entry pages,
+    // which read it. Nothing sets a "pending review" state today, and the
+    // day lock above already covers everything it was meant to gate.
+    isPendingAdminReview: false,
+    isShiftCommitted: lockState.shiftLocked,
+    isLocked: lockState.locked,
+    lockReason: lockState.reason,
     committedAt: reconciliation?.committedAt ?? null,
     lastSafe: record.lastSafe,
     safeDropAmount: record.safeDropAmount,
@@ -125,6 +141,8 @@ summaryRouter.put("/", async (req, res) => {
   }
 
   const { date, shift } = await getActiveContext();
+  if (await blockIfLocked(res, date, shift)) return;
+
   const body = req.body ?? {};
 
   const fieldData = Object.fromEntries(EDITABLE_KEYS.map((k) => [k, toNumber(body[k])]));
@@ -222,9 +240,14 @@ summaryRouter.get("/shift-status", async (req, res) => {
   }
 
   const targetDate = req.query.date ? dateOnly(req.query.date as string) : await getActiveDate();
-  const breakdown = await getStaffShiftBreakdown(targetDate);
 
-  res.json({ date: targetDate, ...breakdown });
+  // The caller's own shift comes from the server, never the query string, so
+  // asking for another date cannot widen what money they get to see. Other
+  // shifts come back as status only.
+  const { shift: activeShift } = await getActiveContext();
+  const breakdown = await getStaffShiftBreakdown(targetDate, activeShift);
+
+  res.json({ date: targetDate, activeShift, ...breakdown });
 });
 
 // Staff-safe DAY/NIGHT status calendar for a date range — no Z-Report
@@ -243,6 +266,118 @@ summaryRouter.get("/shift-calendar", async (req, res) => {
 
   const dates = await getStatusCalendar(dateOnly(fromParam), dateOnly(toParam));
   res.json({ dates: dates.map(toStaffStatusDto) });
+});
+
+// Staff sign-off for ONE shift.
+//
+// Deliberately has no Z-Report gate, which is the whole point of it existing
+// alongside POST /commit: the Z-Report only arrives after the night shift, so
+// gating here would make it impossible for the morning shift to ever sign off.
+// A shift is validated against its own X-Report instead, which lands at the end
+// of that shift and is what evaluateAndNotify already compares against.
+//
+// The day-level POST /commit below is unchanged and remains the final,
+// Z-gated step that closes the whole day.
+summaryRouter.post("/shift-commit", async (req, res) => {
+  if (req.userId == null) {
+    return res.status(401).json({ message: "User not authenticated" });
+  }
+
+  // Session comes from the server. A body-supplied date or shift is ignored
+  // outright, so a staff member cannot sign off a shift they are not working.
+  const { date, shift } = await getActiveContext();
+
+  if (shift === Shift.FULL_DAY) {
+    return res.status(400).json({
+      message: "Per-shift commit is not available while shift entry is turned off.",
+    });
+  }
+
+  const lockState = await getLockState(date, shift);
+  if (lockState.locked) {
+    return res.status(409).json({
+      message: lockState.shiftLocked
+        ? "This shift has already been committed."
+        : lockState.reason,
+      dayLocked: lockState.dayLocked,
+      shiftLocked: lockState.shiftLocked,
+    });
+  }
+
+  const totals = await computeShiftTotals(date, shift);
+
+  // Boundary validation only. Tolerance and variance are owned by
+  // lib/variance.ts and the evaluate* pipeline — this just refuses figures that
+  // could not be right under any tolerance, naming the field so the user can
+  // find it rather than showing a generic failure.
+  const invalid = Object.entries(totals).find(
+    ([, value]) => typeof value === "number" && (!Number.isFinite(value) || value < 0)
+  );
+  if (invalid) {
+    return res.status(400).json({
+      message: `${invalid[0]} is ${invalid[1]}, which cannot be committed. Please review the highlighted fields.`,
+      field: invalid[0],
+      value: invalid[1],
+    });
+  }
+
+  const body = req.body ?? {};
+  const shiftStaffNotes =
+    typeof body.staffNotes === "string" && body.staffNotes.trim() ? body.staffNotes.trim() : null;
+
+  const committedAt = new Date();
+
+  // Only the commit columns are written here. Everything else on the row is
+  // owned by evaluateShift, which recomputes it from the till and the entry
+  // pages — writing totals here would fight that pipeline.
+  const row = await prisma.shiftReconciliation.upsert({
+    where: { date_shift: { date, shift } },
+    create: {
+      date,
+      shift,
+      isShiftCommitted: true,
+      shiftCommittedByUserId: req.userId,
+      shiftCommittedByName: req.userName ?? null,
+      shiftCommittedAt: committedAt,
+      shiftStaffNotes,
+    },
+    update: {
+      isShiftCommitted: true,
+      shiftCommittedByUserId: req.userId,
+      shiftCommittedByName: req.userName ?? null,
+      shiftCommittedAt: committedAt,
+      shiftStaffNotes,
+    },
+  });
+
+  void writeAuditLog({
+    userId: req.userId,
+    userName: req.userName,
+    action: "shift_commit",
+    entity: "ShiftReconciliation",
+    entityId: row.shiftReconciliationId,
+    newValue: {
+      date: date.toISOString().split("T")[0],
+      shift,
+      staffEnteredTotal: totals.summaryTotal,
+      committedAt: committedAt.toISOString(),
+    },
+  });
+
+  // Re-run the variance check now the shift is final. If it is out of
+  // tolerance this raises the existing shift-variance email to the admin;
+  // if it is fine, nothing is sent. Fire-and-forget, exactly as every entry
+  // route already calls it.
+  void evaluateAndNotify(date, shift);
+
+  res.json({
+    message: "Shift committed",
+    date: date.toISOString().split("T")[0],
+    shift,
+    committedAt,
+    committedByName: req.userName ?? null,
+    staffEnteredTotal: totals.summaryTotal,
+  });
 });
 
 summaryRouter.post("/commit", async (req, res) => {

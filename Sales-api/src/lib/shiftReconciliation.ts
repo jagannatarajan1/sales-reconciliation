@@ -77,6 +77,10 @@ export async function evaluateShift(date: Date, shift: Shift) {
     originalStatus,
     finalStatus,
     hasEntries,
+    // Deliberately absent, exactly like the adminEdited* columns above:
+    // isShiftCommitted / shiftCommittedBy* / shiftStaffNotes are written only
+    // by POST /Summary/shift-commit. Including them here would let a poller
+    // cycle or a staff re-save silently un-commit a shift.
   };
 
   return prisma.shiftReconciliation.upsert({
@@ -374,14 +378,52 @@ export function toStaffShiftDto(dto: ShiftBreakdownDto): StaffShiftDto {
   return rest;
 }
 
+// What a staff member may see of a shift they are NOT working: whether it is
+// OK, in variance, or still pending — enough to hand over sensibly — but none
+// of its money. Handover context without exposing another shift's figures.
+export type StaffOtherShiftDto = Pick<
+  StaffShiftDto,
+  "shift" | "originalStatus" | "finalStatus" | "hasEntries"
+>;
+
+export function toStaffOtherShiftDto(dto: ShiftBreakdownDto): StaffOtherShiftDto {
+  return {
+    shift: dto.shift,
+    originalStatus: dto.originalStatus,
+    finalStatus: dto.finalStatus,
+    hasEntries: dto.hasEntries,
+  };
+}
+
+export type StaffShiftViewDto =
+  | (StaffShiftDto & { isOwnShift: true })
+  | (StaffOtherShiftDto & { isOwnShift: false });
+
 // Staff-safe equivalent of getShiftBreakdown — same read model, but the
 // Z-Report comparison is not merely omitted from the DTO type, it is never
 // computed into the response at all: there is no `xVsZ` key, not even null.
 // Backs GET /Summary/shift-status, which any authenticated staff member can
 // call directly.
-export async function getStaffShiftBreakdown(date: Date): Promise<{ shifts: StaffShiftDto[] }> {
+//
+// `activeShift` scopes the money: the caller's own shift comes back in full,
+// every other shift is reduced to its status. Passing FULL_DAY (or omitting
+// it) returns everything, which is correct while SHIFT_ENTRY_ENABLED is off —
+// there is only one shift then, and redacting it would blank the page.
+export async function getStaffShiftBreakdown(
+  date: Date,
+  activeShift?: Shift
+): Promise<{ shifts: StaffShiftViewDto[] }> {
   const { shifts } = await getShiftBreakdown(date);
-  return { shifts: shifts.map(toStaffShiftDto) };
+
+  const scoped = activeShift != null && activeShift !== Shift.FULL_DAY;
+
+  return {
+    shifts: shifts.map((row) =>
+      !scoped || row.shift === activeShift
+        ? { ...toStaffShiftDto(row), isOwnShift: true as const }
+        : { ...toStaffOtherShiftDto(row), isOwnShift: false as const }
+    ),
+  };
 }
 
 export interface DateStatusDto {

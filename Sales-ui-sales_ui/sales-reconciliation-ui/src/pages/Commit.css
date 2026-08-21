@@ -622,3 +622,75 @@
   .commit-done-badge { flex-direction: column; align-items: flex-start; }
   .commit-shift-row { flex-wrap: wrap; }
 }
+
+/* ── Per-shift sign-off ─────────────────────────────────────────────────── */
+/* Visually subordinate to the day commit below it: this is a step along the
+   way, not the final action, so it reads as a card rather than a CTA block. */
+.commit-shift-commit {
+  margin: 1rem 0 1.25rem;
+  padding: 1rem 1.1rem;
+  border: 1px solid #dfe3ec;
+  border-left: 3px solid #4f46e5;
+  border-radius: 10px;
+  background: #fbfbfe;
+}
+
+.commit-shift-commit--done {
+  border-left-color: #16a34a;
+  background: #f6fdf8;
+}
+
+.commit-shift-commit-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.4rem;
+}
+
+.commit-shift-commit-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #1f2430;
+}
+
+.commit-shift-commit-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  background: #dcfce7;
+  color: #15803d;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.commit-shift-commit-badge svg { width: 0.85rem; height: 0.85rem; }
+
+.commit-shift-commit-note {
+  margin: 0 0 0.75rem;
+  color: #5b6478;
+  font-size: 0.83rem;
+  line-height: 1.5;
+}
+
+.commit-shift-commit--done .commit-shift-commit-note {
+  margin-bottom: 0;
+  color: #3f6b4d;
+}
+
+.commit-shift-commit-btn {
+  padding: 0.55rem 1.1rem;
+  border: 0;
+  border-radius: 8px;
+  background: #4f46e5;
+  color: #fff;
+  font-size: 0.87rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.commit-shift-commit-btn:hover:not(:disabled) { background: #4338ca; }
+.commit-shift-commit-btn:disabled { opacity: 0.6; cursor: not-allowed; }

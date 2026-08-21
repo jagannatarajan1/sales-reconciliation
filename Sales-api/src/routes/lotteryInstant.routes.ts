@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { prisma } from "../lib/prisma.js";
 import { getActiveContext } from "../lib/activeDate.js";
+import { blockIfLocked } from "../lib/entryLock.js";
 import { previousShiftEntry } from "../lib/dailyTotals.js";
 import { evaluateAndNotify } from "../lib/shiftReconciliation.js";
 import { Shift } from "@prisma/client";
@@ -88,6 +89,7 @@ lotteryInstantRouter.post("/", async (req, res) => {
   if (req.userId == null) return res.status(401).json({ message: "User not authenticated" });
 
   const { date, shift } = await getActiveContext();
+  if (await blockIfLocked(res, date, shift)) return;
   const scratchCardId = toInt(req.body?.lotteryId);
   const openNo = toInt(req.body?.openNo);
   const closeNo = toInt(req.body?.closeNo);
@@ -160,6 +162,7 @@ lotteryInstantRouter.delete("/today/:lotteryId", async (req, res) => {
   if (req.userId == null) return res.status(401).json({ message: "User not authenticated" });
 
   const { date, shift } = await getActiveContext();
+  if (await blockIfLocked(res, date, shift)) return;
   const scratchCardId = toInt(req.params.lotteryId);
   await prisma.instantLotteryInventoryEntry
     .delete({ where: { scratchCardId_date_shift: { scratchCardId, date, shift } } })

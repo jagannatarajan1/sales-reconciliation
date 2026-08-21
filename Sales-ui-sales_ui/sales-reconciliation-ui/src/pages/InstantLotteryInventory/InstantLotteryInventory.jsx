@@ -423,7 +423,9 @@ export const InstantLotteryInventory = () => {
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
         if (d?.date) setActiveDate(d.date);
-        setIsCommitted(d?.isCommitted ?? false);
+        // isLocked covers BOTH locks — the day commit and this shift's own commit.
+        // Falls back to isCommitted so an older API build still locks on the day.
+        setIsCommitted(d?.isLocked ?? d?.isCommitted ?? false);
         setIsPendingAdminReview(d?.isPendingAdminReview ?? false);
         setShift(d?.shift ?? null);
         setShiftLabel(d?.shiftLabel ?? null);

@@ -272,6 +272,194 @@ export async function renderZReportBillPdf(date: Date, emailBody: string | null,
  * Supplier Payout report — grouped by supplier, range-based
  * ──────────────────────────────────────────────────────────────────────── */
 
+/**
+ * One shift's reconciliation chain, as a standalone document.
+ *
+ * The whole point is the provenance: what the till reported, what staff
+ * entered, what (if anything) an admin corrected and why, and the final
+ * approved figure. Every existing renderer is day-level, so this is the first
+ * one that consumes ShiftReconciliation rather than ReconciliationRecord.
+ */
+export async function renderShiftReportPdf(
+  input: ShiftReportPdfInput,
+  meta: PdfMeta = {}
+): Promise<Buffer> {
+  const doc = newDocument();
+  doc.y = drawHeader(
+    doc,
+    `X Report — ${input.shiftLabel}`,
+    `Date: ${fmtDateStr(input.date)}`,
+    meta
+  );
+
+  drawShiftSections(doc, input);
+
+  addPageNumbers(doc);
+  return collectPdf(doc);
+}
+
+export interface ShiftReportPdfInput {
+  date: Date;
+  shiftLabel: string;
+  originalTotal: number | null;
+  xReportCount: number;
+  staffEnteredTotal: number | null;
+  staffEnteredByName: string | null;
+  staffEnteredAt: Date | null;
+  adminEditedTotal: number | null;
+  adminEditedByName: string | null;
+  adminEditedAt: Date | null;
+  adminEditReason: string | null;
+  finalTotal: number | null;
+  originalDifference: number | null;
+  finalDifference: number | null;
+  finalStatus: string;
+  committedByName: string | null;
+  committedAt: Date | null;
+  staffNotes: string | null;
+}
+
+// "—" rather than £0.00 for a missing figure: a shift with no X-Report yet is
+// not a shift that sold nothing, and printing zero would read as a huge
+// variance to anyone reading the PDF later.
+function orDash(value: number | null): string {
+  return value == null ? "—" : fmtGBP(value);
+}
+
+function statusLabel(status: string): string {
+  switch (status) {
+    case "OK": return "Match";
+    case "VARIANCE": return "Mismatch — requires review";
+    case "RESOLVED": return "Resolved by admin correction";
+    default: return "Pending";
+  }
+}
+
+// Shared between the single-shift PDF and the two shift sections of the full
+// daily report, so the two documents can never disagree about a shift.
+function drawShiftSections(doc: PDFKit.PDFDocument, input: ShiftReportPdfInput): void {
+  const columns: TableColumn[] = [
+    { label: "Field", width: CONTENT_WIDTH * 0.62 },
+    { label: "Value", width: CONTENT_WIDTH * 0.38, align: "right" },
+  ];
+
+  const tillRows: TableRow[] = [{ cells: ["Till X-Report Total", orDash(input.originalTotal)] }];
+  if (input.xReportCount > 1) {
+    // Each X-Report resets the till, so a shift's true total is the sum of
+    // every X printed in it. Say so, or the figure looks wrong next to a slip.
+    tillRows.push({ cells: [`X-Reports found`, `${input.xReportCount} (totals summed)`] });
+  }
+  drawTable(doc, "Till", columns, tillRows);
+
+  drawTable(doc, "Staff Entry", columns, [
+    { cells: ["Staff Entered Total", orDash(input.staffEnteredTotal)] },
+    { cells: ["Entered By", input.staffEnteredByName ?? "—"] },
+    { cells: ["Entered At", input.staffEnteredAt ? input.staffEnteredAt.toLocaleString("en-GB") : "—"] },
+    { cells: ["Submitted By", input.committedByName ?? "Not submitted"] },
+    { cells: ["Submitted At", input.committedAt ? input.committedAt.toLocaleString("en-GB") : "—"] },
+    { cells: ["Original Difference", orDash(input.originalDifference)] },
+  ]);
+
+  if (input.adminEditedTotal != null) {
+    drawTable(doc, "Admin Correction", columns, [
+      { cells: ["Original (staff entered)", orDash(input.staffEnteredTotal)] },
+      { cells: ["Corrected To", orDash(input.adminEditedTotal)], bold: true },
+      { cells: ["Corrected By", input.adminEditedByName ?? "—"] },
+      { cells: ["Corrected At", input.adminEditedAt ? input.adminEditedAt.toLocaleString("en-GB") : "—"] },
+      { cells: ["Reason", input.adminEditReason ?? "—"] },
+    ]);
+  }
+
+  drawTable(doc, "Result", columns, [
+    { cells: ["Final Approved Value", orDash(input.finalTotal)], bold: true },
+    { cells: ["Final Difference", orDash(input.finalDifference)], bold: true },
+    { cells: ["Status", statusLabel(input.finalStatus)], bold: true, highlight: true },
+  ]);
+
+  if (input.staffNotes) {
+    doc.font("Helvetica-Bold").fontSize(10).text("Shift Notes", PAGE_MARGIN, doc.y);
+    doc.font("Helvetica").fontSize(9).text(input.staffNotes, { width: CONTENT_WIDTH });
+    doc.moveDown(0.5);
+  }
+}
+
+export interface DailyReconciliationPdfInput {
+  date: Date;
+  shifts: ShiftReportPdfInput[];
+  xDay: number | null;
+  xNight: number | null;
+  xSum: number | null;
+  zReportTotal: number | null;
+  xVsZDifference: number | null;
+  inTolerance: boolean;
+  record: ReconciliationRecord | null;
+}
+
+/**
+ * The full day, end to end: both shifts with their corrections, the combined
+ * X total, the Z-Report, and the comparison between them — the six-part
+ * document the reconciliation workflow is meant to produce.
+ */
+export async function renderDailyReconciliationPdf(
+  input: DailyReconciliationPdfInput,
+  meta: PdfMeta = {}
+): Promise<Buffer> {
+  const doc = newDocument();
+  doc.y = drawHeader(
+    doc,
+    "Daily Reconciliation Report",
+    `Date: ${fmtDateStr(input.date)}`,
+    meta
+  );
+
+  const columns: TableColumn[] = [
+    { label: "Field", width: CONTENT_WIDTH * 0.62 },
+    { label: "Value", width: CONTENT_WIDTH * 0.38, align: "right" },
+  ];
+
+  for (const shift of input.shifts) {
+    doc.font("Helvetica-Bold").fontSize(12).fillColor("#4f46e5")
+      .text(shift.shiftLabel, PAGE_MARGIN, doc.y);
+    doc.fillColor("#000").moveDown(0.3);
+    drawShiftSections(doc, shift);
+    doc.moveDown(0.4);
+  }
+
+  drawTable(doc, "Final Reconciliation", columns, [
+    { cells: ["Day Shift Final X", orDash(input.xDay)] },
+    { cells: ["Night Shift Final X", orDash(input.xNight)] },
+    { cells: ["Final X Total (Day + Night)", orDash(input.xSum)], bold: true },
+  ]);
+
+  drawTable(doc, "Z Report", columns, [
+    { cells: ["Z-Report Total", orDash(input.zReportTotal)], bold: true },
+  ]);
+
+  drawTable(doc, "X vs Z Comparison", columns, [
+    { cells: ["Final X Total", orDash(input.xSum)] },
+    { cells: ["Z-Report Total", orDash(input.zReportTotal)] },
+    { cells: ["Difference (X - Z)", orDash(input.xVsZDifference)], bold: true },
+    {
+      cells: ["Status", input.xVsZDifference == null ? "Pending" : input.inTolerance ? "MATCH" : "MISMATCH"],
+      bold: true,
+      highlight: true,
+    },
+  ]);
+
+  if (input.record?.staffNotes) {
+    doc.font("Helvetica-Bold").fontSize(10).text("Staff Notes", PAGE_MARGIN, doc.y);
+    doc.font("Helvetica").fontSize(9).text(input.record.staffNotes, { width: CONTENT_WIDTH });
+    doc.moveDown(0.5);
+  }
+  if (input.record?.adminNotes) {
+    doc.font("Helvetica-Bold").fontSize(10).text("Admin Notes", PAGE_MARGIN, doc.y);
+    doc.font("Helvetica").fontSize(9).text(input.record.adminNotes, { width: CONTENT_WIDTH });
+  }
+
+  addPageNumbers(doc);
+  return collectPdf(doc);
+}
+
 export interface SupplierPayoutInvoiceRow {
   date: string;
   supplierName: string;

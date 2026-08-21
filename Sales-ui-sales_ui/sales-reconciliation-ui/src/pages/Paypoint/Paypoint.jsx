@@ -49,7 +49,9 @@ export const Paypoint = () => {
       if (summaryRes.ok) {
         const s = await summaryRes.json();
         setActiveDate(s.date ?? null);
-        setIsCommitted(s.isCommitted ?? false);
+        // isLocked covers BOTH locks — the day commit and this shift's own commit.
+        // Falls back to isCommitted so an older API build still locks on the day.
+        setIsCommitted(s.isLocked ?? s.isCommitted ?? false);
         setIsPendingAdminReview(s.isPendingAdminReview ?? false);
         setShift(s.shift ?? null);
         setShiftLabel(s.shiftLabel ?? null);

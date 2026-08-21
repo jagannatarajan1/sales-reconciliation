@@ -5,6 +5,7 @@ import { Shift } from "@prisma/client";
 import { prisma } from "./prisma.js";
 import { hasPermission } from "./permissions.js";
 import { getActiveContext } from "./activeDate.js";
+import { getLockState } from "./entryLock.js";
 
 // Every page that can carry photo evidence. Values are stored verbatim in
 // SessionPhoto.section, so renaming a key orphans existing rows — add new
@@ -114,13 +115,13 @@ export function buildStorageKey(
 
 // ── Locking ─────────────────────────────────────────────────────────────────
 
-// Same predicate the Summary/Commit flow uses to decide a day is closed.
-// Note it is keyed on date alone: ReconciliationRecord is one row per day, so
-// committing a day freezes both of its shifts together — which is the
-// intended behaviour, since the commit covers the whole day's figures.
-export async function isDateLocked(date: Date): Promise<boolean> {
-  const record = await prisma.reconciliationRecord.findUnique({ where: { date } });
-  return !!record && (record.isStaffCommitted || record.isAdminReconciled);
+// Photos freeze exactly when their session's figures do, so this delegates to
+// the shared lock rather than keeping a second copy of the predicate.
+// Day-scoped sections pass the photo's own shift, so a photo attached to a
+// committed morning shift freezes even while the night shift is still open.
+export async function isDateLocked(date: Date, shift: Shift = Shift.FULL_DAY): Promise<boolean> {
+  const { locked } = await getLockState(date, shift);
+  return locked;
 }
 
 // ── Access control ──────────────────────────────────────────────────────────

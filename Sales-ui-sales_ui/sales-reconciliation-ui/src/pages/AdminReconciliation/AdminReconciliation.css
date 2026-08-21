@@ -1394,3 +1394,48 @@
   .ar-cal-weekday-row, .ar-cal-grid { max-width: 100%; }
   .ar-cal-day { font-size: 0.75rem; min-height: 32px; }
 }
+
+/* ── Shift report downloads ─────────────────────────────────────────────── */
+.ar-shift-breakdown-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.ar-shift-downloads { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+
+.ar-shift-dl-btn {
+  padding: 0.38rem 0.75rem;
+  border: 1px solid #d1d5db;
+  border-radius: 7px;
+  background: #fff;
+  color: #374151;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.ar-shift-dl-btn:hover:not(:disabled) { background: #f3f4f6; border-color: #9ca3af; }
+.ar-shift-dl-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+
+.ar-shift-dl-btn--primary {
+  border-color: #4f46e5;
+  background: #4f46e5;
+  color: #fff;
+}
+
+.ar-shift-dl-btn--primary:hover:not(:disabled) { background: #4338ca; border-color: #4338ca; }
+
+.ar-shift-dl-error {
+  margin-bottom: 0.6rem;
+  padding: 0.45rem 0.7rem;
+  border: 1px solid #fecaca;
+  border-radius: 7px;
+  background: #fef2f2;
+  color: #b91c1c;
+  font-size: 0.78rem;
+}

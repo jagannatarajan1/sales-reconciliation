@@ -55,7 +55,9 @@ export const CreditCardBanking = () => {
       if (res.ok) {
         const data = await res.json();
         setActiveDate(data.date ?? null);
-        setIsCommitted(data.isCommitted ?? false);
+        // isLocked covers BOTH locks — the day commit and this shift's own commit.
+        // Falls back to isCommitted so an older API build still locks on the day.
+        setIsCommitted(data.isLocked ?? data.isCommitted ?? false);
         setIsPendingAdminReview(data.isPendingAdminReview ?? false);
         setShift(data.shift ?? null);
         setShiftLabel(data.shiftLabel ?? null);

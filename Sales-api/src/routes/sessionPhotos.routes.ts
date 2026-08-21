@@ -104,7 +104,7 @@ sessionPhotosRouter.get("/session", async (req: Request, res: Response) => {
   if (req.userId == null) return res.status(401).json({ message: "User not authenticated" });
 
   const { date, shift } = await resolveWriteSession();
-  res.json({ date: date.toISOString().split("T")[0], shift, isLocked: await isDateLocked(date) });
+  res.json({ date: date.toISOString().split("T")[0], shift, isLocked: await isDateLocked(date, shift) });
 });
 
 // List photos for the active session (or, for catalogue sections, for one
@@ -141,7 +141,7 @@ sessionPhotosRouter.get("/", async (req: Request, res: Response) => {
   res.json({
     date: date.toISOString().split("T")[0],
     shift,
-    isLocked: cfg.locksWithDay ? await isDateLocked(date) : false,
+    isLocked: cfg.locksWithDay ? await isDateLocked(date, shift) : false,
     items: rows.map((row) => toSessionPhotoDto(row, BASE_PATH)),
   });
 });
@@ -171,7 +171,7 @@ sessionPhotosRouter.post("/", upload.array("photos"), async (req: Request, res: 
   // Session comes from the server, never the request body.
   const { date, shift } = await resolveWriteSession();
 
-  if (cfg.locksWithDay && (await isDateLocked(date))) {
+  if (cfg.locksWithDay && (await isDateLocked(date, shift))) {
     return res.status(409).json({
       message: "This day has been committed — its photos can no longer be changed.",
     });
@@ -330,7 +330,7 @@ sessionPhotosRouter.delete("/:id", async (req: Request, res: Response) => {
     }
   }
 
-  if (cfg.locksWithDay && (await isDateLocked(row.date))) {
+  if (cfg.locksWithDay && (await isDateLocked(row.date, row.shift))) {
     return res.status(409).json({
       message: "This day has been committed — its photos can no longer be changed.",
     });

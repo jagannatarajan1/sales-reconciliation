@@ -339,6 +339,20 @@ model ShiftReconciliation {
   notifiedAt         DateTime?
   notifiedDifference Decimal?  @db.Decimal(18, 2)
 
+  // Staff sign-off for THIS shift, distinct from the day-level commit on
+  // ReconciliationRecord. A shift is validated against its own X-Report, which
+  // lands at the end of that shift — so this deliberately has no Z-Report gate.
+  // The day commit keeps its Z gate and remains the final step.
+  //
+  // Written ONLY by POST /Summary/shift-commit. evaluateShift must never touch
+  // these columns, for the same reason it never touches the admin columns: a
+  // poller cycle or a staff re-save would otherwise silently un-commit a shift.
+  isShiftCommitted       Boolean   @default(false)
+  shiftCommittedByUserId Int?
+  shiftCommittedByName   String?
+  shiftCommittedAt       DateTime?
+  shiftStaffNotes        String?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now()) @updatedAt
 

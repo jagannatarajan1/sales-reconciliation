@@ -43,6 +43,16 @@ export const Commit = () => {
   // Never includes Z-Report data — this page is staff-facing and
   // GET /Summary/shift-status is Z-blind by design (see summary.routes.ts).
   const [shifts, setShifts] = useState([]);
+  // The active shift's own sign-off, distinct from the day commit above.
+  // Unlike the day commit this has no Z-Report gate — a shift is checked
+  // against its own X-Report, which lands at the end of that shift, so the
+  // morning shift can close out long before the Z-Report exists.
+  const [activeShift, setActiveShift] = useState(null);
+  const [shiftLabel, setShiftLabel] = useState(null);
+  const [shiftCommitted, setShiftCommitted] = useState(false);
+  const [shiftCommittedAt, setShiftCommittedAt] = useState(null);
+  const [shiftCommitting, setShiftCommitting] = useState(false);
+  const [shiftError, setShiftError] = useState("");
 
   // If Summary passed staffNotes through (already filled in there), pre-fill
   // this page's textarea with it.
@@ -76,6 +86,9 @@ export const Commit = () => {
 
       const summary = await summaryRes.json();
       setCommittedAt(summary.committedAt ?? null);
+      setActiveShift(summary.shift ?? null);
+      setShiftLabel(summary.shiftLabel ?? null);
+      setShiftCommitted(summary.isShiftCommitted ?? false);
       setIsCommitted(summary.isCommitted ?? false);
       setTargetDate(summary.date ?? null);
 
@@ -170,6 +183,29 @@ export const Commit = () => {
   const dayShift = shifts.find((s) => s.shift === "DAY");
   const nightShift = shifts.find((s) => s.shift === "NIGHT");
 
+  const handleShiftCommit = async () => {
+    setShiftError("");
+    setShiftCommitting(true);
+    try {
+      const res = await fetch(`${SUMMARY_URL}/shift-commit`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...authHeaders() },
+        body: JSON.stringify({ staffNotes: staffNotes.trim() }),
+      });
+      const result = await res.json().catch(() => ({}));
+      if (res.ok) {
+        setShiftCommitted(true);
+        setShiftCommittedAt(result.committedAt ?? new Date().toISOString());
+      } else {
+        setShiftError(result.message ?? "Could not commit this shift.");
+      }
+    } catch {
+      setShiftError("Network error while committing the shift.");
+    } finally {
+      setShiftCommitting(false);
+    }
+  };
+
   return (
     <motion.div
       className="commit-page"
@@ -239,7 +275,14 @@ export const Commit = () => {
                       <div key={s.shift} className="commit-shift-row">
                         <span className="commit-shift-row-label">{SHIFT_LABEL[s.shift]}</span>
                         <span className="commit-shift-row-value">
-                          {s.finalTotal != null ? fmtGBP(s.finalTotal) : "Pending"}
+                          {/* The other shift's figures are withheld by the API
+                              (isOwnShift false) — its status still shows, so
+                              handover context survives without exposing money. */}
+                          {s.isOwnShift === false
+                            ? "—"
+                            : s.finalTotal != null
+                              ? fmtGBP(s.finalTotal)
+                              : "Pending"}
                         </span>
                         <span className={`commit-shift-row-pill commit-shift-row-pill--${(s.finalStatus || '').toLowerCase()}`}>
                           {s.finalStatus === 'VARIANCE' ? 'Variance' : s.finalStatus === 'RESOLVED' ? 'Resolved' : s.finalStatus === 'OK' ? 'OK' : 'Pending'}
@@ -247,6 +290,51 @@ export const Commit = () => {
                       </div>
                     ))}
                   </div>
+                </div>
+              )}
+
+              {/* Per-shift sign-off. Only offered when a real shift is active
+                  (never for the legacy FULL_DAY bucket) and while the day is
+                  still open. Deliberately independent of zReportAvailable —
+                  that gate belongs to the day commit further down. */}
+              {activeShift && activeShift !== "FULL_DAY" && !isCommitted && (
+                <div className={`commit-shift-commit${shiftCommitted ? " commit-shift-commit--done" : ""}`}>
+                  <div className="commit-shift-commit-head">
+                    <span className="commit-shift-commit-title">
+                      {shiftLabel || "This shift"}
+                    </span>
+                    {shiftCommitted && (
+                      <span className="commit-shift-commit-badge">
+                        <FiCheckCircle /> Submitted
+                      </span>
+                    )}
+                  </div>
+
+                  {shiftCommitted ? (
+                    <p className="commit-shift-commit-note">
+                      Your shift has been submitted to the admin and its figures are now locked.
+                      {shiftCommittedAt ? ` Submitted ${formatDate(shiftCommittedAt)}.` : ""}
+                    </p>
+                  ) : (
+                    <>
+                      <p className="commit-shift-commit-note">
+                        Submit this shift once you have finished entering its figures. You do not
+                        need to wait for the Z Report — your shift is checked against its own
+                        X Report. The day is committed separately at the end.
+                      </p>
+                      {shiftError && (
+                        <div className="commit-error-msg"><FiAlertCircle /> {shiftError}</div>
+                      )}
+                      <button
+                        type="button"
+                        className="commit-shift-commit-btn"
+                        onClick={handleShiftCommit}
+                        disabled={shiftCommitting}
+                      >
+                        {shiftCommitting ? "Submitting…" : `Submit ${shiftLabel || "shift"}`}
+                      </button>
+                    </>
+                  )}
                 </div>
               )}
 

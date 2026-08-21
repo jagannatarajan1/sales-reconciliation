@@ -219,7 +219,9 @@ export const Summary = () => {
       if (res.ok) {
         const data = await res.json();
         setDate(data.date ?? "");
-        setIsCommitted(data.isCommitted ?? false);
+        // isLocked covers BOTH locks — the day commit and this shift's own commit.
+        // Falls back to isCommitted so an older API build still locks on the day.
+        setIsCommitted(data.isLocked ?? data.isCommitted ?? false);
         setIsPendingAdminReview(data.isPendingAdminReview ?? false);
         setShiftLabel(data.shiftLabel ?? null);
         setShiftReportTotal(typeof data.shiftReportTotal === "number" ? data.shiftReportTotal : null);
