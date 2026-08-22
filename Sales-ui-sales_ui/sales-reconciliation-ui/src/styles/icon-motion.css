@@ -1,0 +1,163 @@
+/* ── Icon motion ──────────────────────────────────────────────────────────
+   One shared motion layer for the app's icons. Every icon in this project is
+   a Feather glyph from react-icons/fi rendered as an inline <svg>, so the
+   rules here hang off the existing structural class names (…-back-btn,
+   …-retry-btn, …-done-badge) rather than requiring a wrapper component or a
+   className on all ~40 call sites.
+
+   Two deliberate constraints:
+
+     1. This file only ever sets transition / transform / animation /
+        transform-origin. It never sets width, height, color or stroke —
+        those are owned by each page's own stylesheet, and touching them
+        here would start specificity fights across 30+ files.
+
+     2. Motion is opt-in per interaction, never ambient. Nothing loops
+        forever except an explicit busy state (.ic-spin), because a
+        continuously animating icon in a reconciliation screen reads as
+        "something is wrong" rather than as polish.
+
+   Timing comes from tokens.css (--duration-fast / --ease-standard) so these
+   stay in step with the rest of the app's motion. */
+
+/* Carrier: smooths any transform an interactive control applies to its icon.
+   Purely preparatory — on its own it changes nothing visually. */
+:is(a, button, [role="button"]) svg {
+  transition: transform var(--duration-fast) var(--ease-standard);
+}
+
+/* ── Directional affordance ───────────────────────────────────────────────
+   Back controls lean the way they travel. 2px: enough to register as
+   responsive, not enough to look like the layout shifted.
+
+   Only "back" gets a direction. The calendar/date steppers (.sc-nav-btn,
+   .tr-date-nav-btn) render both the left and right chevron from the SAME
+   class, so there is no selector that could tell which way a given one
+   points — they get a direction-neutral scale below instead. Matching on
+   [class*="prev"] was considered and rejected: it also catches
+   .message-preview and .pa-camera-preview, which are not navigation. */
+
+:is([class*="back-btn"], [class*="back-button"]):hover svg,
+:is([class*="back-btn"], [class*="back-button"]):focus-visible svg {
+  transform: translateX(-2px);
+}
+
+[class*="nav-btn"]:hover svg,
+[class*="nav-btn"]:focus-visible svg {
+  transform: scale(1.12);
+}
+
+/* ── Refresh / retry ──────────────────────────────────────────────────────
+   A half turn on hover: the icon previews the action it performs. Reversed
+   (-180deg) so it tracks FiRefreshCw's own arrow direction. */
+
+:is([class*="refresh-btn"], [class*="refresh-button"], [class*="retry-btn"], [class*="retry"]):hover svg,
+:is([class*="refresh-btn"], [class*="refresh-button"], [class*="retry-btn"], [class*="retry"]):focus-visible svg {
+  transform: rotate(-180deg);
+}
+
+/* ── Lift ─────────────────────────────────────────────────────────────────
+   Tiles, cards and section icons rise slightly with their container. Applied
+   to the container's icon child, so the whole tile stays one hit target. */
+
+:is([class$="-tile"], [class$="__tile"], [class*="-card"]):hover :is([class$="-icon"], [class$="__icon"]) svg {
+  transform: translateY(-1px) scale(1.06);
+}
+
+/* ── Busy ─────────────────────────────────────────────────────────────────
+   The one continuous animation, and only while work is genuinely in flight.
+   Add .ic-spin to a FiRefreshCw (or similar) during a fetch. */
+
+.ic-spin {
+  animation: ic-rotate 900ms linear infinite;
+  transform-origin: 50% 50%;
+}
+
+@keyframes ic-rotate {
+  to { transform: rotate(360deg); }
+}
+
+/* A hover rotation must not fight an in-flight spin. */
+:is(a, button, [role="button"]):hover .ic-spin {
+  transform: none;
+}
+
+/* ── State arrivals ───────────────────────────────────────────────────────
+   Success and failure announce themselves once, on mount. Both are single
+   -shot; neither repeats. */
+
+[class*="done-badge"] svg {
+  animation: ic-pop var(--duration-base) var(--ease-standard) both;
+  transform-origin: 50% 50%;
+}
+
+@keyframes ic-pop {
+  0%   { transform: scale(0.6); opacity: 0; }
+  60%  { transform: scale(1.08); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+:is([class*="error-msg"], [class*="error-panel"]) svg {
+  animation: ic-shake var(--duration-slow) var(--ease-standard) both;
+  transform-origin: 50% 50%;
+}
+
+/* Small enough to read as emphasis rather than as an error in the layout. */
+@keyframes ic-shake {
+  0%, 100% { transform: translateX(0); }
+  20%      { transform: translateX(-2px); }
+  40%      { transform: translateX(2px); }
+  60%      { transform: translateX(-1.5px); }
+  80%      { transform: translateX(1.5px); }
+}
+
+/* Informational panels settle in rather than snap. */
+[class*="info-panel"] svg {
+  animation: ic-settle var(--duration-base) var(--ease-standard) both;
+}
+
+@keyframes ic-settle {
+  from { transform: translateY(-2px); opacity: 0; }
+  to   { transform: translateY(0); opacity: 1; }
+}
+
+/* ── Opt-in utilities ─────────────────────────────────────────────────────
+   For call sites the structural selectors above don't reach. */
+
+:is(a, button, [role="button"]):hover .ic-lift,
+:is(a, button, [role="button"]):focus-visible .ic-lift {
+  transform: translateY(-1px) scale(1.06);
+}
+
+:is(a, button, [role="button"]):hover .ic-rotate,
+:is(a, button, [role="button"]):focus-visible .ic-rotate {
+  transform: rotate(90deg);
+}
+
+:is(a, button, [role="button"]):hover .ic-rise,
+:is(a, button, [role="button"]):focus-visible .ic-rise {
+  transform: translateY(-2px);
+}
+
+:is(a, button, [role="button"]):hover .ic-nudge,
+:is(a, button, [role="button"]):focus-visible .ic-nudge {
+  transform: translateX(2px);
+}
+
+/* ── Reduced motion ───────────────────────────────────────────────────────
+   Matches the existing convention in components/ui/ui.css: a reduce block
+   that switches motion off, rather than gating each rule. Icons keep every
+   meaning they carry — only the movement stops. */
+
+@media (prefers-reduced-motion: reduce) {
+  :is(a, button, [role="button"]) svg,
+  .ic-spin,
+  [class*="done-badge"] svg,
+  [class*="error-msg"] svg,
+  [class*="error-panel"] svg,
+  [class*="info-panel"] svg {
+    animation: none !important;
+    transition: none !important;
+    transform: none !important;
+  }
+}

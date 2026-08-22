@@ -153,13 +153,18 @@ export const MyShiftReport = () => {
   const navigate = useNavigate();
 
   const [loading, setLoading] = useState(true);
+  // Refreshing is deliberately separate from loading: a manual refresh keeps
+  // the current report on screen and just spins the button's icon, rather
+  // than blanking the page back to the full-page spinner.
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
   const [data, setData] = useState(null);
 
   const authHeaders = () => ({ Authorization: `Bearer ${user.token}` });
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  const load = useCallback(async ({ isRefresh = false } = {}) => {
+    if (isRefresh) setRefreshing(true);
+    else setLoading(true);
     setError('');
     try {
       const res = await fetch(`${API_BASE}/Summary/my-shift-report`, { headers: authHeaders() });
@@ -174,6 +179,7 @@ export const MyShiftReport = () => {
       setError(e.message || 'Could not load your shift report. Please check your connection and try again.');
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user.token]);
@@ -217,8 +223,14 @@ export const MyShiftReport = () => {
             <p className="msr-error-title">Couldn&rsquo;t load your report</p>
             <p className="msr-error-message">{error}</p>
           </div>
-          <button type="button" className="msr-retry-btn" onClick={load}>
-            <FiRefreshCw /> Try Again
+          <button
+            type="button"
+            className="msr-retry-btn"
+            onClick={() => load({ isRefresh: true })}
+            disabled={refreshing}
+          >
+            <FiRefreshCw className={refreshing ? 'ic-spin' : undefined} />
+            {refreshing ? 'Trying…' : 'Try Again'}
           </button>
         </div>
       ) : data && data.available === false ? (
@@ -240,8 +252,14 @@ export const MyShiftReport = () => {
               a little later, or refresh below.
             </p>
           </div>
-          <button type="button" className="msr-retry-btn" onClick={load}>
-            <FiRefreshCw /> Refresh
+          <button
+            type="button"
+            className="msr-retry-btn"
+            onClick={() => load({ isRefresh: true })}
+            disabled={refreshing}
+          >
+            <FiRefreshCw className={refreshing ? 'ic-spin' : undefined} />
+            {refreshing ? 'Checking…' : 'Refresh'}
           </button>
         </div>
       ) : data && data.hasReport === true ? (
