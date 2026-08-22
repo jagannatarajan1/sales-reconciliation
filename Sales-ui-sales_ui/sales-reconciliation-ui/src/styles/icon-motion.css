@@ -1,99 +1,101 @@
 /* ── Icon motion ──────────────────────────────────────────────────────────
-   One shared motion layer for the app's icons. Every icon in this project is
-   a Feather glyph from react-icons/fi rendered as an inline <svg>, so the
-   rules here hang off the existing structural class names (…-back-btn,
-   …-retry-btn, …-done-badge) rather than requiring a wrapper component or a
-   className on all ~40 call sites.
+   One shared motion layer for the app's icons.
 
-   Two deliberate constraints:
+   Two facts about this codebase drive every selector below, and both were
+   got wrong on the first attempt:
 
-     1. This file only ever sets transition / transform / animation /
-        transform-origin. It never sets width, height, color or stroke —
-        those are owned by each page's own stylesheet, and touching them
-        here would start specificity fights across 30+ files.
+     1. react-icons spreads props onto the <svg> it renders, so a
+        className passed to an icon lands ON the svg — `.card-icon` IS the
+        svg element, not a wrapper around one. Selectors of the shape
+        `.card-icon svg` therefore match nothing.
 
-     2. Motion is opt-in per interaction, never ambient. Nothing loops
-        forever except an explicit busy state (.ic-spin), because a
-        continuously animating icon in a reconciliation screen reads as
-        "something is wrong" rather than as polish.
+     2. Several components already animate on hover at the CONTAINER
+        level — .menu-card lifts 6px, .msr-back-btn slides 3px, and
+        .card-arrow slides 4px. Adding a 2px shift to an icon inside a
+        container that is itself moving further is invisible. So the
+        container-animated elements are either left alone or given a
+        motion that reads as clearly distinct (scale/rotate, not a nudge).
 
-   Timing comes from tokens.css (--duration-fast / --ease-standard) so these
-   stay in step with the rest of the app's motion. */
+   A third constraint shapes what is animated at all: this is a shop app,
+   used on phones and tablets where :hover never fires. So the effects that
+   carry the most weight here are the ones tied to state arriving — a
+   result loading, succeeding, or failing — not to pointer hover.
 
-/* Carrier: smooths any transform an interactive control applies to its icon.
-   Purely preparatory — on its own it changes nothing visually. */
-:is(a, button, [role="button"]) svg {
-  transition: transform var(--duration-fast) var(--ease-standard);
+   This file only sets transition / transform / animation / transform-origin.
+   It never sets size, color or stroke: those belong to each page's own
+   stylesheet, and touching them here would start specificity fights across
+   30+ files. Timing comes from tokens.css. */
+
+/* ── Dashboard tiles ──────────────────────────────────────────────────────
+   The main screen, and the highest-traffic icons in the app. The card
+   already lifts on hover, so the icon gets a scale-and-tilt instead of a
+   translate — a different kind of motion, which stays legible against the
+   card's own movement. */
+
+.card-icon {
+  transition: transform var(--duration-base) var(--ease-standard);
+  transform-origin: 50% 50%;
 }
 
-/* ── Directional affordance ───────────────────────────────────────────────
-   Back controls lean the way they travel. 2px: enough to register as
-   responsive, not enough to look like the layout shifted.
-
-   Only "back" gets a direction. The calendar/date steppers (.sc-nav-btn,
-   .tr-date-nav-btn) render both the left and right chevron from the SAME
-   class, so there is no selector that could tell which way a given one
-   points — they get a direction-neutral scale below instead. Matching on
-   [class*="prev"] was considered and rejected: it also catches
-   .message-preview and .pa-camera-preview, which are not navigation. */
-
-:is([class*="back-btn"], [class*="back-button"]):hover svg,
-:is([class*="back-btn"], [class*="back-button"]):focus-visible svg {
-  transform: translateX(-2px);
+.menu-card:hover .card-icon,
+.menu-card:focus-visible .card-icon {
+  transform: scale(1.18) rotate(-6deg);
 }
 
-[class*="nav-btn"]:hover svg,
-[class*="nav-btn"]:focus-visible svg {
-  transform: scale(1.12);
+/* Touch devices never hover; :active is the only feedback they get. */
+.menu-card:active .card-icon {
+  transform: scale(1.06) rotate(0deg);
+}
+
+.menu-card--locked:hover .card-icon {
+  transform: none;
 }
 
 /* ── Refresh / retry ──────────────────────────────────────────────────────
-   A half turn on hover: the icon previews the action it performs. Reversed
-   (-180deg) so it tracks FiRefreshCw's own arrow direction. */
+   A half turn on hover previews the action. Reversed to track FiRefreshCw's
+   own arrow direction. These buttons do not move at the container level, so
+   the rotation is fully visible. */
+
+:is([class*="refresh-btn"], [class*="refresh-button"], [class*="retry-btn"], [class*="retry"]) svg {
+  transition: transform var(--duration-base) var(--ease-standard);
+  transform-origin: 50% 50%;
+}
 
 :is([class*="refresh-btn"], [class*="refresh-button"], [class*="retry-btn"], [class*="retry"]):hover svg,
 :is([class*="refresh-btn"], [class*="refresh-button"], [class*="retry-btn"], [class*="retry"]):focus-visible svg {
   transform: rotate(-180deg);
 }
 
-/* ── Lift ─────────────────────────────────────────────────────────────────
-   Tiles, cards and section icons rise slightly with their container. Applied
-   to the container's icon child, so the whole tile stays one hit target. */
-
-:is([class$="-tile"], [class$="__tile"], [class*="-card"]):hover :is([class$="-icon"], [class$="__icon"]) svg {
-  transform: translateY(-1px) scale(1.06);
-}
-
 /* ── Busy ─────────────────────────────────────────────────────────────────
-   The one continuous animation, and only while work is genuinely in flight.
-   Add .ic-spin to a FiRefreshCw (or similar) during a fetch. */
+   The only continuous animation, and only while work is genuinely in
+   flight. Add .ic-spin to an icon during a fetch. Declared after the hover
+   rules and with a matching selector weight so an in-flight spin is not
+   fought by a hover rotation. */
 
-.ic-spin {
+.ic-spin,
+:is(a, button, [role="button"]):hover .ic-spin {
   animation: ic-rotate 900ms linear infinite;
   transform-origin: 50% 50%;
+  transform: none;
 }
 
 @keyframes ic-rotate {
   to { transform: rotate(360deg); }
 }
 
-/* A hover rotation must not fight an in-flight spin. */
-:is(a, button, [role="button"]):hover .ic-spin {
-  transform: none;
-}
-
 /* ── State arrivals ───────────────────────────────────────────────────────
-   Success and failure announce themselves once, on mount. Both are single
-   -shot; neither repeats. */
+   These fire when a result appears, with no pointer involved, so they are
+   what a phone or tablet user actually sees. Each is single-shot. */
 
-[class*="done-badge"] svg {
+[class*="done-badge"] svg,
+[class*="success-badge"] svg {
   animation: ic-pop var(--duration-base) var(--ease-standard) both;
   transform-origin: 50% 50%;
 }
 
 @keyframes ic-pop {
-  0%   { transform: scale(0.6); opacity: 0; }
-  60%  { transform: scale(1.08); opacity: 1; }
+  0%   { transform: scale(0.5); opacity: 0; }
+  60%  { transform: scale(1.12); opacity: 1; }
   100% { transform: scale(1); opacity: 1; }
 }
 
@@ -102,13 +104,13 @@
   transform-origin: 50% 50%;
 }
 
-/* Small enough to read as emphasis rather than as an error in the layout. */
+/* Small enough to read as emphasis, not as a layout fault. */
 @keyframes ic-shake {
   0%, 100% { transform: translateX(0); }
-  20%      { transform: translateX(-2px); }
-  40%      { transform: translateX(2px); }
-  60%      { transform: translateX(-1.5px); }
-  80%      { transform: translateX(1.5px); }
+  20%      { transform: translateX(-3px); }
+  40%      { transform: translateX(3px); }
+  60%      { transform: translateX(-2px); }
+  80%      { transform: translateX(2px); }
 }
 
 /* Informational panels settle in rather than snap. */
@@ -117,16 +119,53 @@
 }
 
 @keyframes ic-settle {
-  from { transform: translateY(-2px); opacity: 0; }
+  from { transform: translateY(-3px); opacity: 0; }
   to   { transform: translateY(0); opacity: 1; }
 }
 
+/* Page and section headings introduce themselves on load — again, no
+   pointer required, so this reads on touch as well as desktop. */
+
+:is([class*="page-title"], [class*="section-heading"], [class*="page-header"]) > svg:first-child {
+  animation: ic-settle var(--duration-slow) var(--ease-standard) both;
+  transform-origin: 50% 50%;
+}
+
+/* ── Steppers and small nav ───────────────────────────────────────────────
+   The date/calendar steppers render both the left and right chevron from
+   ONE class (.sc-nav-btn, .tr-date-nav-btn), so there is no selector that
+   could tell which way a given one points — they get a direction-neutral
+   scale. (Matching [class*="prev"] was tried and rejected: it also catches
+   .message-preview and .pa-camera-preview, which are not navigation.) */
+
+[class*="nav-btn"] svg {
+  transition: transform var(--duration-fast) var(--ease-standard);
+}
+
+[class*="nav-btn"]:hover svg,
+[class*="nav-btn"]:focus-visible svg {
+  transform: scale(1.18);
+}
+
+[class*="nav-btn"]:active svg {
+  transform: scale(0.94);
+}
+
 /* ── Opt-in utilities ─────────────────────────────────────────────────────
-   For call sites the structural selectors above don't reach. */
+   For call sites the structural selectors above do not reach. Applied to an
+   icon directly, since react-icons puts the className on the svg. */
+
+.ic-lift,
+.ic-rotate,
+.ic-rise,
+.ic-nudge {
+  transition: transform var(--duration-base) var(--ease-standard);
+  transform-origin: 50% 50%;
+}
 
 :is(a, button, [role="button"]):hover .ic-lift,
 :is(a, button, [role="button"]):focus-visible .ic-lift {
-  transform: translateY(-1px) scale(1.06);
+  transform: translateY(-2px) scale(1.1);
 }
 
 :is(a, button, [role="button"]):hover .ic-rotate,
@@ -136,26 +175,36 @@
 
 :is(a, button, [role="button"]):hover .ic-rise,
 :is(a, button, [role="button"]):focus-visible .ic-rise {
-  transform: translateY(-2px);
+  transform: translateY(-3px);
 }
 
 :is(a, button, [role="button"]):hover .ic-nudge,
 :is(a, button, [role="button"]):focus-visible .ic-nudge {
-  transform: translateX(2px);
+  transform: translateX(3px);
 }
 
 /* ── Reduced motion ───────────────────────────────────────────────────────
-   Matches the existing convention in components/ui/ui.css: a reduce block
-   that switches motion off, rather than gating each rule. Icons keep every
+   Matches the convention already in components/ui/ui.css: one reduce block
+   that switches motion off rather than gating each rule. Icons keep every
    meaning they carry — only the movement stops. */
 
 @media (prefers-reduced-motion: reduce) {
-  :is(a, button, [role="button"]) svg,
+  .card-icon,
   .ic-spin,
+  .ic-lift,
+  .ic-rotate,
+  .ic-rise,
+  .ic-nudge,
+  [class*="nav-btn"] svg,
+  [class*="retry"] svg,
+  [class*="refresh-btn"] svg,
+  [class*="refresh-button"] svg,
   [class*="done-badge"] svg,
+  [class*="success-badge"] svg,
   [class*="error-msg"] svg,
   [class*="error-panel"] svg,
-  [class*="info-panel"] svg {
+  [class*="info-panel"] svg,
+  :is([class*="page-title"], [class*="section-heading"], [class*="page-header"]) > svg:first-child {
     animation: none !important;
     transition: none !important;
     transform: none !important;
