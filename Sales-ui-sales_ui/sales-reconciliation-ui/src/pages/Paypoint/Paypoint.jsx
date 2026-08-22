@@ -5,6 +5,7 @@ import { FiArrowLeft, FiCalendar, FiEdit2, FiX } from "react-icons/fi";
 import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../components/ui/Toast";
 import { ShiftBanner } from "../../components/ShiftBanner";
+import { WaitingOnPriorShift } from "../../components/WaitingOnPriorShift";
 import "./Paypoint.css";
 import PhotoAttachments from "../../components/PhotoAttachments";
 import { PHOTO_SECTIONS } from "../../constants/photoSections";
@@ -27,6 +28,8 @@ export const Paypoint = () => {
   const [shiftLabel, setShiftLabel]     = useState(null);
   const [shiftCutoff, setShiftCutoff]   = useState(null);
   const [shiftSource, setShiftSource]   = useState(null);
+  const [waitingOnDayShift, setWaitingOnDayShift] = useState(false);
+  const [dayShiftHasEntries, setDayShiftHasEntries] = useState(false);
   const [loading, setLoading]           = useState(true);
   const [saving, setSaving]             = useState(false);
   const [isEditing, setIsEditing]       = useState(false);
@@ -57,6 +60,9 @@ export const Paypoint = () => {
         setShiftLabel(s.shiftLabel ?? null);
         setShiftCutoff(s.shiftCutoff ?? null);
         setShiftSource(s.shiftSource ?? null);
+        // Night waiting on Day's staff commit — always false for Day/Full Day.
+        setWaitingOnDayShift(s.waitingOnDayShift ?? false);
+        setDayShiftHasEntries(s.dayShiftHasEntries ?? false);
       }
 
       if (paypointRes.ok) {
@@ -150,7 +156,7 @@ export const Paypoint = () => {
             <span className="page-date-chip">
               <FiCalendar /> {fmtDate(activeDateStr ?? new Date().toISOString())}
             </span>
-            {!isLocked && !isEditing && (
+            {!isLocked && !isEditing && !waitingOnDayShift && (
               <button type="button" className="page-edit-btn" onClick={() => setIsEditing(true)}>
                 <FiEdit2 /> Edit
               </button>
@@ -170,26 +176,32 @@ export const Paypoint = () => {
         )}
 
         <div className="form-card">
-          <div className="form-group">
-            <label>Paypoint Value</label>
-            <input
-              type="number"
-              placeholder="Enter Paypoint Value"
-              value={paypointValue}
-              readOnly={fieldsDisabled}
-              onChange={fieldsDisabled ? undefined : (e) => setPaypointValue(e.target.value)}
-            />
-          </div>
+          {waitingOnDayShift ? (
+            <WaitingOnPriorShift dayShiftHasEntries={dayShiftHasEntries} />
+          ) : (
+            <>
+              <div className="form-group">
+                <label>Paypoint Value</label>
+                <input
+                  type="number"
+                  placeholder="Enter Paypoint Value"
+                  value={paypointValue}
+                  readOnly={fieldsDisabled}
+                  onChange={fieldsDisabled ? undefined : (e) => setPaypointValue(e.target.value)}
+                />
+              </div>
 
-          {isEditing && !isLocked && (
-            <div className="form-actions-row">
-              <button className="save-btn" onClick={handleSave} disabled={saving}>
-                {saving ? "Saving…" : editingId ? "Save" : "Save Value"}
-              </button>
-              <button className="cancel-btn" onClick={handleCancelEdit} disabled={saving}>
-                <FiX /> Cancel
-              </button>
-            </div>
+              {isEditing && !isLocked && (
+                <div className="form-actions-row">
+                  <button className="save-btn" onClick={handleSave} disabled={saving}>
+                    {saving ? "Saving…" : editingId ? "Save" : "Save Value"}
+                  </button>
+                  <button className="cancel-btn" onClick={handleCancelEdit} disabled={saving}>
+                    <FiX /> Cancel
+                  </button>
+                </div>
+              )}
+            </>
           )}
         </div>
 

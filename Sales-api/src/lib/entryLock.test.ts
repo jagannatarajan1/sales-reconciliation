@@ -15,7 +15,14 @@ vi.mock("./prisma.js", () => ({
   },
 }));
 
-const { getLockState, isDayLocked, isShiftCommitted } = await import("./entryLock.js");
+const {
+  getLockState,
+  isDayLocked,
+  isShiftCommitted,
+  isPriorShiftPending,
+  getPriorShiftGate,
+  blockIfPriorShiftPending,
+} = await import("./entryLock.js");
 
 const DATE = new Date("2026-08-21T00:00:00.000Z");
 
@@ -92,5 +99,97 @@ describe("getLockState", () => {
     const state = await getLockState(DATE, Shift.NIGHT);
     expect(state.locked).toBe(true);
     expect(state.shiftLocked).toBe(false);
+  });
+});
+
+// isPriorShiftPending/getPriorShiftGate are a SEPARATE concept from the
+// locks above: not "already submitted, no more edits" but "hasn't had its
+// turn yet" — Night waiting on Day's staff commit. Reuses the same
+// `findShift` mock as isShiftCommitted above since both call
+// prisma.shiftReconciliation.findUnique, just for different (date, shift)
+// keys under the hood.
+describe("isPriorShiftPending / getPriorShiftGate", () => {
+  it("is always false for DAY — nothing precedes the first shift", async () => {
+    expect(await isPriorShiftPending(DATE, Shift.DAY)).toBe(false);
+    expect(findShift).not.toHaveBeenCalled();
+  });
+
+  it("is always false for FULL_DAY — the two-shift sequence doesn't exist while the split is off", async () => {
+    expect(await isPriorShiftPending(DATE, Shift.FULL_DAY)).toBe(false);
+    expect(findShift).not.toHaveBeenCalled();
+  });
+
+  // The "no row exists yet at all" case must read as pending/locked, never
+  // as an error and never as an implicit pass — Day simply hasn't happened
+  // yet is the most common real case (start of the Night window on a fresh
+  // business date).
+  it("is true for NIGHT when Day has no ShiftReconciliation row at all", async () => {
+    findShift.mockResolvedValue(null);
+    expect(await isPriorShiftPending(DATE, Shift.NIGHT)).toBe(true);
+  });
+
+  it("is true for NIGHT when Day's row exists but isShiftCommitted is false", async () => {
+    findShift.mockResolvedValue({ isShiftCommitted: false, hasEntries: true });
+    expect(await isPriorShiftPending(DATE, Shift.NIGHT)).toBe(true);
+  });
+
+  it("is false for NIGHT once Day has been staff-committed", async () => {
+    findShift.mockResolvedValue({ isShiftCommitted: true, hasEntries: true });
+    expect(await isPriorShiftPending(DATE, Shift.NIGHT)).toBe(false);
+  });
+
+  it("getPriorShiftGate surfaces whether Day has any entries yet, for the waiting message", async () => {
+    findShift.mockResolvedValue({ isShiftCommitted: false, hasEntries: false });
+    expect(await getPriorShiftGate(DATE, Shift.NIGHT)).toEqual({
+      waitingOnDayShift: true,
+      dayShiftHasEntries: false,
+    });
+
+    findShift.mockResolvedValue({ isShiftCommitted: false, hasEntries: true });
+    expect(await getPriorShiftGate(DATE, Shift.NIGHT)).toEqual({
+      waitingOnDayShift: true,
+      dayShiftHasEntries: true,
+    });
+  });
+
+  it("getPriorShiftGate is the fixed not-waiting value for DAY/FULL_DAY without querying", async () => {
+    expect(await getPriorShiftGate(DATE, Shift.DAY)).toEqual({ waitingOnDayShift: false, dayShiftHasEntries: false });
+    expect(await getPriorShiftGate(DATE, Shift.FULL_DAY)).toEqual({
+      waitingOnDayShift: false,
+      dayShiftHasEntries: false,
+    });
+    expect(findShift).not.toHaveBeenCalled();
+  });
+});
+
+describe("blockIfPriorShiftPending", () => {
+  function mockRes() {
+    const json = vi.fn();
+    const status = vi.fn(() => ({ json }));
+    return { status, json };
+  }
+
+  it("does nothing and returns false when Night is not waiting on Day", async () => {
+    findShift.mockResolvedValue({ isShiftCommitted: true });
+    const res = mockRes();
+    expect(await blockIfPriorShiftPending(res, DATE, Shift.NIGHT)).toBe(false);
+    expect(res.status).not.toHaveBeenCalled();
+  });
+
+  it("never blocks DAY or FULL_DAY", async () => {
+    const res = mockRes();
+    expect(await blockIfPriorShiftPending(res, DATE, Shift.DAY)).toBe(false);
+    expect(await blockIfPriorShiftPending(res, DATE, Shift.FULL_DAY)).toBe(false);
+    expect(res.status).not.toHaveBeenCalled();
+  });
+
+  it("responds 409 with waitingOnDayShift and returns true when Day is not yet committed", async () => {
+    findShift.mockResolvedValue(null);
+    const res = mockRes();
+    expect(await blockIfPriorShiftPending(res, DATE, Shift.NIGHT)).toBe(true);
+    expect(res.status).toHaveBeenCalledWith(409);
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({ waitingOnDayShift: true, message: expect.stringMatching(/day shift/i) })
+    );
   });
 });

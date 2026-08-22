@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import { FiArrowLeft, FiCalendar, FiAlertCircle, FiPlus, FiX, FiEdit2, FiCheck, FiLock } from 'react-icons/fi';
 import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../components/ui/Toast";
+import { WaitingOnPriorShift } from "../../components/WaitingOnPriorShift";
 import "./Deductions.css";
 import PhotoAttachments from "../../components/PhotoAttachments";
 import { PHOTO_SECTIONS } from "../../constants/photoSections";
@@ -36,7 +37,7 @@ const FIELDS = [
 /* ══════════════════════════════════
    A. DEDUCTIONS GRID
 ══════════════════════════════════ */
-function DeductionsGrid({ token, showToast, isLocked }) {
+function DeductionsGrid({ token, showToast, isLocked, waitingOnDayShift, dayShiftHasEntries }) {
   const empty = Object.fromEntries(FIELDS.map(f => [f.key, '']));
   const [values, setValues] = useState(empty);
   const [saving, setSaving] = useState(false);
@@ -94,6 +95,17 @@ function DeductionsGrid({ token, showToast, isLocked }) {
 
   if (loading) return <div className="ded-loading">Loading…</div>;
   if (error)   return <div className="ded-loading" style={{ color: '#dc2626' }}><FiAlertCircle /> {error}</div>;
+
+  if (waitingOnDayShift) {
+    return (
+      <div className="ded-section">
+        <div className="ded-section-header-row">
+          <h2 className="ded-section-title">Deductions</h2>
+        </div>
+        <WaitingOnPriorShift dayShiftHasEntries={dayShiftHasEntries} />
+      </div>
+    );
+  }
 
   return (
     <div className="ded-section">
@@ -484,6 +496,8 @@ export const Deductions = () => {
   const [activeDate, setActiveDate]   = useState(null);
   const [isCommitted, setIsCommitted] = useState(false);
   const [isPendingAdminReview, setIsPendingAdminReview] = useState(false);
+  const [waitingOnDayShift, setWaitingOnDayShift] = useState(false);
+  const [dayShiftHasEntries, setDayShiftHasEntries] = useState(false);
 
   useEffect(() => {
     if (!user?.token) return;
@@ -495,6 +509,11 @@ export const Deductions = () => {
         // Falls back to isCommitted so an older API build still locks on the day.
         setIsCommitted(d?.isLocked ?? d?.isCommitted ?? false);
         setIsPendingAdminReview(d?.isPendingAdminReview ?? false);
+        // Night waiting on Day's staff commit — always false for Day/Full Day.
+        // Applies only to the Deductions grid itself; SupplierInvoices below
+        // is deliberately never lock-gated at all (see its own comment).
+        setWaitingOnDayShift(d?.waitingOnDayShift ?? false);
+        setDayShiftHasEntries(d?.dayShiftHasEntries ?? false);
       })
       .catch(() => {});
   }, [user?.token]);
@@ -521,7 +540,13 @@ export const Deductions = () => {
           <h1 className="ded-page-title">Deductions</h1>
           <span className="ded-date-chip"><FiCalendar /> {displayDate}</span>
         </div>
-        <DeductionsGrid   token={user.token} showToast={showToast} isLocked={isLocked} />
+        <DeductionsGrid
+          token={user.token}
+          showToast={showToast}
+          isLocked={isLocked}
+          waitingOnDayShift={waitingOnDayShift}
+          dayShiftHasEntries={dayShiftHasEntries}
+        />
         <SupplierInvoices token={user.token} showToast={showToast} isLocked={isLocked} />
 
         <PhotoAttachments

@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { prisma } from "../lib/prisma.js";
 import { getActiveContext } from "../lib/activeDate.js";
-import { blockIfLocked } from "../lib/entryLock.js";
+import { blockIfLocked, blockIfPriorShiftPending } from "../lib/entryLock.js";
 import { syncDailySummaryFields } from "../lib/dailySummarySync.js";
 import { evaluateAndNotify } from "../lib/shiftReconciliation.js";
 
@@ -40,6 +40,7 @@ deductionRouter.post("/", async (req, res) => {
 
   const { date, shift } = await getActiveContext();
   if (await blockIfLocked(res, date, shift)) return;
+  if (await blockIfPriorShiftPending(res, date, shift)) return;
   const body = req.body ?? {};
   const fieldData = Object.fromEntries(FIELDS.map((k) => [k, toNumber(body[k])]));
 

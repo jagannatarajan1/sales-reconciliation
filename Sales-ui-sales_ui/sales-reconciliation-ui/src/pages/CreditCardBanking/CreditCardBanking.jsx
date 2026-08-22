@@ -5,6 +5,7 @@ import { FiArrowLeft, FiEdit2, FiX } from "react-icons/fi";
 import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../components/ui/Toast";
 import { ShiftBanner } from "../../components/ShiftBanner";
+import { WaitingOnPriorShift } from "../../components/WaitingOnPriorShift";
 import "./CreditCardBanking.css";
 import PhotoAttachments from "../../components/PhotoAttachments";
 import { PHOTO_SECTIONS } from "../../constants/photoSections";
@@ -39,6 +40,8 @@ export const CreditCardBanking = () => {
   const [shiftLabel, setShiftLabel]   = useState(null);
   const [shiftCutoff, setShiftCutoff] = useState(null);
   const [shiftSource, setShiftSource] = useState(null);
+  const [waitingOnDayShift, setWaitingOnDayShift] = useState(false);
+  const [dayShiftHasEntries, setDayShiftHasEntries] = useState(false);
   const [loading, setLoading]         = useState(true);
   const [saving, setSaving]       = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -63,6 +66,9 @@ export const CreditCardBanking = () => {
         setShiftLabel(data.shiftLabel ?? null);
         setShiftCutoff(data.shiftCutoff ?? null);
         setShiftSource(data.shiftSource ?? null);
+        // Night waiting on Day's staff commit — always false for Day/Full Day.
+        setWaitingOnDayShift(data.waitingOnDayShift ?? false);
+        setDayShiftHasEntries(data.dayShiftHasEntries ?? false);
 
         const loaded =
           Array.isArray(data.creditCardEntries) && data.creditCardEntries.length > 0
@@ -156,7 +162,7 @@ export const CreditCardBanking = () => {
           <h1>Credit Card Banking</h1>
           <div className="ccb-header-actions">
             <span className="ccb-date-badge">{displayDate}</span>
-            {!isLocked && !isEditing && (
+            {!isLocked && !isEditing && !waitingOnDayShift && (
               <button type="button" className="ccb-edit-btn" onClick={() => setIsEditing(true)}>
                 <FiEdit2 /> Edit
               </button>
@@ -180,6 +186,8 @@ export const CreditCardBanking = () => {
             <div className="ccb-spinner" />
             <span>Loading…</span>
           </div>
+        ) : waitingOnDayShift ? (
+          <WaitingOnPriorShift dayShiftHasEntries={dayShiftHasEntries} />
         ) : (
           <>
             {entries.map((row, i) => (

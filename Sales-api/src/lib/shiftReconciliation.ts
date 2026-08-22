@@ -136,6 +136,46 @@ export async function applyAdminEdit(
   return updated;
 }
 
+/**
+ * Admin safety valve for the Day→Night prior-shift gate (see
+ * isPriorShiftPending in lib/entryLock.ts): marks DAY's ShiftReconciliation
+ * row committed so Night can start, for the real-world case where Day staff
+ * forgot to submit (or are unavailable) and Night genuinely needs to begin
+ * entering figures before Day is actually done.
+ *
+ * Deliberately NOT the same write POST /Summary/shift-commit performs: this
+ * never sets shiftCommittedByUserId/shiftCommittedByName/shiftCommittedAt/
+ * shiftStaffNotes, so a genuine staff sign-off and an admin override can
+ * never be confused later by looking at those columns alone — a forced row
+ * shows isShiftCommitted: true with no staff "who/when" attached to it. The
+ * durable, distinguishing record of who forced this open, when, and why is
+ * the audit log entry the caller (POST /admin/reconciliation/shift/
+ * force-unlock-night) writes with action "admin_force_unlock_night_shift" —
+ * this function itself does not audit-log, the same as applyAdminEdit and
+ * resolveShift above, which also leave that to their routes.
+ *
+ * A no-op (forced: false) when Day already carries a genuine commit — this
+ * must never silently overwrite one.
+ */
+export async function forceUnlockNightShift(
+  date: Date
+): Promise<{ row: NonNullable<Awaited<ReturnType<typeof prisma.shiftReconciliation.findUnique>>>; forced: boolean }> {
+  const d = dateOnly(date);
+
+  const existing = await prisma.shiftReconciliation.findUnique({ where: { date_shift: { date: d, shift: Shift.DAY } } });
+  if (existing?.isShiftCommitted) {
+    return { row: existing, forced: false };
+  }
+
+  const row = await prisma.shiftReconciliation.upsert({
+    where: { date_shift: { date: d, shift: Shift.DAY } },
+    create: { date: d, shift: Shift.DAY, isShiftCommitted: true },
+    update: { isShiftCommitted: true },
+  });
+
+  return { row, forced: true };
+}
+
 /** Marks a shift RESOLVED with a note, without changing any total. */
 export async function resolveShift(date: Date, shift: Shift, notes: string | null) {
   const d = dateOnly(date);

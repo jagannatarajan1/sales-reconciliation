@@ -78,3 +78,76 @@ export async function blockIfLocked(
   res.status(409).json({ message: state.reason, dayLocked: state.dayLocked, shiftLocked: state.shiftLocked });
   return true;
 }
+
+// ── Prior-shift gate (Night waits on Day) ───────────────────────────────────
+//
+// A SEPARATE concept from the two locks above, which is why it lives here
+// rather than folded into getLockState/blockIfLocked. Those ask "has THIS
+// shift/day already been submitted, so no more edits" — post-hoc, once
+// something is done. This asks "has the PRIOR shift in the DAY→NIGHT
+// sequence been submitted YET" — a pre-condition that must be true before
+// Night entry may even open. The two compose independently: a shift can be
+// simultaneously "not prior-shift-pending" and "locked" (Night, once Day is
+// committed and then Night itself gets committed), and the reverse can never
+// happen for Night (while waiting on Day, Night has no ShiftReconciliation
+// commit of its own yet, so it is never separately locked at the same time).
+//
+// Only NIGHT is ever gated: DAY has nothing before it in the sequence, and
+// FULL_DAY is exempt because the two-shift sequence does not exist while
+// SHIFT_ENTRY_ENABLED is off. A missing ShiftReconciliation row for (date,
+// DAY) — Day has no entries at all yet — counts as "not committed", i.e.
+// still pending, the same as an explicit isShiftCommitted: false. It is
+// never treated as an error or as an implicit pass.
+
+export interface PriorShiftGate {
+  waitingOnDayShift: boolean;
+  // Whether Day has ANY staff entries on file yet (ShiftReconciliation.
+  // hasEntries), surfaced so a waiting message can distinguish "nobody has
+  // started Day yet" from "Day is under way but not submitted" without a
+  // second round trip.
+  dayShiftHasEntries: boolean;
+}
+
+const NOT_WAITING: PriorShiftGate = { waitingOnDayShift: false, dayShiftHasEntries: false };
+
+export async function getPriorShiftGate(date: Date, shift: Shift): Promise<PriorShiftGate> {
+  if (shift !== Shift.NIGHT) return NOT_WAITING;
+
+  const dayRow = await prisma.shiftReconciliation.findUnique({
+    where: { date_shift: { date, shift: Shift.DAY } },
+    select: { isShiftCommitted: true, hasEntries: true },
+  });
+
+  return {
+    waitingOnDayShift: !dayRow?.isShiftCommitted,
+    dayShiftHasEntries: !!dayRow?.hasEntries,
+  };
+}
+
+// Boolean-only convenience form for callers (the shift-commit guard below,
+// tests) that don't need the extra "has Day got entries" context.
+export async function isPriorShiftPending(date: Date, shift: Shift): Promise<boolean> {
+  return (await getPriorShiftGate(date, shift)).waitingOnDayShift;
+}
+
+const WAITING_ON_DAY_SHIFT_MESSAGE =
+  "The Day shift must be submitted before Night shift entries can be saved. Please wait for Day shift to be completed and committed first.";
+
+// Guard for write handlers, same shape/calling convention as blockIfLocked —
+// call it ALONGSIDE that check, never instead of it:
+//
+//   if (await blockIfLocked(res, date, shift)) return;
+//   if (await blockIfPriorShiftPending(res, date, shift)) return;
+//
+// Kept as its own function rather than merged into getLockState/blockIfLocked
+// so the existing "already committed" locks keep their exact current meaning.
+export async function blockIfPriorShiftPending(
+  res: { status: (code: number) => { json: (body: unknown) => unknown } },
+  date: Date,
+  shift: Shift
+): Promise<boolean> {
+  const waiting = await isPriorShiftPending(date, shift);
+  if (!waiting) return false;
+  res.status(409).json({ message: WAITING_ON_DAY_SHIFT_MESSAGE, waitingOnDayShift: true });
+  return true;
+}

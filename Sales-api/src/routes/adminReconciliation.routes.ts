@@ -15,7 +15,14 @@ import * as gmailService from "../services/gmail.service.js";
 import { requirePermission } from "../lib/permissions.js";
 import { writeAuditLog } from "../lib/auditLog.js";
 import { isWithinTolerance } from "../lib/variance.js";
-import { applyAdminEdit, resolveShift, evaluateDay, getShiftBreakdown, getStatusCalendar } from "../lib/shiftReconciliation.js";
+import {
+  applyAdminEdit,
+  resolveShift,
+  evaluateDay,
+  getShiftBreakdown,
+  getStatusCalendar,
+  forceUnlockNightShift,
+} from "../lib/shiftReconciliation.js";
 import { Shift } from "@prisma/client";
 
 export const adminReconciliationRouter = Router();
@@ -631,6 +638,59 @@ adminReconciliationRouter.post("/shift/edit", async (req, res) => {
   });
 
   res.json(updated);
+});
+
+// Admin safety valve for the Day→Night prior-shift gate (see
+// isPriorShiftPending in lib/entryLock.ts): for the real-world case where Day
+// staff forgot to submit, or are unavailable, and Night genuinely needs to
+// start entering figures before Day is actually done. Requires an explicit
+// reason and is fully audited — this must never happen silently or
+// automatically.
+//
+// Deliberately does NOT go through the same write path as a genuine staff
+// shift-commit (POST /Summary/shift-commit): forceUnlockNightShift never
+// stamps shiftCommittedByUserId/shiftCommittedByName/shiftCommittedAt, so a
+// forced-open Day row can never be mistaken for a real staff submission just
+// by looking at those columns. The distinguishing record — who forced it
+// open, when, and why — lives in the audit log entry below, under its own
+// action name (admin_force_unlock_night_shift) rather than reusing
+// "shift_commit" or "shift_reconciliation_admin_edit".
+adminReconciliationRouter.post("/shift/force-unlock-night", async (req, res) => {
+  if (!requireAdmin(req, res)) return;
+  if (req.userId == null) return res.status(401).json({ message: "User not authenticated" });
+
+  const body = req.body ?? {};
+  if (!body.date) {
+    return res.status(400).json({ message: "date is required." });
+  }
+  const reason = typeof body.reason === "string" ? body.reason.trim() : "";
+  if (!reason) {
+    return res.status(400).json({ message: "A reason is required to force-unlock the Night shift." });
+  }
+
+  const date = dateOnly(body.date);
+  const before = await prisma.shiftReconciliation.findUnique({ where: { date_shift: { date, shift: Shift.DAY } } });
+
+  const { row: updated, forced } = await forceUnlockNightShift(date);
+
+  void writeAuditLog({
+    userId: req.userId,
+    userName: req.userName,
+    action: "admin_force_unlock_night_shift",
+    entity: "ShiftReconciliation",
+    entityId: updated.shiftReconciliationId,
+    previousValue: before,
+    newValue: { ...updated, reason, forced },
+  });
+
+  res.json({
+    message: forced
+      ? "Night shift entry has been unlocked. The Day shift for this date is still not staff-submitted — this was an admin override, and is recorded as such."
+      : "The Day shift for this date is already committed, so Night entry was already unlocked. No change was made.",
+    date: date.toISOString().split("T")[0],
+    forced,
+    waitingOnDayShift: false,
+  });
 });
 
 adminReconciliationRouter.post("/shift/resolve", async (req, res) => {

@@ -14,7 +14,7 @@ import {
   toStaffStatusDto,
 } from "../lib/shiftReconciliation.js";
 import { writeAuditLog } from "../lib/auditLog.js";
-import { blockIfLocked, getLockState } from "../lib/entryLock.js";
+import { blockIfLocked, blockIfPriorShiftPending, getLockState, getPriorShiftGate, isPriorShiftPending } from "../lib/entryLock.js";
 import { computeShiftTotals } from "../lib/dailyTotals.js";
 import { Shift } from "@prisma/client";
 
@@ -46,7 +46,7 @@ summaryRouter.get("/today", async (req, res) => {
   }
 
   const { date, shift, shiftSource } = await getActiveContext();
-  const [record, totals, reconciliation, shiftX, lockState] = await Promise.all([
+  const [record, totals, reconciliation, shiftX, lockState, priorShiftGate] = await Promise.all([
     prisma.dailySummary.findUnique({ where: { date_shift: { date, shift } }, include: { creditCardEntries: true } }),
     computeDailyTotals(date),
     prisma.reconciliationRecord.findUnique({ where: { date } }),
@@ -58,6 +58,10 @@ summaryRouter.get("/today", async (req, res) => {
     // separate on/off branch.
     getShiftXTotal(date, shift).catch(() => ({ total: null, count: 0 })),
     getLockState(date, shift),
+    // NIGHT waiting on DAY's staff commit — false for DAY/FULL_DAY. A
+    // separate concept from lockState above: this is a pre-condition ("has
+    // Night's turn come up yet"), not a post-hoc "already submitted" lock.
+    getPriorShiftGate(date, shift),
   ]);
 
   // Z-Report data (department total / variance) is intentionally never
@@ -77,6 +81,11 @@ summaryRouter.get("/today", async (req, res) => {
     shiftCutoff: `${String(Math.floor(shiftCutoffMinutes() / 60)).padStart(2, "0")}:${String(shiftCutoffMinutes() % 60).padStart(2, "0")}`,
     shiftReportTotal: shiftLabel ? shiftX.total : null,
     shiftReportCount: shiftLabel ? shiftX.count : 0,
+    // Additive field for the Night-waits-on-Day feature: when true, the
+    // entry pages replace their form with a waiting message instead of
+    // letting staff type in Night figures. Always false for DAY/FULL_DAY.
+    waitingOnDayShift: priorShiftGate.waitingOnDayShift,
+    dayShiftHasEntries: priorShiftGate.dayShiftHasEntries,
   };
 
   if (!record) {
@@ -142,6 +151,7 @@ summaryRouter.put("/", async (req, res) => {
 
   const { date, shift } = await getActiveContext();
   if (await blockIfLocked(res, date, shift)) return;
+  if (await blockIfPriorShiftPending(res, date, shift)) return;
 
   const body = req.body ?? {};
 
@@ -245,9 +255,18 @@ summaryRouter.get("/shift-status", async (req, res) => {
   // asking for another date cannot widen what money they get to see. Other
   // shifts come back as status only.
   const { shift: activeShift } = await getActiveContext();
-  const breakdown = await getStaffShiftBreakdown(targetDate, activeShift);
+  const [breakdown, priorShiftGate] = await Promise.all([
+    getStaffShiftBreakdown(targetDate, activeShift),
+    getPriorShiftGate(targetDate, activeShift),
+  ]);
 
-  res.json({ date: targetDate, activeShift, ...breakdown });
+  res.json({
+    date: targetDate,
+    activeShift,
+    waitingOnDayShift: priorShiftGate.waitingOnDayShift,
+    dayShiftHasEntries: priorShiftGate.dayShiftHasEntries,
+    ...breakdown,
+  });
 });
 
 // Staff-safe DAY/NIGHT status calendar for a date range — no Z-Report
@@ -290,6 +309,17 @@ summaryRouter.post("/shift-commit", async (req, res) => {
   if (shift === Shift.FULL_DAY) {
     return res.status(400).json({
       message: "Per-shift commit is not available while shift entry is turned off.",
+    });
+  }
+
+  // Night cannot be committed while it is still waiting on Day — Day must be
+  // staff-submitted first (see isPriorShiftPending in lib/entryLock.ts). An
+  // admin can unblock this via POST /admin/reconciliation/shift/
+  // force-unlock-night if Day staff are unavailable.
+  if (shift === Shift.NIGHT && (await isPriorShiftPending(date, shift))) {
+    return res.status(409).json({
+      message: "The Day shift must be submitted before the Night shift can be committed.",
+      waitingOnDayShift: true,
     });
   }
 

@@ -1,0 +1,45 @@
+.waiting-prior-shift {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  background: var(--color-info-bg);
+  border: 1px solid var(--color-info-border);
+  border-radius: var(--radius-md);
+  padding: 1.4rem 1.5rem;
+  margin: 0.5rem 0 1rem;
+}
+
+.waiting-prior-shift__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 38px;
+  height: 38px;
+  border-radius: var(--radius-full);
+  background: #fff;
+  color: var(--color-info);
+  font-size: 1.15rem;
+}
+
+.waiting-prior-shift__body {
+  color: #0c4a6e;
+}
+
+.waiting-prior-shift__title {
+  margin: 0 0 4px;
+  font-weight: 700;
+  font-size: 1rem;
+}
+
+.waiting-prior-shift__message {
+  margin: 0 0 8px;
+  font-size: 0.88rem;
+  line-height: 1.5;
+}
+
+.waiting-prior-shift__hint {
+  margin: 0;
+  font-size: 0.8rem;
+  opacity: 0.85;
+}

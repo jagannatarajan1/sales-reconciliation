@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { prisma } from "../lib/prisma.js";
 import { getActiveContext } from "../lib/activeDate.js";
-import { blockIfLocked } from "../lib/entryLock.js";
+import { blockIfLocked, blockIfPriorShiftPending } from "../lib/entryLock.js";
 import { syncDailySummaryFields } from "../lib/dailySummarySync.js";
 import { evaluateAndNotify } from "../lib/shiftReconciliation.js";
 
@@ -27,6 +27,7 @@ lotteryRouter.post("/", async (req, res) => {
 
   const { date, shift } = await getActiveContext();
   if (await blockIfLocked(res, date, shift)) return;
+  if (await blockIfPriorShiftPending(res, date, shift)) return;
   const lotteryValue = toNumber(req.body?.lotteryValue);
   const record = await prisma.lotteryRecord.upsert({
     where: { date_shift: { date, shift } },
@@ -52,6 +53,7 @@ lotteryRouter.put("/:id", async (req, res) => {
   });
   if (!existing) return res.status(404).json({ message: "Record not found." });
   if (await blockIfLocked(res, existing.date, existing.shift)) return;
+  if (await blockIfPriorShiftPending(res, existing.date, existing.shift)) return;
 
   const record = await prisma.lotteryRecord.update({
     where: { lotteryRecordId: existing.lotteryRecordId },
