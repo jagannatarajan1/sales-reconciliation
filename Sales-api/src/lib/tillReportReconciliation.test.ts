@@ -401,6 +401,44 @@ describe("reconcileDayFromReports — void/refund reconciliation", () => {
     expect(tuple).toMatchObject({ expectedCount: 1, actualCount: 2, matchedCount: 1, duplicateCount: 1, missingCount: 0 });
   });
 
+  it("PASS when the Z-Report renumbers a shift's voids cumulatively (same event, different sequence number)", () => {
+    // Real till behavior: each report's "Voided - NN" label restarts at 01,
+    // but the Z-Report numbers voids cumulatively across the whole day. The
+    // same physical void can be "Voided - 01" on the Night shift's own
+    // report and "Voided - 04" on that day's Z-Report if Day already had
+    // 3 voids of its own. The label's number is not a stable id — only the
+    // category ("Voided" vs "Drawer"), time, and amount are.
+    const s1 = report({
+      voidLines: [
+        { type: "Drawer - 01", occurredAt: T(7, 36), amount: 0.0 },
+        { type: "Voided - 01", occurredAt: T(9, 6), amount: 12.45 },
+        { type: "Voided - 02", occurredAt: T(9, 53), amount: 2.99 },
+      ],
+    });
+    const s2 = report({
+      voidLines: [{ type: "Voided - 01", occurredAt: T(14, 52), amount: 1.35 }],
+    });
+    const z = report({
+      voidLines: [
+        { type: "Drawer - 01", occurredAt: T(7, 36), amount: 0.0 },
+        { type: "Voided - 01", occurredAt: T(9, 6), amount: 12.45 },
+        { type: "Voided - 02", occurredAt: T(9, 53), amount: 2.99 },
+        { type: "Voided - 03", occurredAt: T(14, 52), amount: 1.35 }, // same event as s2's "Voided - 01"
+      ],
+    });
+
+    const result = reconcileDayFromReports({
+      businessDate: BUSINESS_DATE,
+      dayXReports: [s1],
+      nightXReports: [s2],
+      zReport: z,
+      zReportCount: 1,
+    });
+
+    expect(result.categories.void.status).toBe("PASS");
+    expect(result.categories.void.summary).toEqual({ totalMissing: 0, totalUnexpected: 0, totalDuplicate: 0 });
+  });
+
   it("does not just compare counts: a missing and an unexpected void with equal totals is NOT a false PASS", () => {
     // Same total count (1 shift-side, 1 Z-side) but they are DIFFERENT
     // events — comparing bare counts would wrongly say PASS.

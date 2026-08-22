@@ -475,16 +475,29 @@ function naSingleValue(label: string, note: string): SingleValueResult {
 }
 
 // ── Void/refund reconciliation (step 7) ─────────────────────────────────
-// Matched on the full (type, occurredAt, amount) tuple, comparing the
-// actual matched multisets rather than bare counts, per the spec's explicit
-// instruction. Three distinguishable outcomes per tuple:
+// Matched on (category, occurredAt, amount), comparing the actual matched
+// multisets rather than bare counts, per the spec's explicit instruction.
+// Three distinguishable outcomes per tuple:
 //   - missingCount:    in S1/S2 but never carried through to Z
 //   - unexpectedCount: in Z with ZERO basis in S1/S2 (appeared out of nowhere)
 //   - duplicateCount:  in Z MORE times than S1/S2 justify, where S1/S2 had
 //                       at least one (the tuple is real, but over-represented)
+//
+// The till's own "type" label (e.g. "Voided - 04") carries a sequence number
+// that restarts at 01 within EACH report but runs cumulatively across the
+// whole day on the Z-Report — confirmed against real data, where a shift's
+// own "Voided - 01" prints as "Voided - 04" on that same day's Z-Report,
+// same occurredAt/amount. The number is therefore not a stable identifier
+// across reports; only the category prefix before " - NN" is. Matching on
+// the full label made every real void look like a mismatch. The full label
+// is still kept for display (see `sample.type` below), just not as the key.
+
+function voidCategory(type: string): string {
+  return type.replace(/\s*-\s*\d+\s*$/, "").trim();
+}
 
 function voidKey(v: RawVoidLine): string {
-  return `${v.type}|${v.occurredAt.toISOString()}|${v.amount.toFixed(2)}`;
+  return `${voidCategory(v.type)}|${v.occurredAt.toISOString()}|${v.amount.toFixed(2)}`;
 }
 
 function compareVoidLines(shiftVoids: RawVoidLine[], zVoids: RawVoidLine[]): VoidCategoryResult {
