@@ -66,10 +66,48 @@ export async function ingestTillReports(from: Date, to: Date): Promise<IngestRes
         cashTotal: parsed.tender.cash,
         cardTotal: parsed.tender.card,
         manualCardTotal: parsed.tender.manualCard,
+        transactionCount: parsed.transactionCount,
+        incomeExpenseTotal: parsed.incomeExpenseTotal,
         emailReceivedAt: message.receivedAt,
         emailSubject: message.subject,
         rawBody: message.body,
         parseNotes: parsed.parseError,
+        // Detailed child rows added in phase 1 of the richer-parsing work.
+        // Created in the same operation as the parent row (Prisma nests
+        // these into one transaction) so a TillReport is never persisted
+        // half-populated. Every list here defaults to [] when its section
+        // couldn't be parsed (see tillReportParser.ts), so `create: []` is a
+        // safe, valid no-op rather than something needing a guard.
+        departmentLines: {
+          create: parsed.departmentLines.map((l) => ({
+            departmentName: l.departmentName,
+            amount: l.amount,
+            category: l.category,
+          })),
+        },
+        vatLines: {
+          create: parsed.vatLines.map((l) => ({
+            vatCode: l.vatCode,
+            salesExVat: l.salesExVat,
+            vat: l.vat,
+            salesInVat: l.salesInVat,
+          })),
+        },
+        incomeExpenseLines: {
+          create: parsed.incomeExpenseLines.map((l) => ({ label: l.label, amount: l.amount })),
+        },
+        voidLines: {
+          create: parsed.voidLines.map((l) => ({ type: l.type, occurredAt: l.occurredAt, amount: l.amount })),
+        },
+        productLines: {
+          create: parsed.productLines.map((l) => ({
+            departmentName: l.departmentName,
+            productName: l.productName,
+            salesQuantity: l.salesQuantity,
+            stockValue: l.stockValue,
+            stockUnavailable: l.stockUnavailable,
+          })),
+        },
       },
     });
 

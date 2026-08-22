@@ -18,6 +18,7 @@ import { Summary } from './pages/Summary/Summary';
 import { Paypoint } from './pages/Paypoint/Paypoint';
 import { Commit } from './pages/Commit';
 import { AdminReconciliation } from './pages/AdminReconciliation/AdminReconciliation';
+import { AdminTillReconciliation } from './pages/AdminTillReconciliation/AdminTillReconciliation';
 import { AdminZReports } from './pages/AdminZReports/AdminZReports';
 import { AdminSessionPhotos } from './pages/AdminSessionPhotos/AdminSessionPhotos';
 import { AdminSuppliers } from './pages/AdminSuppliers/AdminSuppliers';
@@ -143,6 +144,14 @@ function App() {
             element={
               <ProtectedRoute requiredRole="admin">
                 <AdminReconciliation />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/till-reconciliation"
+            element={
+              <ProtectedRoute requiredRole="admin" requiredPermission="reports">
+                <AdminTillReconciliation />
               </ProtectedRoute>
             }
           />

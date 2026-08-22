@@ -8,6 +8,44 @@ export interface TillReportTender {
   manualCard: number | null;
 }
 
+// Mirrors the schema's TillReportDepartmentCategory enum — kept as a plain
+// string union here (rather than importing the Prisma enum) so this module
+// has no dependency on the generated client, same as every other type in
+// this file.
+export type TillReportDepartmentCategory = "MERCHANDISE" | "LOTTERY_GROUP";
+
+export interface TillReportDepartmentLine {
+  departmentName: string;
+  amount: number;
+  category: TillReportDepartmentCategory;
+}
+
+export interface TillReportVatLine {
+  vatCode: string; // "0.00" | "20.00" | "Exmt" — verbatim, never coerced to a number
+  salesExVat: number;
+  vat: number;
+  salesInVat: number;
+}
+
+export interface TillReportIncomeExpenseLine {
+  label: string;
+  amount: number;
+}
+
+export interface TillReportVoidLine {
+  type: string; // "Drawer - 01" | "Voided - 03" — verbatim, not split further
+  occurredAt: Date;
+  amount: number;
+}
+
+export interface TillReportProductLine {
+  departmentName: string;
+  productName: string; // verbatim, including any mangled/encoding-artifact characters
+  salesQuantity: number;
+  stockValue: number | null; // null means the till printed "N/A" — never coerced to 0
+  stockUnavailable: boolean;
+}
+
 export interface ParsedTillReport {
   reportType: TillReportType | null;
   // The report's OWN "Date: dd/MM/yyyy" field — NOT the email's received
@@ -26,6 +64,21 @@ export interface ParsedTillReport {
   departmentTotal: number | null;
   grandTotal: number | null;
   tender: TillReportTender;
+  // Per-department "DEPARTMENT SALES" lines, both the merchandise block and
+  // the INSTANT LOTTERY / LOTTERY / PAYPOINT block (see category on each
+  // line). Empty array — never null — when the section can't be found or
+  // yields no lines; that failure is recorded as a note in parseError
+  // instead, matching this file's non-fatal-optional-field philosophy.
+  departmentLines: TillReportDepartmentLine[];
+  vatLines: TillReportVatLine[];
+  // From the "No of Transactions : N" line.
+  transactionCount: number | null;
+  incomeExpenseLines: TillReportIncomeExpenseLine[];
+  // The report's own "Income / Expense TOTAL" figure — the aggregate behind
+  // incomeExpenseLines, kept separately since it's printed as its own line.
+  incomeExpenseTotal: number | null;
+  voidLines: TillReportVoidLine[];
+  productLines: TillReportProductLine[];
   // Non-fatal notes about the parse, ';'-joined — may be present even when
   // every field above was successfully extracted (e.g. a header/Date:
   // mismatch, see parseTillReport's doc comment). Meant to be shown to a
@@ -72,6 +125,49 @@ const CASH_RE = /^[ \t]*CASH[ \t]+([\d,]+\.\d{2})[ \t]*$/im;
 const CARD_RE = /^[ \t]*CARD[ \t]+([\d,]+\.\d{2})[ \t]*$/im;
 const MANUAL_CARD_RE = /^[ \t]*MANUAL[ \t]+CARD[ \t]+([\d,]+\.\d{2})[ \t]*$/im;
 
+// --- Detailed sections added in phase 1 of the richer-parsing work ---
+//
+// The real report body (via Gmail's HTML-to-plain-text conversion) has been
+// seen in two shapes: every printed line followed by a blank line, and a
+// tighter form with no blank lines at all. Neither shape is assumed —
+// section boundaries are found by marker/divider text, never by line
+// position, and per-line regexes below use the `m` flag so they match once
+// per real line regardless of how much blank-line padding surrounds it.
+
+const DEPARTMENT_SALES_MARKER_RE = /DEPARTMENT\s+SALES/i;
+const DEPARTMENT_TOTAL_LINE_RE = /^[ \t]*DEPARTMENT\s+TOTAL[ \t]+([\d,]+\.\d{2})[ \t]*$/im;
+const SUB_TOTAL_LINE_RE = /^[ \t]*SUB\s+TOTAL[ \t]+([\d,]+\.\d{2})[ \t]*$/gim;
+// Department/income-expense names: letters, digits, spaces and the
+// punctuation actually seen in real names ("GROCERY N.VAT", "NEWS&MAG",
+// "HEALTH & BEAUTY", "CRISPS AND SNACS"). Non-greedy so the trailing
+// whitespace+amount is always the LAST such run on the line, not the first.
+const LABELLED_LINE_RE = /^[ \t]*([A-Za-z][A-Za-z0-9 &.'/-]*?)[ \t]+(-?[\d,]+\.\d{2})[ \t]*$/gm;
+
+const VAT_BREAKDOWN_MARKER_RE = /VAT\s+BREAKDOWN/i;
+const VAT_LINE_RE =
+  /^[ \t]*(\d+(?:\.\d+)?|Exmt)[ \t]+([\d,]+\.\d{2})[ \t]+([\d,]+\.\d{2})[ \t]+([\d,]+\.\d{2})[ \t]*$/gim;
+
+const TRANSACTION_COUNT_RE = /No\s+of\s+Transactions[ \t]*:[ \t]*(\d+)/i;
+
+const INCOME_EXPENSE_MARKER_RE = /INCOME\s*\/\s*EXPENSE/i;
+const INCOME_EXPENSE_TOTAL_RE = /Income\s*\/\s*Expense\s+TOTAL[ \t]+(-?[\d,]+\.\d{2})/i;
+const INCOME_EXPENSE_TOTAL_LABEL_RE = /^Income\s*\/\s*Expense\s+TOTAL$/i;
+
+const REFUNDS_VOIDS_MARKER_RE = /REFUNDS\s*\/\s*VOIDS\s+BREAKDOWN/i;
+// Type column is always "Drawer - NN" or "Voided - NN" in every real sample
+// seen — captured whole rather than split into a code + number, per the
+// spec for this phase.
+const VOID_LINE_RE =
+  /^[ \t]*((?:Drawer|Voided)[ \t]*-[ \t]*\d+)[ \t]+(\d{2})\/(\d{2})\/(\d{4})[ \t]+(\d{2}):(\d{2}):(\d{2})[ \t]+(-?[\d,]+\.\d{2})[ \t]*$/gim;
+
+const SALES_INVENTORY_MARKER_RE = /SALES\s+AND\s+INVENTORY\s+DETAILS/i;
+const PRODUCT_HEADER_ROW_RE = /^DESCRIPTION\b.*STOCK[ \t]*$/i;
+// A product row is "<name>  <sales qty>  <stock|N/A>" — a bare department
+// header line (e.g. "ALCOHOL") has no trailing numeric columns and simply
+// never matches this, which is what tells parseProductLines it's a header
+// rather than a product row (see there).
+const PRODUCT_LINE_RE = /^(.+?)[ \t]+(-?\d+)[ \t]+(-?\d+|N\/A)$/i;
+
 function parseDateField(body: string): { date: Date; raw: RegExpMatchArray } | null {
   const match = body.match(DATE_FIELD_RE);
   if (!match) return null;
@@ -90,19 +186,211 @@ function parseTimeField(body: string): { hours: number; minutes: number } | null
   return { hours, minutes };
 }
 
-// Scopes tender-line parsing to the text between "TENDER TYPE" and the next
-// divider — never the whole body. Belt-and-braces alongside the line
-// anchoring above: even an unanchored match against this substring alone
-// couldn't reach a department line like "GREETING CARDS 1.79" from the
-// SALES section above, because that text isn't in the substring at all.
-function extractTenderSection(body: string): string | null {
-  const markerMatch = body.match(TENDER_TYPE_MARKER);
+// Scopes section parsing to the text between `markerRe`'s first match and
+// the next divider — never the whole body. Belt-and-braces alongside any
+// line-anchoring in the per-line regexes applied to the result: even an
+// unanchored match against this substring alone couldn't reach a line from
+// some other section, because that text isn't in the substring at all.
+// Originally written just for TENDER TYPE; generalized so every other
+// bounded section added in this phase (VAT BREAKDOWN, INCOME / EXPENSE,
+// REFUNDS / VOIDS BREAKDOWN, SALES AND INVENTORY DETAILS) gets the identical
+// guarantee.
+function extractSectionAfter(body: string, markerRe: RegExp): string | null {
+  const markerMatch = body.match(markerRe);
   if (!markerMatch || markerMatch.index == null) return null;
 
   const afterMarker = body.slice(markerMatch.index + markerMatch[0].length);
   const dividerMatch = afterMarker.match(DIVIDER_RE);
   const section = dividerMatch?.index != null ? afterMarker.slice(0, dividerMatch.index) : afterMarker;
   return section;
+}
+
+function extractTenderSection(body: string): string | null {
+  return extractSectionAfter(body, TENDER_TYPE_MARKER);
+}
+
+// DEPARTMENT SALES is bounded by "DEPARTMENT TOTAL" rather than the next
+// divider — unlike every other section here, its own content contains two
+// "SUB TOTAL" lines that are part of the section, not a terminator.
+function extractDepartmentSalesSection(body: string): string | null {
+  const markerMatch = body.match(DEPARTMENT_SALES_MARKER_RE);
+  if (!markerMatch || markerMatch.index == null) return null;
+
+  const afterMarker = body.slice(markerMatch.index + markerMatch[0].length);
+  const totalMatch = afterMarker.match(DEPARTMENT_TOTAL_LINE_RE);
+  return totalMatch?.index != null ? afterMarker.slice(0, totalMatch.index) : afterMarker;
+}
+
+function parseLabelledLines(section: string): Array<{ label: string; amount: number }> {
+  const lines: Array<{ label: string; amount: number }> = [];
+  for (const m of section.matchAll(LABELLED_LINE_RE)) {
+    lines.push({ label: m[1].trim(), amount: Number(m[2].replace(/,/g, "")) });
+  }
+  return lines;
+}
+
+// Splits the DEPARTMENT SALES section on its (up to two) "SUB TOTAL" lines:
+// everything before the first is the merchandise block, everything between
+// the first and second (if a second exists) is the INSTANT LOTTERY / LOTTERY
+// / PAYPOINT block. A missing SUB TOTAL is treated the same as every other
+// missing-but-optional structure in this file — a note, not a hard failure —
+// and whatever text there is gets parsed as the merchandise block.
+function parseDepartmentLines(body: string, notes: string[]): TillReportDepartmentLine[] {
+  const section = extractDepartmentSalesSection(body);
+  if (!section) {
+    notes.push("no DEPARTMENT SALES section found");
+    return [];
+  }
+
+  const subTotals = [...section.matchAll(SUB_TOTAL_LINE_RE)];
+  let merchandiseText = section;
+  let lotteryText: string | null = null;
+
+  if (subTotals.length === 0) {
+    notes.push("no SUB TOTAL found in DEPARTMENT SALES section");
+  } else {
+    const first = subTotals[0];
+    merchandiseText = section.slice(0, first.index);
+    if (subTotals.length >= 2) {
+      const second = subTotals[1];
+      lotteryText = section.slice(first.index! + first[0].length, second.index);
+    } else {
+      notes.push("only one SUB TOTAL found in DEPARTMENT SALES section; no lottery/paypoint group parsed");
+    }
+  }
+
+  const lines: TillReportDepartmentLine[] = parseLabelledLines(merchandiseText).map((l) => ({
+    departmentName: l.label,
+    amount: l.amount,
+    category: "MERCHANDISE" as const,
+  }));
+
+  if (lotteryText) {
+    for (const l of parseLabelledLines(lotteryText)) {
+      lines.push({ departmentName: l.label, amount: l.amount, category: "LOTTERY_GROUP" });
+    }
+  }
+
+  if (lines.length === 0) notes.push("DEPARTMENT SALES section found but no department lines parsed");
+  return lines;
+}
+
+function parseVatLines(body: string, notes: string[]): TillReportVatLine[] {
+  const section = extractSectionAfter(body, VAT_BREAKDOWN_MARKER_RE);
+  if (!section) {
+    notes.push("no VAT BREAKDOWN section found");
+    return [];
+  }
+
+  const lines: TillReportVatLine[] = [];
+  for (const m of section.matchAll(VAT_LINE_RE)) {
+    lines.push({
+      vatCode: m[1],
+      salesExVat: Number(m[2].replace(/,/g, "")),
+      vat: Number(m[3].replace(/,/g, "")),
+      salesInVat: Number(m[4].replace(/,/g, "")),
+    });
+  }
+
+  if (lines.length === 0) notes.push("VAT BREAKDOWN section found but no VAT lines parsed");
+  return lines;
+}
+
+function parseTransactionCount(body: string, notes: string[]): number | null {
+  const match = body.match(TRANSACTION_COUNT_RE);
+  if (!match) {
+    notes.push("no 'No of Transactions' line found");
+    return null;
+  }
+  return Number(match[1]);
+}
+
+function parseIncomeExpense(
+  body: string,
+  notes: string[]
+): { lines: TillReportIncomeExpenseLine[]; total: number | null } {
+  const section = extractSectionAfter(body, INCOME_EXPENSE_MARKER_RE);
+  if (!section) {
+    notes.push("no INCOME / EXPENSE section found");
+    return { lines: [], total: null };
+  }
+
+  const total = parseLabelledAmount(section, INCOME_EXPENSE_TOTAL_RE);
+  const lines = parseLabelledLines(section)
+    .filter((l) => !INCOME_EXPENSE_TOTAL_LABEL_RE.test(l.label))
+    .map((l) => ({ label: l.label, amount: l.amount }));
+
+  return { lines, total };
+}
+
+function parseVoidLines(body: string, notes: string[]): TillReportVoidLine[] {
+  const section = extractSectionAfter(body, REFUNDS_VOIDS_MARKER_RE);
+  if (!section) {
+    notes.push("no REFUNDS / VOIDS BREAKDOWN section found");
+    return [];
+  }
+
+  const lines: TillReportVoidLine[] = [];
+  for (const m of section.matchAll(VOID_LINE_RE)) {
+    const [, type, dd, mm, yyyy, hh, mi, ss, amount] = m;
+    lines.push({
+      type: type.replace(/[ \t]+/g, " ").trim(),
+      occurredAt: new Date(Date.UTC(Number(yyyy), Number(mm) - 1, Number(dd), Number(hh), Number(mi), Number(ss))),
+      amount: Number(amount.replace(/,/g, "")),
+    });
+  }
+
+  return lines;
+}
+
+// SALES AND INVENTORY DETAILS has no per-row label — each product line is
+// attributed to whichever bare department-name header line (e.g. "ALCOHOL",
+// "BAKERY") most recently appeared above it. A product line is distinguished
+// from a header line purely by shape: only a product line ends in two
+// trailing numeric-ish columns (see PRODUCT_LINE_RE); a header has none.
+function parseProductLines(body: string, notes: string[]): TillReportProductLine[] {
+  const section = extractSectionAfter(body, SALES_INVENTORY_MARKER_RE);
+  if (!section) {
+    notes.push("no SALES AND INVENTORY DETAILS section found");
+    return [];
+  }
+
+  const lines: TillReportProductLine[] = [];
+  let currentDepartment: string | null = null;
+  let skippedBeforeHeader = 0;
+
+  for (const rawLine of section.split("\n")) {
+    const line = rawLine.trim();
+    if (!line) continue;
+    if (PRODUCT_HEADER_ROW_RE.test(line)) continue; // "DESCRIPTION ... SALES STOCK" column header
+
+    const match = line.match(PRODUCT_LINE_RE);
+    if (match) {
+      if (!currentDepartment) {
+        skippedBeforeHeader++;
+        continue;
+      }
+      const stockRaw = match[3];
+      const stockUnavailable = /^N\/A$/i.test(stockRaw);
+      lines.push({
+        departmentName: currentDepartment,
+        productName: match[1],
+        salesQuantity: Number(match[2]),
+        stockValue: stockUnavailable ? null : Number(stockRaw),
+        stockUnavailable,
+      });
+    } else {
+      currentDepartment = line;
+    }
+  }
+
+  if (skippedBeforeHeader > 0) {
+    notes.push(
+      `${skippedBeforeHeader} product line(s) in SALES AND INVENTORY DETAILS skipped: appeared before any department header`
+    );
+  }
+  if (lines.length === 0) notes.push("SALES AND INVENTORY DETAILS section found but no product lines parsed");
+  return lines;
 }
 
 function resolveReportType(body: string, subject: string | undefined): {
@@ -224,6 +512,13 @@ export function parseTillReport(body: string, subject?: string): ParsedTillRepor
     notes.push("no TENDER TYPE section found");
   }
 
+  const departmentLines = parseDepartmentLines(body, notes);
+  const vatLines = parseVatLines(body, notes);
+  const transactionCount = parseTransactionCount(body, notes);
+  const { lines: incomeExpenseLines, total: incomeExpenseTotal } = parseIncomeExpense(body, notes);
+  const voidLines = parseVoidLines(body, notes);
+  const productLines = parseProductLines(body, notes);
+
   return {
     reportType,
     businessDate,
@@ -233,6 +528,13 @@ export function parseTillReport(body: string, subject?: string): ParsedTillRepor
     departmentTotal,
     grandTotal,
     tender,
+    departmentLines,
+    vatLines,
+    transactionCount,
+    incomeExpenseLines,
+    incomeExpenseTotal,
+    voidLines,
+    productLines,
     parseError: notes.length > 0 ? notes.join("; ") : null,
   };
 }

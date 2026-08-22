@@ -1,0 +1,80 @@
+Z-Report Printed by VISUAL at 14/08/2026 22:06:27
+           CHENEY MANOR STORES
+           84 CHENEY MANOR RD
+             SWINDON SN2 2NS
+               01793432388
+               477 5586 32
+POS ID  : 1              Date: 14/08/2026
+Staff ID: 101            Time: 22:06
+-----------------------------------------
+           Z-REPORT ID: Z10411
+-----------------------------------------
+DEPARTMENT SALES
+ALCOHOL                            305.05
+BAKERY                              11.34
+BISCUITS                             5.08
+CAKES                                4.24
+CARRIER BAGS                         0.40
+CHILLED FOODS                       81.46
+CONFECTIONERY                       55.17
+CRISPS AND SNACS                    49.93
+FOOD TO GO                           2.94
+FROZEN FOODS                        18.66
+GROCERY N.VAT                       12.40
+HEALTH & BEAUTY                      3.15
+HOUSEHOLD SUNDRIES                   6.78
+ICE CREAM                            9.90
+MISC                                 4.20
+NEWS&MAG                             3.60
+SOFT DRINKS                        120.30
+TOBACCO                            425.48
+SUB TOTAL                         1120.08
+
+INSTANT LOTTERY                      7.00
+LOTTERY                             43.00
+PAYPOINT                           350.00
+SUB TOTAL                          400.00
+
+DEPARTMENT TOTAL                  1520.08
+-----------------------------------------
+VAT BREAKDOWN
+VatCode   SaleExVat       Vat SalesInVat
+0.00         151.37      0.00     151.37
+20.00        807.26    161.45     968.71
+Exmt         400.00      0.00     400.00
+-----------------------------------------
+INCOME / EXPENSE
+LOTTERY PO                          -3.00
+Income / Expense TOTAL              -3.00
+-----------------------------------------
+TENDER TYPE
+CASH                               630.51
+CARD                               610.13
+MANUAL CARD                        276.44
+GRAND TOTAL                       1517.08
+-----------------------------------------
+-----------------------------------------
+Issued MyDD Points                      0
+-----------------------------------------
+             LINE DISCOUNTS
+Time  Qt Description          Amount Disc
+-----------------------------------------
+        REFUNDS / VOIDS BREAKDOWN
+Type          Date       Time      Amount
+Drawer - 01    14/08/2026 10:23:00  0.00
+Voided - 01    14/08/2026 11:43:00  1.99
+Voided - 02    14/08/2026 12:52:00  0.89
+-----------------------------------------
+        No of Transactions : 289
+-----------------------------------------
+       SALES AND INVENTORY DETAILS
+DESCRIPTION                   SALES STOCK
+ALCOHOL
+1664 BIERE                        2   -21
+AU STRAWBERRY BURST ULTRA         5   -30
+HEINEKEN LGE 650ML                9   N/A
+BAKERY
+HOVIS SOFT WHITE MEDIUM 800G      8   N/A
+CHILLED FOODS
+PM-Ú1.25 SEMI SKIMMED MILK        6    18
+-----------------------------------------

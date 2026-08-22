@@ -6,6 +6,7 @@ import {
   FiBarChart2,
   FiCalendar,
   FiCamera,
+  FiCheckSquare,
   FiClipboard,
   FiFileText,
   FiMail,
@@ -64,6 +65,15 @@ const cards = [
     label: 'View Z Reports',
     path: '/admin/z-reports',
     color: '#0ea5e9',
+    permission: 'reports',
+  },
+  {
+    icon: FiCheckSquare,
+    title: 'Till Report Check',
+    desc: 'Checks that the day and night shift reports add up to the end-of-day report, penny for penny',
+    label: 'Check Till Reports',
+    path: '/admin/till-reconciliation',
+    color: '#22c55e',
     permission: 'reports',
   },
   {

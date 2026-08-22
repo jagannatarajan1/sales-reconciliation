@@ -104,6 +104,20 @@ Issued MyDD Points 0
 
 -----------------------------------------
 
+        REFUNDS / VOIDS BREAKDOWN
+
+Type Date Time Amount
+
+Drawer - 01 11/08/2026 07:46:00 0.00
+
+Voided - 01 11/08/2026 08:01:00 9.99
+
+-----------------------------------------
+
+        No of Transactions : 163
+
+-----------------------------------------
+
        SALES AND INVENTORY DETAILS
 
 DESCRIPTION SALES STOCK

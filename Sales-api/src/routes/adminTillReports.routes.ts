@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { dateOnly } from "../lib/activeDate.js";
 import { ingestTillReports } from "../lib/tillReportIngest.js";
+import { reconcileDay } from "../lib/tillReportReconciliation.js";
 import { prisma } from "../lib/prisma.js";
 import { requirePermission } from "../lib/permissions.js";
 import { TillReportType } from "@prisma/client";
@@ -70,4 +71,17 @@ adminTillReportsRouter.get("/summary", async (req, res) => {
   ]);
 
   res.json({ xReportCount: xCount, zReportCount: zCount });
+});
+
+// POS-internal consistency check: does the till's own DAY X + NIGHT X data
+// add up to its own Z-Report data for this date. Distinct from (and never
+// writes to) the pre-existing till-vs-staff-banking check in
+// shiftReconciliation.ts/ShiftReconciliation — see the doc comment atop
+// tillReportReconciliation.ts. Read-only, computed fresh on every call.
+adminTillReportsRouter.get("/reconcile/:date", async (req, res) => {
+  if (!requireReports(req, res)) return;
+
+  const date = dateOnly(req.params.date);
+  const result = await reconcileDay(date);
+  res.json(result);
 });

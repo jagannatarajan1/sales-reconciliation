@@ -421,6 +421,17 @@ model TillReport {
   cardTotal       Decimal? @db.Decimal(18, 2)
   manualCardTotal Decimal? @db.Decimal(18, 2)
 
+  // From the "No of Transactions : N" line. Nullable/best-effort like every
+  // other field added in this phase — a report that fails to yield this must
+  // still ingest for its existing fields (see tillReportParser.ts).
+  transactionCount Int?
+
+  // Sum shown on the report's own "Income / Expense TOTAL" line. The
+  // individual labelled lines behind it (e.g. "LOTTERY PO") live on
+  // incomeExpenseLines below — kept separately so a human/later phase can see
+  // both the aggregate the till printed and what made it up.
+  incomeExpenseTotal Decimal? @db.Decimal(18, 2)
+
   emailReceivedAt DateTime
   emailSubject    String
   rawBody         String
@@ -433,11 +444,130 @@ model TillReport {
 
   createdAt DateTime @default(now())
 
+  // Additive child rows for the detailed sections of the report (department
+  // lines, VAT breakdown, income/expense lines, refunds/voids, product
+  // sales/stock). All optional in practice — see tillReportParser.ts — a
+  // report that fails to yield any of these simply gets zero child rows,
+  // never a hard ingestion failure.
+  departmentLines    TillReportDepartmentLine[]
+  vatLines           TillReportVatLine[]
+  incomeExpenseLines TillReportIncomeExpenseLine[]
+  voidLines          TillReportVoidLine[]
+  productLines       TillReportProductLine[]
+
   // Deliberately NO @@unique on (businessDate, reportType, shift) — a
   // till reprint must not throw on ingestion. Duplicates are surfaced via
   // count queries in tillReportIngest.ts instead.
   @@index([businessDate, reportType])
   @@index([businessDate, reportType, shift])
+}
+
+// One row per "DEPARTMENT SALES" line on a till report (e.g. "ALCOHOL
+// 305.05"). The real report groups these into two blocks, each closed by its
+// own "SUB TOTAL" line: ordinary merchandise departments, then a second block
+// of INSTANT LOTTERY / LOTTERY / PAYPOINT. `category` preserves that split
+// since those three are not merchandise and later reconciliation phases will
+// almost certainly want to treat them separately (they already are,
+// elsewhere in this app, via LotteryRecord/PaypointRecord/ScratchCard).
+model TillReportDepartmentLine {
+  tillReportDepartmentLineId Int @id @default(autoincrement())
+
+  tillReportId   Int
+  departmentName String
+  amount         Decimal                       @db.Decimal(18, 2)
+  category       TillReportDepartmentCategory @default(MERCHANDISE)
+
+  tillReport TillReport @relation(fields: [tillReportId], references: [tillReportId], onDelete: Cascade)
+
+  @@index([tillReportId])
+}
+
+enum TillReportDepartmentCategory {
+  MERCHANDISE
+  LOTTERY_GROUP
+}
+
+// One row per "VAT BREAKDOWN" line (e.g. "20.00   807.26   161.45   968.71").
+// vatCode is text, NOT numeric/Decimal — the till prints a literal "Exmt" row
+// alongside the numeric-rate rows ("0.00", "20.00"), and forcing that into a
+// number would either crash or silently lose the exempt row.
+model TillReportVatLine {
+  tillReportVatLineId Int @id @default(autoincrement())
+
+  tillReportId Int
+  vatCode      String // "0.00" | "20.00" | "Exmt" — verbatim from the report
+  salesExVat   Decimal @db.Decimal(18, 2)
+  vat          Decimal @db.Decimal(18, 2)
+  salesInVat   Decimal @db.Decimal(18, 2)
+
+  tillReport TillReport @relation(fields: [tillReportId], references: [tillReportId], onDelete: Cascade)
+
+  @@index([tillReportId])
+}
+
+// One row per "INCOME / EXPENSE" line (e.g. "LOTTERY PO   -3.00"). Only one
+// has ever been observed on a real report, but the section is a list on the
+// till's own printout, so this is modelled as one rather than assuming it
+// will always stay singular. The aggregate the till prints alongside these
+// ("Income / Expense TOTAL") is stored on TillReport.incomeExpenseTotal.
+model TillReportIncomeExpenseLine {
+  tillReportIncomeExpenseLineId Int @id @default(autoincrement())
+
+  tillReportId Int
+  label        String
+  amount       Decimal @db.Decimal(18, 2)
+
+  tillReport TillReport @relation(fields: [tillReportId], references: [tillReportId], onDelete: Cascade)
+
+  @@index([tillReportId])
+}
+
+// One row per "REFUNDS / VOIDS BREAKDOWN" line (e.g. "Voided - 01
+// 12/08/2026 11:43:00   1.99"). `type` is stored verbatim ("Drawer - 01",
+// "Voided - 02", ...) rather than split into a code + number — the spec for
+// this phase is explicit that it should not be parsed further, since it's
+// unclear yet whether "Drawer" and "Voided" need different handling in a
+// later reconciliation phase.
+model TillReportVoidLine {
+  tillReportVoidLineId Int @id @default(autoincrement())
+
+  tillReportId Int
+  type         String // "Drawer - 01" | "Voided - 03" — verbatim
+  // Date + Time as printed on this specific line (not businessDate/printedAt
+  // — a void can in principle be logged against a different day than the
+  // report's own header, e.g. near a shift boundary).
+  occurredAt DateTime
+  amount     Decimal  @db.Decimal(18, 2)
+
+  tillReport TillReport @relation(fields: [tillReportId], references: [tillReportId], onDelete: Cascade)
+
+  @@index([tillReportId])
+}
+
+// One row per product line under "SALES AND INVENTORY DETAILS" (e.g. "1664
+// BIERE   1   -6"). departmentName is the bare header line the till prints
+// above each block of products (e.g. "ALCOHOL"). productName is stored
+// EXACTLY as printed, including any encoding artifacts from the till's own
+// software — normalising it for matching purposes is explicitly a later
+// phase's job, not this one's.
+model TillReportProductLine {
+  tillReportProductLineId Int @id @default(autoincrement())
+
+  tillReportId   Int
+  departmentName String
+  productName    String
+  salesQuantity  Int
+
+  // Null means the till printed the literal "N/A" — i.e. stock is genuinely
+  // unknown for this product, not zero and not some other sentinel. Kept
+  // alongside the explicit stockUnavailable flag below so a query never has
+  // to guess whether a null came from "N/A" or from some future parse gap.
+  stockValue       Int?
+  stockUnavailable Boolean @default(false)
+
+  tillReport TillReport @relation(fields: [tillReportId], references: [tillReportId], onDelete: Cascade)
+
+  @@index([tillReportId])
 }
 
 model GmailConnection {
