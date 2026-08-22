@@ -353,11 +353,55 @@ model ShiftReconciliation {
   shiftCommittedAt       DateTime?
   shiftStaffNotes        String?
 
+  // Admin safety valve for the Day→Night prior-shift gate (see
+  // forceUnlockNightShift in lib/shiftReconciliation.ts): set ONLY when an
+  // admin force-unlocks Night without a genuine Day staff commit. These stay
+  // null on a genuine staff commit, and shiftCommittedByName etc. stay null
+  // on a forced row — the two must never be confused by column inspection
+  // alone. The reason is never shown to staff (see toStaffShiftDto).
+  forcedUnlockByUserId Int?
+  forcedUnlockByName   String?
+  forcedUnlockAt       DateTime?
+  forcedUnlockReason   String?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now()) @updatedAt
 
   @@unique([date, shift])
   @@index([finalStatus])
+}
+
+// Represents "no shift was expected here" — a holiday or other planned store
+// closure — for one (date, shift). A whole-day closure is modelled as TWO
+// rows (one DAY, one NIGHT), created together by the "Close whole day" admin
+// action, so every reader only ever asks "is (date, shift) closed" for a
+// concrete DAY/NIGHT; shift is therefore NON-nullable with @@unique([date,
+// shift]) rather than a nullable shift column — Postgres treats each NULL as
+// distinct in a unique index, so a nullable column would not actually
+// prevent duplicate whole-day-closure rows.
+//
+// Only current state + latest transition lives here (same "cache latest
+// value" pattern as ShiftReconciliation.adminEdited*/forcedUnlock*); full
+// history lives in AuditLog like every other admin action in this app.
+model StoreClosure {
+  storeClosureId Int      @id @default(autoincrement())
+  date           DateTime @db.Date
+  // DAY or NIGHT only, never FULL_DAY — see the model doc comment above.
+  shift          Shift
+  reason         String
+  active         Boolean  @default(true)
+
+  closedByUserId Int
+  closedByName   String?
+  closedAt       DateTime @default(now())
+
+  reopenedByUserId Int?
+  reopenedByName   String?
+  reopenedAt       DateTime?
+  reopenReason     String?
+
+  @@unique([date, shift])
+  @@index([date])
 }
 
 model ActiveDateOverride {

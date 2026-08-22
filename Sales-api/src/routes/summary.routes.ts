@@ -16,6 +16,8 @@ import {
 import { writeAuditLog } from "../lib/auditLog.js";
 import { blockIfLocked, blockIfPriorShiftPending, getLockState, getPriorShiftGate, isPriorShiftPending } from "../lib/entryLock.js";
 import { computeShiftTotals } from "../lib/dailyTotals.js";
+import { getStaffOwnShiftReport } from "../lib/staffTillReportView.js";
+import { isShiftClosed } from "../lib/storeClosure.js";
 import { Shift } from "@prisma/client";
 
 export const summaryRouter = Router();
@@ -46,7 +48,7 @@ summaryRouter.get("/today", async (req, res) => {
   }
 
   const { date, shift, shiftSource } = await getActiveContext();
-  const [record, totals, reconciliation, shiftX, lockState, priorShiftGate] = await Promise.all([
+  const [record, totals, reconciliation, shiftX, lockState, priorShiftGate, closed] = await Promise.all([
     prisma.dailySummary.findUnique({ where: { date_shift: { date, shift } }, include: { creditCardEntries: true } }),
     computeDailyTotals(date),
     prisma.reconciliationRecord.findUnique({ where: { date } }),
@@ -62,6 +64,12 @@ summaryRouter.get("/today", async (req, res) => {
     // separate concept from lockState above: this is a pre-condition ("has
     // Night's turn come up yet"), not a post-hoc "already submitted" lock.
     getPriorShiftGate(date, shift),
+    // Whether the ACTIVE shift itself is marked Closed (holiday etc.) — a
+    // third, independent state from the two above: not "already submitted"
+    // and not "waiting on Day", but "this shift was never expected to
+    // happen". Evaluated live on every request, same as every other lock
+    // check here, so reopening a closure "just works" with no extra code.
+    isShiftClosed(date, shift),
   ]);
 
   // Z-Report data (department total / variance) is intentionally never
@@ -86,6 +94,11 @@ summaryRouter.get("/today", async (req, res) => {
     // letting staff type in Night figures. Always false for DAY/FULL_DAY.
     waitingOnDayShift: priorShiftGate.waitingOnDayShift,
     dayShiftHasEntries: priorShiftGate.dayShiftHasEntries,
+    // Additive field for Issue D: the entry pages show a distinct "this
+    // shift is closed" notice instead of the form when true. The admin's
+    // stated closure reason is never included here — staff only see that the
+    // shift is closed, never why (see storeClosure.ts / ShiftBreakdownDto).
+    closed,
   };
 
   if (!record) {
@@ -267,6 +280,28 @@ summaryRouter.get("/shift-status", async (req, res) => {
     dayShiftHasEntries: priorShiftGate.dayShiftHasEntries,
     ...breakdown,
   });
+});
+
+// Staff's own shift's full till report — departments, VAT, tender, voids,
+// every product, at the same depth admins get on the Till Report Check page.
+// Deliberately has NO query parameters: date and shift come only from
+// getActiveContext() (server-side session state), so nothing the client
+// sends can widen this beyond the caller's own current shift. Never gated by
+// the Day→Night prior-shift lock or by a shift closure — unlike the entry
+// routes above, viewing your own shift's report is not an "action" this app
+// needs to sequence; it shows the report the moment the till has emailed it.
+// getStaffOwnShiftReport itself only ever queries reportType: X_REPORT for
+// this exact (date, shift), so Z-Report data is structurally unreachable
+// through this route, not merely omitted by convention.
+summaryRouter.get("/my-shift-report", async (req, res) => {
+  if (req.userId == null) {
+    return res.status(401).json({ message: "User not authenticated" });
+  }
+
+  const { date, shift } = await getActiveContext();
+  const report = await getStaffOwnShiftReport(date, shift);
+
+  res.json({ date, shift, ...report });
 });
 
 // Staff-safe DAY/NIGHT status calendar for a date range — no Z-Report

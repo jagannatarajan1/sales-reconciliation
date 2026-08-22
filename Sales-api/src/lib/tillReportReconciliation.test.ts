@@ -684,3 +684,131 @@ describe("reconcileDayFromReports — overall roll-up", () => {
     expect(result.exceptions).toHaveLength(0);
   });
 });
+
+// Issue D: closed shifts. dayClosed/nightClosed are optional and default to
+// false, so every test above (which never supplies them) keeps compiling
+// and behaving exactly as before — these tests are the only ones that
+// actually exercise the new fields.
+describe("reconcileDayFromReports — closed shifts (Issue D)", () => {
+  // The literal ticket scenario: Day closed, Night reported, no Z yet.
+  // Must wait for Z, and must NEVER claim to be waiting on Day X — Day was
+  // never going to report anything, so treating it as "still missing" would
+  // wait forever.
+  it("Day closed + Night reported + no Z yet → WAITING_FOR_Z, never WAITING_FOR_DAY_X", () => {
+    const result = reconcileDayFromReports({
+      businessDate: BUSINESS_DATE,
+      dayXReports: [],
+      nightXReports: [report()],
+      zReport: null,
+      zReportCount: 0,
+      dayClosed: true,
+    });
+
+    expect(result.overallStatus).toBe("WAITING_FOR_Z");
+    expect(result.waitingFor).toEqual(["Z"]);
+    expect(result.waitingFor).not.toContain("DAY_X");
+    expect(result.reportPresence.dayX.present).toBe(true);
+    expect(result.reportPresence.dayX.closed).toBe(true);
+    expect(result.reportPresence.dayX.count).toBe(0);
+  });
+
+  // The literal regression-fix proof: a closed Night shift where Day's own
+  // cash total equals Z's cash total must reconcile cleanly, not read as
+  // DATA_MISSING. Before the ??= 0 fix, sumNullable([]) on Night's empty
+  // report list would leave nightAgg.cashTotal as null, and
+  // compareSingleValue would call that DATA_MISSING even though "Night
+  // contributed nothing because it was closed" is a perfectly good answer.
+  it("Night closed, Day cash equals Z cash → tender/cash is RECONCILED/PASS, not DATA_MISSING", () => {
+    const day = report({
+      cashTotal: 100,
+      cardTotal: 50,
+      manualCardTotal: 10,
+      grandTotal: 160,
+      transactionCount: 10,
+      incomeExpenseTotal: 0,
+      departmentLines: [{ departmentName: "ALCOHOL", amount: 160, category: "MERCHANDISE" }],
+      vatLines: [{ vatCode: "20.00", salesExVat: 133.33, vat: 26.67, salesInVat: 160 }],
+      productLines: [{ departmentName: "ALCOHOL", productName: "1664 BIERE", salesQuantity: 1 }],
+    });
+    const z = report({
+      printedAt: new Date("2026-08-14T22:06:00.000Z"),
+      printedMinutes: 22 * 60 + 6,
+      cashTotal: 100,
+      cardTotal: 50,
+      manualCardTotal: 10,
+      grandTotal: 160,
+      transactionCount: 10,
+      incomeExpenseTotal: 0,
+      departmentLines: [{ departmentName: "ALCOHOL", amount: 160, category: "MERCHANDISE" }],
+      vatLines: [{ vatCode: "20.00", salesExVat: 133.33, vat: 26.67, salesInVat: 160 }],
+      productLines: [{ departmentName: "ALCOHOL", productName: "1664 BIERE", salesQuantity: 1 }],
+    });
+
+    const result = reconcileDayFromReports({
+      businessDate: BUSINESS_DATE,
+      dayXReports: [day],
+      nightXReports: [],
+      zReport: z,
+      zReportCount: 1,
+      nightClosed: true,
+    });
+
+    expect(result.categories.tender.cash.status).toBe("PASS");
+    expect(result.categories.tender.cash.status).not.toBe("DATA_MISSING");
+    expect(result.categories.tender.card.status).toBe("PASS");
+    expect(result.categories.tender.manualCard.status).toBe("PASS");
+    expect(result.categories.tender.grandTotal.status).toBe("PASS");
+    expect(result.categories.transactionCount.status).toBe("PASS");
+    expect(result.categories.incomeExpense.status).toBe("PASS");
+    expect(result.overallStatus).toBe("RECONCILED");
+  });
+
+  // Both shifts closed → CLOSED, even with a stray report present in the
+  // input (deliberately not specially detected/reconciled — see
+  // closureNotes for the informational side of this).
+  it("both shifts closed → CLOSED even with a stray report present in the input", () => {
+    const result = reconcileDayFromReports({
+      businessDate: BUSINESS_DATE,
+      dayXReports: [report()],
+      nightXReports: [],
+      zReport: null,
+      zReportCount: 0,
+      dayClosed: true,
+      nightClosed: true,
+    });
+
+    expect(result.overallStatus).toBe("CLOSED");
+    expect(result.waitingFor).toEqual([]);
+    expect(result.categories.department.status).toBe("NOT_APPLICABLE");
+    expect(result.categories.tender.status).toBe("NOT_APPLICABLE");
+    expect(result.categories.void.status).toBe("NOT_APPLICABLE");
+    expect(result.categories.department.lines).toEqual([]);
+  });
+
+  it("surfaces a closureNotes entry when a report arrives for a shift marked Closed", () => {
+    const result = reconcileDayFromReports({
+      businessDate: BUSINESS_DATE,
+      dayXReports: [report()],
+      nightXReports: [report()],
+      zReport: report(),
+      zReportCount: 1,
+      dayClosed: true,
+    });
+
+    expect(result.closureNotes).toHaveLength(1);
+    expect(result.closureNotes[0]).toMatch(/Day shift is marked Closed/);
+  });
+
+  it("no closureNotes when a closed shift genuinely has no reports", () => {
+    const result = reconcileDayFromReports({
+      businessDate: BUSINESS_DATE,
+      dayXReports: [],
+      nightXReports: [report()],
+      zReport: null,
+      zReportCount: 0,
+      dayClosed: true,
+    });
+
+    expect(result.closureNotes).toEqual([]);
+  });
+});

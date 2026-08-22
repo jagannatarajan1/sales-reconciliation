@@ -5,6 +5,7 @@ import { computeShiftTotals } from "./dailyTotals.js";
 import { getShiftXTotal, getZReportTotal } from "./tillReportIngest.js";
 import { isWithinTolerance, VARIANCE_TOLERANCE } from "./variance.js";
 import { sendShiftVarianceEmail, sendDayXvsZEmail } from "./commitEmail.js";
+import { getClosuresForDate, getClosuresForRange } from "./storeClosure.js";
 
 function round2(n: number): number {
   return Math.round(n * 100) / 100;
@@ -156,9 +157,18 @@ export async function applyAdminEdit(
  *
  * A no-op (forced: false) when Day already carries a genuine commit — this
  * must never silently overwrite one.
+ *
+ * The four forcedUnlock* columns (forcedUnlockByUserId/Name/At/Reason) are
+ * this function's own durable "who/when/why" record on the row itself —
+ * distinct from (and in addition to) the audit log entry the caller writes.
+ * They stay null on a genuine staff commit for the same reason
+ * shiftCommittedByName etc. stay null here: the two must never be confused
+ * by column inspection alone. The reason is admin-only — never surfaced to
+ * staff (see toStaffShiftDto).
  */
 export async function forceUnlockNightShift(
-  date: Date
+  date: Date,
+  input: { reason: string; userId: number; userName: string | null }
 ): Promise<{ row: NonNullable<Awaited<ReturnType<typeof prisma.shiftReconciliation.findUnique>>>; forced: boolean }> {
   const d = dateOnly(date);
 
@@ -169,8 +179,22 @@ export async function forceUnlockNightShift(
 
   const row = await prisma.shiftReconciliation.upsert({
     where: { date_shift: { date: d, shift: Shift.DAY } },
-    create: { date: d, shift: Shift.DAY, isShiftCommitted: true },
-    update: { isShiftCommitted: true },
+    create: {
+      date: d,
+      shift: Shift.DAY,
+      isShiftCommitted: true,
+      forcedUnlockByUserId: input.userId,
+      forcedUnlockByName: input.userName,
+      forcedUnlockAt: new Date(),
+      forcedUnlockReason: input.reason,
+    },
+    update: {
+      isShiftCommitted: true,
+      forcedUnlockByUserId: input.userId,
+      forcedUnlockByName: input.userName,
+      forcedUnlockAt: new Date(),
+      forcedUnlockReason: input.reason,
+    },
   });
 
   return { row, forced: true };
@@ -326,6 +350,24 @@ export interface ShiftBreakdownDto {
   originalStatus: ShiftReconciliationStatus;
   finalStatus: ShiftReconciliationStatus;
   hasEntries: boolean;
+  // Genuine staff sign-off (POST /Summary/shift-commit) — already on the
+  // Prisma row, just not mapped into this DTO before now. Staff-visible:
+  // harmless, it's their own record.
+  isShiftCommitted: boolean;
+  shiftCommittedByName: string | null;
+  shiftCommittedAt: Date | null;
+  // Admin override (forceUnlockNightShift) — see that function's doc comment
+  // for why these stay null on a genuine commit and vice versa. The name/at/
+  // reason detail fields are admin-only (see StaffShiftDto's Omit list
+  // below); only DAY ever carries these, but the type stays uniform.
+  forcedUnlockByName: string | null;
+  forcedUnlockAt: Date | null;
+  forcedUnlockReason: string | null;
+  // Issue D: is this (date, shift) marked Closed. closureReason is
+  // admin-only (see StaffShiftDto's Omit list) — staff see only that the
+  // shift is closed, never why.
+  closed: boolean;
+  closureReason: string | null;
 }
 
 export interface XvsZDto {
@@ -357,7 +399,11 @@ export async function getShiftBreakdown(
   // TillReport. evaluateShift is a pure local recomputation (no Gmail call)
   // and never touches the admin-edit columns, so it's safe and cheap to
   // rerun on every read.
-  const [dayRow, nightRow] = await Promise.all([evaluateShift(d, Shift.DAY), evaluateShift(d, Shift.NIGHT)]);
+  const [dayRow, nightRow, closures] = await Promise.all([
+    evaluateShift(d, Shift.DAY),
+    evaluateShift(d, Shift.NIGHT),
+    getClosuresForDate(d),
+  ]);
   // Read straight off evaluateDay's own return value rather than re-fetching
   // ReconciliationRecord.zReportTotal — that column is a separate, legacy
   // field written only by the day-level commit/submit flow (POST
@@ -367,24 +413,35 @@ export async function getShiftBreakdown(
   // displayed difference.
   const dayResult = await evaluateDay(d);
 
-  const shifts: ShiftBreakdownDto[] = [dayRow, nightRow].map((row) => ({
-    shift: row.shift,
-    originalTotal: row.originalTotal != null ? Number(row.originalTotal) : null,
-    xReportCount: row.xReportCount,
-    staffEnteredTotal: row.staffEnteredTotal != null ? Number(row.staffEnteredTotal) : null,
-    staffEnteredByName: row.staffEnteredByName,
-    staffEnteredAt: row.staffEnteredAt,
-    adminEditedTotal: row.adminEditedTotal != null ? Number(row.adminEditedTotal) : null,
-    adminEditedByName: row.adminEditedByName,
-    adminEditedAt: row.adminEditedAt,
-    adminEditReason: row.adminEditReason,
-    finalTotal: row.finalTotal != null ? Number(row.finalTotal) : null,
-    originalDifference: row.originalDifference != null ? Number(row.originalDifference) : null,
-    finalDifference: row.finalDifference != null ? Number(row.finalDifference) : null,
-    originalStatus: row.originalStatus,
-    finalStatus: row.finalStatus,
-    hasEntries: row.hasEntries,
-  }));
+  const shifts: ShiftBreakdownDto[] = [dayRow, nightRow].map((row) => {
+    const closure = row.shift === Shift.DAY ? closures.day : row.shift === Shift.NIGHT ? closures.night : null;
+    return {
+      shift: row.shift,
+      originalTotal: row.originalTotal != null ? Number(row.originalTotal) : null,
+      xReportCount: row.xReportCount,
+      staffEnteredTotal: row.staffEnteredTotal != null ? Number(row.staffEnteredTotal) : null,
+      staffEnteredByName: row.staffEnteredByName,
+      staffEnteredAt: row.staffEnteredAt,
+      adminEditedTotal: row.adminEditedTotal != null ? Number(row.adminEditedTotal) : null,
+      adminEditedByName: row.adminEditedByName,
+      adminEditedAt: row.adminEditedAt,
+      adminEditReason: row.adminEditReason,
+      finalTotal: row.finalTotal != null ? Number(row.finalTotal) : null,
+      originalDifference: row.originalDifference != null ? Number(row.originalDifference) : null,
+      finalDifference: row.finalDifference != null ? Number(row.finalDifference) : null,
+      originalStatus: row.originalStatus,
+      finalStatus: row.finalStatus,
+      hasEntries: row.hasEntries,
+      isShiftCommitted: row.isShiftCommitted,
+      shiftCommittedByName: row.shiftCommittedByName,
+      shiftCommittedAt: row.shiftCommittedAt,
+      forcedUnlockByName: row.forcedUnlockByName,
+      forcedUnlockAt: row.forcedUnlockAt,
+      forcedUnlockReason: row.forcedUnlockReason,
+      closed: closure != null,
+      closureReason: closure?.reason ?? null,
+    };
+  });
 
   const xVsZ: XvsZDto | null =
     dayResult.xVsZDifference != null
@@ -408,22 +465,47 @@ export async function getShiftBreakdown(
 // reason, or the reprint count. Centralized here (not inline in a route
 // handler) because it is derived directly from ShiftBreakdownDto and must
 // stay in lockstep with it.
+//
+// forcedUnlockByName/forcedUnlockAt/forcedUnlockReason and closureReason are
+// staff-hidden for the same reason adminEditReason already is: staff see
+// THAT a state changed (isShiftCommitted, closed), never who/why.
+// isShiftCommitted/shiftCommittedByName/shiftCommittedAt and closed stay
+// visible — harmless, it's their own record.
 export type StaffShiftDto = Omit<
   ShiftBreakdownDto,
-  "xReportCount" | "adminEditedByName" | "adminEditedAt" | "adminEditReason"
+  | "xReportCount"
+  | "adminEditedByName"
+  | "adminEditedAt"
+  | "adminEditReason"
+  | "forcedUnlockByName"
+  | "forcedUnlockAt"
+  | "forcedUnlockReason"
+  | "closureReason"
 >;
 
 export function toStaffShiftDto(dto: ShiftBreakdownDto): StaffShiftDto {
-  const { xReportCount: _xReportCount, adminEditedByName: _adminEditedByName, adminEditedAt: _adminEditedAt, adminEditReason: _adminEditReason, ...rest } = dto;
+  const {
+    xReportCount: _xReportCount,
+    adminEditedByName: _adminEditedByName,
+    adminEditedAt: _adminEditedAt,
+    adminEditReason: _adminEditReason,
+    forcedUnlockByName: _forcedUnlockByName,
+    forcedUnlockAt: _forcedUnlockAt,
+    forcedUnlockReason: _forcedUnlockReason,
+    closureReason: _closureReason,
+    ...rest
+  } = dto;
   return rest;
 }
 
 // What a staff member may see of a shift they are NOT working: whether it is
 // OK, in variance, or still pending — enough to hand over sensibly — but none
 // of its money. Handover context without exposing another shift's figures.
+// `closed` is included (the literal ask): staff should see "Closed" for the
+// shift they're not working, not a scary permanent "Pending".
 export type StaffOtherShiftDto = Pick<
   StaffShiftDto,
-  "shift" | "originalStatus" | "finalStatus" | "hasEntries"
+  "shift" | "originalStatus" | "finalStatus" | "hasEntries" | "closed"
 >;
 
 export function toStaffOtherShiftDto(dto: ShiftBreakdownDto): StaffOtherShiftDto {
@@ -432,6 +514,7 @@ export function toStaffOtherShiftDto(dto: ShiftBreakdownDto): StaffOtherShiftDto
     originalStatus: dto.originalStatus,
     finalStatus: dto.finalStatus,
     hasEntries: dto.hasEntries,
+    closed: dto.closed,
   };
 }
 
@@ -474,6 +557,14 @@ export interface DateStatusDto {
   // "resolve" action for xVsZDifference (only per-shift resolveShift
   // exists), so RESOLVED is never assigned here despite the shared type.
   zStatus: ShiftReconciliationStatus;
+  // Issue D. dayClosureReason/nightClosureReason are admin-only (stripped by
+  // toStaffStatusDto below, same treatment as zStatus) — the booleans stay
+  // visible to staff so a closed date reads as "Closed", not a permanent,
+  // unexplained "Pending".
+  dayClosed: boolean;
+  nightClosed: boolean;
+  dayClosureReason: string | null;
+  nightClosureReason: string | null;
 }
 
 // Per-date DAY/NIGHT/Z status rollup for a date range. Backs both the admin
@@ -481,17 +572,19 @@ export interface DateStatusDto {
 // and the staff shift-review calendar (stripped by toStaffStatusDto, via
 // GET /Summary/shift-calendar) — one query, one source of truth, so the two
 // dot-grids can never disagree about a shift's status. A date only appears
-// if it has at least one ShiftReconciliation row or ReconciliationRecord;
-// a missing shift within an included date defaults to PENDING.
+// if it has at least one ShiftReconciliation row, ReconciliationRecord, or
+// StoreClosure row; a missing shift within an included date defaults to
+// PENDING (not-closed).
 export async function getStatusCalendar(fromDate: Date, toDate: Date): Promise<DateStatusDto[]> {
   const from = dateOnly(fromDate);
   const to = dateOnly(toDate);
 
-  const [shiftRows, records] = await Promise.all([
+  const [shiftRows, records, closuresByDate] = await Promise.all([
     prisma.shiftReconciliation.findMany({
       where: { date: { gte: from, lte: to }, shift: { in: [Shift.DAY, Shift.NIGHT] } },
     }),
     prisma.reconciliationRecord.findMany({ where: { date: { gte: from, lte: to } } }),
+    getClosuresForRange(from, to),
   ]);
 
   const shiftByDate = new Map<string, Partial<Record<"DAY" | "NIGHT", ShiftReconciliationStatus>>>();
@@ -503,12 +596,13 @@ export async function getStatusCalendar(fromDate: Date, toDate: Date): Promise<D
   }
   const recordByDate = new Map(records.map((r) => [r.date.toISOString().split("T")[0], r]));
 
-  const dates = new Set<string>([...shiftByDate.keys(), ...recordByDate.keys()]);
+  const dates = new Set<string>([...shiftByDate.keys(), ...recordByDate.keys(), ...closuresByDate.keys()]);
   return Array.from(dates)
     .sort()
     .map((date) => {
       const shifts = shiftByDate.get(date) ?? {};
       const record = recordByDate.get(date);
+      const closure = closuresByDate.get(date);
       const zStatus =
         record?.xVsZDifference == null
           ? ShiftReconciliationStatus.PENDING
@@ -520,11 +614,17 @@ export async function getStatusCalendar(fromDate: Date, toDate: Date): Promise<D
         dayStatus: shifts.DAY ?? ShiftReconciliationStatus.PENDING,
         nightStatus: shifts.NIGHT ?? ShiftReconciliationStatus.PENDING,
         zStatus,
+        dayClosed: closure?.day != null,
+        nightClosed: closure?.night != null,
+        dayClosureReason: closure?.day?.reason ?? null,
+        nightClosureReason: closure?.night?.reason ?? null,
       };
     });
 }
 
-export function toStaffStatusDto(dto: DateStatusDto): Omit<DateStatusDto, "zStatus"> {
-  const { zStatus: _zStatus, ...rest } = dto;
+export function toStaffStatusDto(
+  dto: DateStatusDto
+): Omit<DateStatusDto, "zStatus" | "dayClosureReason" | "nightClosureReason"> {
+  const { zStatus: _zStatus, dayClosureReason: _dayClosureReason, nightClosureReason: _nightClosureReason, ...rest } = dto;
   return rest;
 }

@@ -23,6 +23,8 @@ import {
   getStatusCalendar,
   forceUnlockNightShift,
 } from "../lib/shiftReconciliation.js";
+import { getPriorShiftGate } from "../lib/entryLock.js";
+import { getClosuresForDate, setClosure, clearClosure } from "../lib/storeClosure.js";
 import { Shift } from "@prisma/client";
 
 export const adminReconciliationRouter = Router();
@@ -56,6 +58,16 @@ function shiftDto(row: ShiftReconciliationRow) {
     originalStatus: row.originalStatus,
     finalStatus: row.finalStatus,
     hasEntries: row.hasEntries,
+    // Both directly on the raw row, no extra query — lets ShiftCard's
+    // "Submitted By Staff" / "Unlocked By Admin Override" rows render the
+    // same way here (Uncommitted Data tab) as they do off getShiftBreakdown
+    // (Calendar tab).
+    isShiftCommitted: row.isShiftCommitted,
+    shiftCommittedByName: row.shiftCommittedByName,
+    shiftCommittedAt: row.shiftCommittedAt,
+    forcedUnlockByName: row.forcedUnlockByName,
+    forcedUnlockAt: row.forcedUnlockAt,
+    forcedUnlockReason: row.forcedUnlockReason,
   };
 }
 
@@ -404,12 +416,23 @@ adminReconciliationRouter.get("/committed/:date", async (req, res) => {
 // GET /Summary/shift-status. Reuses getShiftBreakdown verbatim (full
 // ShiftBreakdownDto fields including admin attribution, plus xVsZ with the
 // actual Z-Report total) since this route is already gated on "commitHistory".
+//
+// Also backs Issue C/D's AdminDayControlsPanel, which self-fetches this same
+// route: priorShiftGate tells it whether the force-unlock-Night button is
+// relevant at all (hidden entirely once Day is committed OR closed), and
+// closures gives it the current Day/Night closure state for the Store
+// Closure section. Both evaluated live, never cached, so a force-unlock or
+// a closure change is reflected on the very next call.
 adminReconciliationRouter.get("/day/:date", async (req, res) => {
   if (!requireAdmin(req, res)) return;
 
   const date = dateOnly(req.params.date);
-  const breakdown = await getShiftBreakdown(date);
-  res.json({ date: date.toISOString().split("T")[0], ...breakdown });
+  const [breakdown, priorShiftGate, closures] = await Promise.all([
+    getShiftBreakdown(date),
+    getPriorShiftGate(date, Shift.NIGHT),
+    getClosuresForDate(date),
+  ]);
+  res.json({ date: date.toISOString().split("T")[0], ...breakdown, priorShiftGate, closures });
 });
 
 // Per-date DAY/NIGHT/Z status rollup for the admin Calendar tab's month
@@ -671,7 +694,11 @@ adminReconciliationRouter.post("/shift/force-unlock-night", async (req, res) => 
   const date = dateOnly(body.date);
   const before = await prisma.shiftReconciliation.findUnique({ where: { date_shift: { date, shift: Shift.DAY } } });
 
-  const { row: updated, forced } = await forceUnlockNightShift(date);
+  const { row: updated, forced } = await forceUnlockNightShift(date, {
+    reason,
+    userId: req.userId,
+    userName: req.userName ?? null,
+  });
 
   void writeAuditLog({
     userId: req.userId,
@@ -690,6 +717,8 @@ adminReconciliationRouter.post("/shift/force-unlock-night", async (req, res) => 
     date: date.toISOString().split("T")[0],
     forced,
     waitingOnDayShift: false,
+    forcedUnlockByName: updated.forcedUnlockByName,
+    forcedUnlockAt: updated.forcedUnlockAt,
   });
 });
 
@@ -716,4 +745,108 @@ adminReconciliationRouter.post("/shift/resolve", async (req, res) => {
   });
 
   res.json(updated);
+});
+
+// ── Store closures (Issue D) ────────────────────────────────────────────
+// "No shift was expected here" — a holiday or other planned closure.
+// scope 'FULL_DAY' expands to exactly two setClosure/clearClosure calls
+// (DAY + NIGHT), never a shift=FULL_DAY row (see the StoreClosure model
+// doc comment in schema.prisma for why that column is never nullable).
+
+type ClosureScope = "DAY" | "NIGHT" | "FULL_DAY";
+
+function parseClosureScope(value: unknown): ClosureScope | null {
+  return value === "DAY" || value === "NIGHT" || value === "FULL_DAY" ? value : null;
+}
+
+const CLOSURE_SHIFTS: Record<ClosureScope, Shift[]> = {
+  DAY: [Shift.DAY],
+  NIGHT: [Shift.NIGHT],
+  FULL_DAY: [Shift.DAY, Shift.NIGHT],
+};
+
+const CLOSURE_SCOPE_LABEL: Record<ClosureScope, string> = {
+  DAY: "Day Shift",
+  NIGHT: "Night Shift",
+  FULL_DAY: "the whole day",
+};
+
+// Marks a date/shift(s) Closed. Requires a non-empty reason — same
+// validation shape as POST /shift/force-unlock-night — and is fully
+// audited under its own action name so it can never be confused with any
+// other admin write on this table.
+adminReconciliationRouter.post("/closure", async (req, res) => {
+  if (!requireAdmin(req, res)) return;
+  if (req.userId == null) return res.status(401).json({ message: "User not authenticated" });
+
+  const body = req.body ?? {};
+  const scope = parseClosureScope(body.scope);
+  if (!body.date || !scope) {
+    return res.status(400).json({ message: "date and scope ('DAY', 'NIGHT', or 'FULL_DAY') are required." });
+  }
+  const reason = typeof body.reason === "string" ? body.reason.trim() : "";
+  if (!reason) {
+    return res.status(400).json({ message: "A reason is required to mark a shift closed." });
+  }
+
+  const date = dateOnly(body.date);
+  const shifts = CLOSURE_SHIFTS[scope];
+
+  const rows = await Promise.all(
+    shifts.map((shift) => setClosure(date, shift, { reason, userId: req.userId as number, userName: req.userName ?? null }))
+  );
+
+  void writeAuditLog({
+    userId: req.userId,
+    userName: req.userName,
+    action: "store_closure_mark",
+    entity: "StoreClosure",
+    entityId: `${date.toISOString().split("T")[0]}|${scope}`,
+    newValue: { scope, reason, rows },
+  });
+
+  res.json({
+    message: `Marked ${CLOSURE_SCOPE_LABEL[scope]} closed.`,
+    date: date.toISOString().split("T")[0],
+    scope,
+    closures: rows,
+  });
+});
+
+// Reopens a previously-closed date/shift(s). A safe no-op per shift that was
+// never closed (see clearClosure's `cleared: false` shape) — reopening
+// something that isn't closed is not an error, just nothing to undo.
+adminReconciliationRouter.post("/closure/reopen", async (req, res) => {
+  if (!requireAdmin(req, res)) return;
+  if (req.userId == null) return res.status(401).json({ message: "User not authenticated" });
+
+  const body = req.body ?? {};
+  const scope = parseClosureScope(body.scope);
+  if (!body.date || !scope) {
+    return res.status(400).json({ message: "date and scope ('DAY', 'NIGHT', or 'FULL_DAY') are required." });
+  }
+  const reason = typeof body.reason === "string" && body.reason.trim() ? body.reason.trim() : null;
+
+  const date = dateOnly(body.date);
+  const shifts = CLOSURE_SHIFTS[scope];
+
+  const results = await Promise.all(
+    shifts.map((shift) => clearClosure(date, shift, { userId: req.userId as number, userName: req.userName ?? null, reason }))
+  );
+
+  void writeAuditLog({
+    userId: req.userId,
+    userName: req.userName,
+    action: "store_closure_unmark",
+    entity: "StoreClosure",
+    entityId: `${date.toISOString().split("T")[0]}|${scope}`,
+    newValue: { scope, reason, results },
+  });
+
+  res.json({
+    message: `Reopened ${CLOSURE_SCOPE_LABEL[scope]}.`,
+    date: date.toISOString().split("T")[0],
+    scope,
+    cleared: results.some((r) => r.cleared),
+  });
 });

@@ -597,6 +597,32 @@
 .commit-shift-row-pill--resolved { background: #eef2ff; color: #4338ca; }
 .commit-shift-row-pill--variance { background: #fef2f2; color: #dc2626; }
 .commit-shift-row-pill--pending { background: #f3f4f6; color: #6b7280; }
+.commit-shift-row-pill--closed { background: #e5e7eb; color: #374151; }
+
+/* Value + provenance sublabel stack (Issue A: label the Shift Readiness
+   figure so staff can tell a raw till total from something they entered). */
+.commit-shift-row-values {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+
+.commit-shift-row-sublabel {
+  font-size: 0.66rem;
+  font-weight: 600;
+  color: #9ca3af;
+  white-space: nowrap;
+}
+
+/* Muted/provisional value style — a raw till figure nobody has confirmed
+   yet ("Till says — not yet entered"), visually softer than a value staff
+   or an admin has actually signed off on. */
+.commit-shift-row-value--muted {
+  color: #9ca3af;
+  font-weight: 600;
+  font-style: italic;
+}
 
 .commit-shift-xvz {
   margin-top: 12px;
@@ -694,3 +720,62 @@
 
 .commit-shift-commit-btn:hover:not(:disabled) { background: #4338ca; }
 .commit-shift-commit-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+/* ── Two-card split: "Your Shift" vs "End of Day Commit" ───────────────── */
+/* Stack with breathing room between them — .commit-card itself has no
+   margin since it was previously only ever rendered once. */
+.commit-card + .commit-card {
+  margin-top: 1.75rem;
+}
+
+/* Faint top accent so the two cards read as distinct even at a glance,
+   independent of their headings. Shift = indigo (matches the per-shift
+   sign-off block's existing accent colour); Day Commit = neutral slate,
+   deliberately not red/green so it never visually pre-empts the commit
+   button's own red/green state below it. */
+.commit-card--shift { border-top: 4px solid #4f46e5; }
+.commit-card--day-commit { border-top: 4px solid #1f2937; }
+
+.commit-section-head {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* Section heading for the two new cards — same uppercase/letter-spacing
+   treatment as .commit-shift-readiness-title, just larger and darker so it
+   reads as a card title rather than a sub-panel label. */
+.commit-section-heading {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: #1f2937;
+}
+
+.commit-section-subtitle {
+  margin: 0;
+  font-size: 0.85rem;
+  color: #6b7280;
+  line-height: 1.45;
+}
+
+/* ── Link to the staff's own full shift report (Issue B) ────────────────── */
+.commit-shift-report-link {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  gap: 6px;
+  margin: -0.4rem 0 0.2rem;
+  padding: 0;
+  background: none;
+  border: none;
+  color: #4f46e5;
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.commit-shift-report-link:hover { color: #4338ca; text-decoration: underline; }
+.commit-shift-report-link svg { width: 0.95rem; height: 0.95rem; }

@@ -1,6 +1,7 @@
 import { Prisma, Shift, TillReportType } from "@prisma/client";
 import { prisma } from "./prisma.js";
 import { dateOnly } from "./activeDate.js";
+import { isShiftClosed } from "./storeClosure.js";
 
 // ─────────────────────────────────────────────────────────────────────────
 // This module answers a DIFFERENT question from lib/shiftReconciliation.ts.
@@ -92,6 +93,12 @@ export interface ReconcileDayInput {
   // one of them is used for the comparison.
   zReport: RawTillReportRecord | null;
   zReportCount: number;
+  // Issue D: whether the shift is marked Closed (storeClosure.ts) for this
+  // businessDate. Optional and defaulted to false inside
+  // reconcileDayFromReports, so every existing hand-built test input keeps
+  // compiling and passing unchanged — this is purely additive.
+  dayClosed?: boolean;
+  nightClosed?: boolean;
 }
 
 // ── Line-level comparison result shapes ─────────────────────────────────
@@ -181,8 +188,11 @@ export interface ExceptionRecord {
 export interface ReconcileDayResult {
   businessDate: string; // yyyy-mm-dd
   reportPresence: {
-    dayX: { present: boolean; count: number; reportIds: number[] };
-    nightX: { present: boolean; count: number; reportIds: number[] };
+    // closed = this shift is marked Closed (storeClosure.ts) for this date —
+    // lets the UI distinguish "closed, not expected" from "not received yet"
+    // even though both count as `present` for the waiting-for calculation.
+    dayX: { present: boolean; count: number; reportIds: number[]; closed: boolean };
+    nightX: { present: boolean; count: number; reportIds: number[]; closed: boolean };
     // count = every Z row found for the date (including reprints/duplicates);
     // reportIds = the one actually used (latest printedAt), same rule as
     // tillReportIngest.ts's getZReport.
@@ -194,8 +204,20 @@ export interface ReconcileDayResult {
     | "WAITING_FOR_DAY_X"
     | "WAITING_FOR_NIGHT_X"
     | "WAITING_FOR_Z"
-    | "WAITING_FOR_REPORTS";
+    | "WAITING_FOR_REPORTS"
+    // Both shifts closed for this date — nothing was ever expected here, so
+    // this is a resting state, not a variant of "waiting". Deliberately does
+    // not attempt to detect a stray report on an otherwise fully-closed day
+    // (see closureNotes below for the SINGLE-shift-closed-but-reported case,
+    // which this status does not cover).
+    | "CLOSED";
   waitingFor: Array<"DAY_X" | "NIGHT_X" | "Z">;
+  // Non-fatal notes surfacing an inconsistency between closure state and
+  // actual ingested data — e.g. a shift marked Closed that nonetheless has
+  // real X-Report(s) on file. Per the app's "never silently drop real data"
+  // rule, ingestion always stores such a report normally; this is where that
+  // inconsistency becomes visible instead of silently hidden.
+  closureNotes: string[];
   timing: TimingCheckResult[];
   timingExceptionCount: number;
   categories: {
@@ -262,7 +284,7 @@ function sumNullable(reports: RawTillReportRecord[], pick: (r: RawTillReportReco
   return round2(reports.reduce((sum, r) => sum + (pick(r) as number), 0));
 }
 
-function aggregateShift(reports: RawTillReportRecord[]): ShiftAggregate {
+export function aggregateShift(reports: RawTillReportRecord[]): ShiftAggregate {
   const departmentTotals = new Map<string, { amount: number; category: "MERCHANDISE" | "LOTTERY_GROUP" }>();
   const vatTotals = new Map<string, { salesExVat: number; vat: number; salesInVat: number }>();
   const productTotals = new Map<string, { departmentName: string; salesQuantity: number }>();
@@ -682,20 +704,84 @@ const WAITING_STATUS: Record<"DAY_X" | "NIGHT_X" | "Z", ReconcileDayResult["over
  * below for the DB-fetching wrapper.
  */
 export function reconcileDayFromReports(input: ReconcileDayInput): ReconcileDayResult {
+  const dayClosed = input.dayClosed ?? false;
+  const nightClosed = input.nightClosed ?? false;
+  const bothClosed = dayClosed && nightClosed;
+
   const dayAgg = aggregateShift(input.dayXReports);
   const nightAgg = aggregateShift(input.nightXReports);
   const zAgg = aggregateShift(input.zReport ? [input.zReport] : []);
 
-  const dayXPresent = input.dayXReports.length > 0;
-  const nightXPresent = input.nightXReports.length > 0;
+  // The actual bug fix (see the module-level verification notes this was
+  // derived from): sumNullable([], ...) returns null for an empty report
+  // list, not 0, and compareSingleValue below treats ANY null among
+  // s1/s2/z as DATA_MISSING. A closed shift legitimately has zero reports —
+  // that must read as "nothing happened here" (0), not "data failed to
+  // parse" (null). Deliberately narrow: only these six single-value fields
+  // need coercing. The Map-based comparisons (department/VAT/product) do NOT
+  // need this — aggregateShift([]) already hands them empty maps, and their
+  // union-of-keys + `?? 0` logic already treats "absent from one shift" as a
+  // normal 0-fill, only flagging DATA_MISSING when a key is absent from
+  // BOTH shifts. Building a separate "closedShiftAggregate()" would
+  // needlessly duplicate that already-correct behaviour.
+  if (dayClosed) {
+    dayAgg.cashTotal ??= 0;
+    dayAgg.cardTotal ??= 0;
+    dayAgg.manualCardTotal ??= 0;
+    dayAgg.grandTotal ??= 0;
+    dayAgg.transactionCount ??= 0;
+    dayAgg.incomeExpenseTotal ??= 0;
+  }
+  if (nightClosed) {
+    nightAgg.cashTotal ??= 0;
+    nightAgg.cardTotal ??= 0;
+    nightAgg.manualCardTotal ??= 0;
+    nightAgg.grandTotal ??= 0;
+    nightAgg.transactionCount ??= 0;
+    nightAgg.incomeExpenseTotal ??= 0;
+  }
+
+  // A closed shift counts as "present" for the waiting-for calculation even
+  // with zero actual reports — this is the literal fix for "Day closed
+  // shouldn't produce WAITING_FOR_DAY_X forever".
+  const dayXPresent = input.dayXReports.length > 0 || dayClosed;
+  const nightXPresent = input.nightXReports.length > 0 || nightClosed;
   const zPresent = input.zReport != null;
 
+  // A report arriving for a shift already marked Closed is never blocked or
+  // dropped at ingestion (see tillReportIngest.ts — it has no lock/closure
+  // check at all) — this is where that inconsistency becomes a visible note
+  // instead of silently disappearing. Independent of bothClosed below: it
+  // fires even inside the fully-closed short-circuit, since it is not part
+  // of "the comparison pipeline" being skipped, just an informational flag.
+  const closureNotes: string[] = [];
+  if (dayClosed && input.dayXReports.length > 0) {
+    closureNotes.push(
+      `Day shift is marked Closed, but ${input.dayXReports.length} X-Report(s) were received for it — check for a mistaken closure or a report sent in error.`
+    );
+  }
+  if (nightClosed && input.nightXReports.length > 0) {
+    closureNotes.push(
+      `Night shift is marked Closed, but ${input.nightXReports.length} X-Report(s) were received for it — check for a mistaken closure or a report sent in error.`
+    );
+  }
+
+  // Both shifts closed: skip the whole comparison pipeline outright, even if
+  // Z happens to be missing/present — a day nobody worked will very likely
+  // never get a Z-Report either, so falling through to WAITING_FOR_Z would
+  // wait forever. Deliberately does not try to detect a stray report on an
+  // otherwise fully-closed day beyond the closureNotes above — explicit
+  // scope boundary, not an oversight.
   const waitingFor: Array<"DAY_X" | "NIGHT_X" | "Z"> = [];
-  if (!dayXPresent) waitingFor.push("DAY_X");
-  if (!nightXPresent) waitingFor.push("NIGHT_X");
-  if (!zPresent) waitingFor.push("Z");
-  const reportsComplete = waitingFor.length === 0;
-  const missingNote = `Cannot reconcile yet: missing ${waitingFor.join(", ")} for this date.`;
+  if (!bothClosed) {
+    if (!dayXPresent) waitingFor.push("DAY_X");
+    if (!nightXPresent) waitingFor.push("NIGHT_X");
+    if (!zPresent) waitingFor.push("Z");
+  }
+  const reportsComplete = !bothClosed && waitingFor.length === 0;
+  const missingNote = bothClosed
+    ? "This date is marked Closed for both shifts — reconciliation is not applicable."
+    : `Cannot reconcile yet: missing ${waitingFor.join(", ")} for this date.`;
 
   // Timing runs regardless of completeness — it's useful signal even on a
   // day that's still waiting for other reports, and per the spec a report
@@ -887,7 +973,9 @@ export function reconcileDayFromReports(input: ReconcileDayInput): ReconcileDayR
 
   // ── Overall roll-up ──
   let overallStatus: ReconcileDayResult["overallStatus"];
-  if (!reportsComplete) {
+  if (bothClosed) {
+    overallStatus = "CLOSED";
+  } else if (!reportsComplete) {
     overallStatus = waitingFor.length === 1 ? WAITING_STATUS[waitingFor[0]] : "WAITING_FOR_REPORTS";
   } else {
     const categoryStatuses: CategoryStatus[] = [
@@ -905,12 +993,18 @@ export function reconcileDayFromReports(input: ReconcileDayInput): ReconcileDayR
   return {
     businessDate: dateOnly(input.businessDate).toISOString().split("T")[0],
     reportPresence: {
-      dayX: { present: dayXPresent, count: input.dayXReports.length, reportIds: dayAgg.reportIds },
-      nightX: { present: nightXPresent, count: input.nightXReports.length, reportIds: nightAgg.reportIds },
+      dayX: { present: dayXPresent, count: input.dayXReports.length, reportIds: dayAgg.reportIds, closed: dayClosed },
+      nightX: {
+        present: nightXPresent,
+        count: input.nightXReports.length,
+        reportIds: nightAgg.reportIds,
+        closed: nightClosed,
+      },
       z: { present: zPresent, count: input.zReportCount, reportIds: input.zReport ? [input.zReport.tillReportId] : [] },
     },
     overallStatus,
     waitingFor,
+    closureNotes,
     timing,
     timingExceptionCount,
     categories: { department, vat, tender, transactionCount, incomeExpense, void: voidResult, product },
@@ -920,7 +1014,7 @@ export function reconcileDayFromReports(input: ReconcileDayInput): ReconcileDayR
 
 // ── Prisma-fetching wrapper ──────────────────────────────────────────────
 
-const CHILD_INCLUDE = {
+export const CHILD_INCLUDE = {
   departmentLines: true,
   vatLines: true,
   incomeExpenseLines: true,
@@ -934,7 +1028,7 @@ function toNum(d: Prisma.Decimal | null): number | null {
   return d == null ? null : Number(d);
 }
 
-function toRawReport(r: TillReportWithChildren): RawTillReportRecord {
+export function toRawReport(r: TillReportWithChildren): RawTillReportRecord {
   return {
     tillReportId: r.tillReportId,
     printedAt: r.printedAt,
@@ -976,7 +1070,7 @@ function toRawReport(r: TillReportWithChildren): RawTillReportRecord {
 export async function reconcileDay(businessDate: Date): Promise<ReconcileDayResult> {
   const d = dateOnly(businessDate);
 
-  const [dayXReports, nightXReports, zReports] = await Promise.all([
+  const [dayXReports, nightXReports, zReports, dayClosed, nightClosed] = await Promise.all([
     prisma.tillReport.findMany({
       where: { businessDate: d, reportType: TillReportType.X_REPORT, shift: Shift.DAY },
       include: CHILD_INCLUDE,
@@ -994,6 +1088,11 @@ export async function reconcileDay(businessDate: Date): Promise<ReconcileDayResu
       include: CHILD_INCLUDE,
       orderBy: { printedAt: "desc" },
     }),
+    // Live on every call, same as every other lock/closure check in this
+    // app — reopening a closure or closing an already-reported shift takes
+    // effect on the very next read, with no cache to invalidate.
+    isShiftClosed(d, Shift.DAY),
+    isShiftClosed(d, Shift.NIGHT),
   ]);
 
   const zReport = zReports.length > 0 ? toRawReport(zReports[0]) : null;
@@ -1004,5 +1103,7 @@ export async function reconcileDay(businessDate: Date): Promise<ReconcileDayResu
     nightXReports: nightXReports.map(toRawReport),
     zReport,
     zReportCount: zReports.length,
+    dayClosed,
+    nightClosed,
   });
 }

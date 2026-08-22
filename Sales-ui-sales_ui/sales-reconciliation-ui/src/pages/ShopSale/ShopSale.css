@@ -203,6 +203,7 @@
 .sc-dot--resolved { background: #4338ca; }
 .sc-dot--variance { background: #dc2626; }
 .sc-dot--pending { background: #9ca3af; }
+.sc-dot--closed { background: #475569; }
 
 .sc-legend-item .sc-dot {
   width: 9px;

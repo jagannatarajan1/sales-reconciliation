@@ -51,8 +51,14 @@ const shiftReconciliationModel = {
   ),
 };
 
+// Day is never marked Closed in these tests — getPriorShiftGate's Issue D
+// closure check needs a real prisma.storeClosure model to query against,
+// defaulting to "not closed" so isPriorShiftPending keeps meaning exactly
+// what it did before that feature existed.
+const storeClosureModel = { findUnique: vi.fn(async () => null as Record<string, unknown> | null) };
+
 vi.mock("../lib/prisma.js", () => ({
-  prisma: { shiftReconciliation: shiftReconciliationModel },
+  prisma: { shiftReconciliation: shiftReconciliationModel, storeClosure: storeClosureModel },
 }));
 
 const writeAuditLog = vi.fn(async (_input: Record<string, unknown>) => {});
@@ -69,6 +75,7 @@ beforeEach(async () => {
   nextId = 1;
   shiftReconciliationModel.findUnique.mockClear();
   shiftReconciliationModel.upsert.mockClear();
+  storeClosureModel.findUnique.mockClear();
   writeAuditLog.mockClear();
 
   const app = express();
@@ -131,16 +138,31 @@ describe("POST /shift/force-unlock-night", () => {
     });
     expect(res.status).toBe(200);
     const body = (await res.json()) as Record<string, unknown>;
-    expect(body).toMatchObject({ forced: true, waitingOnDayShift: false });
+    expect(body).toMatchObject({
+      forced: true,
+      waitingOnDayShift: false,
+      // Issue C: the route's response now echoes back who/when the forced
+      // unlock happened, so the admin UI can reflect it without a second
+      // fetch — but never the reason (that stays admin-detail, read via
+      // GET /admin/reconciliation/day/:date, not this action's response).
+      forcedUnlockByName: "Store Owner",
+    });
+    expect(body.forcedUnlockAt).toBeTruthy();
 
     // 3. isPriorShiftPending now sees Day as committed — the SAME function
     //    real staff-submitted commits satisfy — proving the gate is
     //    genuinely lifted, not just faked in the response body.
     expect(await isPriorShiftPending(DATE, Shift.NIGHT)).toBe(false);
 
-    // The underlying row must not carry a fake staff identity.
+    // The underlying row must not carry a fake staff identity, but DOES
+    // carry its own forcedUnlock* provenance (Issue C).
     const dayRow = rows.get(key(DATE, Shift.DAY));
-    expect(dayRow).toMatchObject({ isShiftCommitted: true });
+    expect(dayRow).toMatchObject({
+      isShiftCommitted: true,
+      forcedUnlockByUserId: 42,
+      forcedUnlockByName: "Store Owner",
+      forcedUnlockReason: "Day staff went home sick, night needs to start",
+    });
     expect(dayRow).not.toHaveProperty("shiftCommittedByUserId");
     expect(dayRow).not.toHaveProperty("shiftCommittedByName");
 
@@ -171,9 +193,16 @@ describe("POST /shift/force-unlock-night", () => {
     expect(res.status).toBe(200);
     const body = (await res.json()) as Record<string, unknown>;
     expect(body.forced).toBe(false);
+    // No forcedUnlock* fields on the no-op path's response — nothing was
+    // actually forced open.
+    expect(body.forcedUnlockByName).toBeFalsy();
 
-    // The genuine staff commit must survive untouched.
+    // The genuine staff commit must survive untouched, and forcedUnlock*
+    // stays absent/null — a real commit and a forced override must never be
+    // confused by column inspection alone.
     const dayRow = rows.get(key(DATE, Shift.DAY));
     expect(dayRow?.shiftCommittedByName).toBe("Real Day Staff");
+    expect(dayRow?.forcedUnlockByName).toBeFalsy();
+    expect(dayRow?.forcedUnlockAt).toBeFalsy();
   });
 });

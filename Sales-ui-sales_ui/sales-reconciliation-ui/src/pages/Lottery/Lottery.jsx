@@ -6,6 +6,7 @@ import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../components/ui/Toast";
 import { ShiftBanner } from "../../components/ShiftBanner";
 import { WaitingOnPriorShift } from "../../components/WaitingOnPriorShift";
+import { ShiftClosedNotice } from "../../components/ShiftClosedNotice";
 import "./Lottery.css";
 import PhotoAttachments from "../../components/PhotoAttachments";
 import { PHOTO_SECTIONS } from "../../constants/photoSections";
@@ -30,6 +31,7 @@ export const Lottery = () => {
   const [shiftSource, setShiftSource] = useState(null);
   const [waitingOnDayShift, setWaitingOnDayShift] = useState(false);
   const [dayShiftHasEntries, setDayShiftHasEntries] = useState(false);
+  const [closed, setClosed]           = useState(false);
   const [loading, setLoading]         = useState(true);
   const [saving, setSaving]           = useState(false);
   const [isEditing, setIsEditing]     = useState(false);
@@ -63,6 +65,9 @@ export const Lottery = () => {
         // Night waiting on Day's staff commit — always false for Day/Full Day.
         setWaitingOnDayShift(s.waitingOnDayShift ?? false);
         setDayShiftHasEntries(s.dayShiftHasEntries ?? false);
+        // This shift is marked Closed — an admin holiday closure, distinct
+        // from "already committed" (isLocked) and "waiting on Day".
+        setClosed(s.closed ?? false);
       }
 
       if (lotteryRes.ok) {
@@ -156,7 +161,7 @@ export const Lottery = () => {
             <span className="page-date-chip">
               <FiCalendar /> {fmtDate(activeDateStr ?? new Date().toISOString())}
             </span>
-            {!isLocked && !isEditing && !waitingOnDayShift && (
+            {!isLocked && !isEditing && !waitingOnDayShift && !closed && (
               <button type="button" className="page-edit-btn" onClick={() => setIsEditing(true)}>
                 <FiEdit2 /> Edit
               </button>
@@ -176,7 +181,9 @@ export const Lottery = () => {
         )}
 
         <div className="form-card">
-          {waitingOnDayShift ? (
+          {closed ? (
+            <ShiftClosedNotice />
+          ) : waitingOnDayShift ? (
             <WaitingOnPriorShift dayShiftHasEntries={dayShiftHasEntries} />
           ) : (
             <>

@@ -8,6 +8,7 @@ import {
 } from 'react-icons/fi';
 import { useAuth } from '../../context/AuthContext';
 import { Badge } from '../../components/ui/Badge';
+import { fmtGBP, fmtCount, pad2, fmtShopTime, DEPT_CATEGORY_LABEL } from '../../utils/tillReportFormat';
 import './AdminTillReconciliation.css';
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -29,13 +30,13 @@ import './AdminTillReconciliation.css';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'https://localhost:7276/api';
 
-/* -- Formatting helpers -------------------------------------------------- */
-
-const fmtGBP = (val) => {
-  if (val === null || val === undefined) return '—';
-  const n = Number(val);
-  return Number.isNaN(n) ? '—' : `£${n.toFixed(2)}`;
-};
+/* -- Formatting helpers ---------------------------------------------------
+   fmtGBP/fmtCount/pad2/fmtShopTime (which itself uses fmtMinutesOfDay
+   internally)/DEPT_CATEGORY_LABEL now live in utils/tillReportFormat.js
+   (imported above) so the staff-facing MyShiftReport page can share the
+   exact same formatting. Everything below is comparison-specific (signed
+   variance, date-picker navigation) and stays local to this admin-only
+   page. */
 
 const fmtSignedGBP = (val) => {
   if (val === null || val === undefined) return '—';
@@ -45,15 +46,11 @@ const fmtSignedGBP = (val) => {
   return `${n > 0 ? '+' : '−'}£${Math.abs(n).toFixed(2)}`;
 };
 
-const fmtCount = (val) => (val === null || val === undefined ? '—' : String(val));
-
 const fmtSignedCount = (val) => {
   if (val === null || val === undefined) return '—';
   if (val === 0) return '0';
   return val > 0 ? `+${val}` : `${val}`;
 };
-
-const pad2 = (n) => String(n).padStart(2, '0');
 
 // businessDate strings are plain YYYY-MM-DD -- parsed with an explicit local
 // midnight suffix so the shown weekday/date never shifts a day depending on
@@ -72,33 +69,7 @@ const shiftDateStr = (dateStr, deltaDays) => {
   return `${dt.getUTCFullYear()}-${pad2(dt.getUTCMonth() + 1)}-${pad2(dt.getUTCDate())}`;
 };
 
-// printedMinutes is shop-local wall-clock minutes-of-day straight off the
-// till slip (see tillReportReconciliation.ts's doc comment) -- pure
-// arithmetic, never run through a timezone conversion.
-const fmtMinutesOfDay = (mins) => {
-  if (mins === null || mins === undefined) return '—';
-  const h = Math.floor(mins / 60);
-  const m = mins % 60;
-  const period = h < 12 ? 'am' : 'pm';
-  const h12 = h % 12 === 0 ? 12 : h % 12;
-  return `${h12}:${pad2(m)}${period}`;
-};
-
-// Void occurredAt is an ISO string whose UTC fields are actually the
-// shop-local wall-clock numbers as printed on the till slip (same
-// deliberate construction as printedAt on the backend) -- read back with UTC
-// getters, never local getters, or it silently shifts by the viewer's
-// timezone offset.
-const fmtShopTime = (isoStr) => {
-  if (!isoStr) return '—';
-  const d = new Date(isoStr);
-  if (Number.isNaN(d.getTime())) return '—';
-  return fmtMinutesOfDay(d.getUTCHours() * 60 + d.getUTCMinutes());
-};
-
 /* -- Plain-English label maps -------------------------------------------- */
-
-const DEPT_CATEGORY_LABEL = { MERCHANDISE: 'Shop', LOTTERY_GROUP: 'Lottery & PayPoint' };
 
 const STATUS_META = {
   PASS: { label: 'Matches', variant: 'success', Icon: FiCheckCircle },

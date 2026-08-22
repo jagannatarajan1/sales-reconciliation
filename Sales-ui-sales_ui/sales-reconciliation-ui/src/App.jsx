@@ -17,6 +17,7 @@ import { Lottery } from './pages/Lottery/Lottery';
 import { Summary } from './pages/Summary/Summary';
 import { Paypoint } from './pages/Paypoint/Paypoint';
 import { Commit } from './pages/Commit';
+import { MyShiftReport } from './pages/MyShiftReport/MyShiftReport';
 import { AdminReconciliation } from './pages/AdminReconciliation/AdminReconciliation';
 import { AdminTillReconciliation } from './pages/AdminTillReconciliation/AdminTillReconciliation';
 import { AdminZReports } from './pages/AdminZReports/AdminZReports';
@@ -118,6 +119,14 @@ function App() {
             element={
               <ProtectedRoute requiredRole="user">
                 <Commit />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/my-shift-report"
+            element={
+              <ProtectedRoute requiredRole="user">
+                <MyShiftReport />
               </ProtectedRoute>
             }
           />

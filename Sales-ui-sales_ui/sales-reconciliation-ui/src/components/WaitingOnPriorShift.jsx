@@ -26,7 +26,7 @@ export const WaitingOnPriorShift = ({ dayShiftHasEntries }) => (
           : "The Day shift hasn't been submitted yet. Night entries will open here as soon as Day shift is completed and submitted."}
       </p>
       <p className="waiting-prior-shift__hint">
-        If Day staff aren't available, ask an admin to unlock Night entry for today.
+        If Day staff aren't available, an admin can unlock Night entry for today from the Reconciliation Calendar.
       </p>
     </div>
   </div>

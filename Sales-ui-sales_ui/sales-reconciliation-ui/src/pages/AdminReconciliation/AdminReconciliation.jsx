@@ -60,11 +60,24 @@ function buildCalendarCells(year, month) {
 }
 
 // Single-dot day/night/Z rollup per the "🟢 both shifts OK / 🟡 one shift
-// pending / 🔴 variance requires review" legend — VARIANCE anywhere wins,
-// then PENDING anywhere, otherwise OK (RESOLVED counts as resolved-ok).
+// pending / 🔴 variance requires review / ⚫ closed" legend — VARIANCE
+// anywhere wins, then PENDING anywhere, otherwise OK (RESOLVED counts as
+// resolved-ok). A closed shift is masked out of its own PENDING/VARIANCE
+// contribution BEFORE that roll-up runs (it was never expected to report
+// anything), but only when BOTH shifts are closed does the whole date read
+// as 'closed' — a genuinely-pending OTHER shift on a partially-closed date
+// must still show as pending/variance, not falsely "closed".
 function combinedCalendarStatus(entry) {
   if (!entry) return null;
-  const statuses = [entry.dayStatus, entry.nightStatus, entry.zStatus];
+  const dayClosed = !!entry.dayClosed;
+  const nightClosed = !!entry.nightClosed;
+  if (dayClosed && nightClosed) return 'closed';
+
+  const statuses = [
+    dayClosed ? null : entry.dayStatus,
+    nightClosed ? null : entry.nightStatus,
+    entry.zStatus,
+  ].filter(Boolean);
   if (statuses.includes('VARIANCE')) return 'variance';
   if (statuses.includes('PENDING')) return 'pending';
   return 'ok';
@@ -353,6 +366,37 @@ function ShiftCard({ shift, date, token, onUpdated }) {
       </div>
 
       <div className="ar-shift-chain">
+        {/* Day-only provenance: how did this shift's Day→Night gate get
+            satisfied — a genuine staff sign-off, or an admin override.
+            Mutually exclusive in the common case (a forced row never carries
+            shiftCommittedByName), but not enforced as such here — if Day was
+            later also genuinely committed after being forced open earlier,
+            both rows are legitimate history and both show. */}
+        {shift.shift === 'DAY' && shift.isShiftCommitted && shift.shiftCommittedByName && (
+          <div className="ar-shift-chain-row">
+            <span className="ar-label">Submitted By Staff</span>
+            <span className="ar-value">
+              {shift.shiftCommittedByName}
+              {shift.shiftCommittedAt ? ` · ${fmtDateTime(shift.shiftCommittedAt)}` : ''}
+            </span>
+          </div>
+        )}
+        {shift.shift === 'DAY' && shift.forcedUnlockAt && (
+          <>
+            <div className="ar-shift-chain-row">
+              <span className="ar-label">Unlocked By Admin Override</span>
+              <span className="ar-value">
+                {shift.forcedUnlockByName || '—'} · {fmtDateTime(shift.forcedUnlockAt)}
+              </span>
+            </div>
+            {shift.forcedUnlockReason && (
+              <div className="ar-shift-chain-row">
+                <span className="ar-label">Override Reason</span>
+                <span className="ar-value">{shift.forcedUnlockReason}</span>
+              </div>
+            )}
+          </>
+        )}
         <div className="ar-shift-chain-row">
           <span className="ar-label">Original X Report</span>
           <span className="ar-value">{shift.originalTotal != null ? fmtGBP(shift.originalTotal) : '—'}</span>
@@ -556,6 +600,270 @@ function ShiftBreakdownPanel({ date, shifts, xVsZ, token, onUpdated }) {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+/* ── Store Closure section (Issue D) ─────────────────────────────────────
+   One row per DAY/NIGHT: either "Closed — {reason} ({name}, {date})" plus a
+   Reopen button, or an inline Mark-Closed reason-form (same shape as
+   ShiftCard's correction form / AdminDayControlsPanel's unlock form). A
+   "Close Whole Day" button (only offered while NEITHER shift is already
+   closed) uses scope: 'FULL_DAY'. */
+function ClosureSection({
+  closures, editingScope, onStartEdit, onCancelEdit, reason, onReasonChange, onSubmit, onReopen, saving, reopenSaving,
+}) {
+  const day = closures?.day ?? null;
+  const night = closures?.night ?? null;
+
+  const renderForm = (scope, placeholder, confirmLabel) => (
+    <div className="ar-shift-edit-form">
+      <div className="ar-field">
+        <label className="ar-label">Reason (required)</label>
+        <textarea
+          className="ar-notes" rows={2}
+          placeholder={placeholder}
+          value={reason} onChange={(e) => onReasonChange(e.target.value)}
+        />
+      </div>
+      <div className="ar-shift-edit-actions">
+        <button className="ar-submit-btn ar-submit-btn--sm" onClick={() => onSubmit(scope)} disabled={saving}>
+          {saving ? 'Saving…' : confirmLabel}
+        </button>
+        <button className="ar-cancel-btn ar-cancel-btn--sm" onClick={onCancelEdit} disabled={saving}>
+          Cancel
+        </button>
+      </div>
+    </div>
+  );
+
+  const renderRow = (scope, label, closure) => (
+    <div className="ar-closure-row" key={scope}>
+      <div className="ar-closure-row-head">
+        <span className="ar-closure-row-label">{label}</span>
+        {closure && <span className="ar-shift-status-pill ar-shift-status-pill--closed">Closed</span>}
+      </div>
+      {closure ? (
+        <>
+          <p className="ar-closure-detail">
+            {closure.reason || '—'}
+            <span className="ar-closure-detail-meta">
+              {' '}— {closure.closedByName || 'Admin'}, {closure.closedAt ? fmtDateTime(closure.closedAt) : '—'}
+            </span>
+          </p>
+          <button
+            className="ar-cancel-btn ar-cancel-btn--sm"
+            onClick={() => onReopen(scope)}
+            disabled={reopenSaving === scope}
+          >
+            {reopenSaving === scope ? 'Reopening…' : 'Reopen'}
+          </button>
+        </>
+      ) : editingScope === scope ? (
+        renderForm(scope, `Reason for closing ${label.toLowerCase()}…`, 'Confirm — Mark Closed')
+      ) : (
+        <button className="ar-shift-edit-btn" onClick={() => onStartEdit(scope)}>
+          Mark Closed
+        </button>
+      )}
+    </div>
+  );
+
+  return (
+    <div className="ar-day-controls-section">
+      <div className="ar-day-controls-title">Store Closure</div>
+      <p className="ar-panel-sub ar-day-controls-sub">
+        Mark a shift (or the whole day) as not expected to happen — e.g. a holiday. Staff see only that the shift is
+        closed, never the reason.
+      </p>
+      <div className="ar-closure-rows">
+        {renderRow('DAY', 'Day Shift', day)}
+        {renderRow('NIGHT', 'Night Shift', night)}
+      </div>
+      {!day && !night && (
+        editingScope === 'FULL_DAY' ? (
+          renderForm('FULL_DAY', 'Reason for closing the whole day…', 'Confirm — Close Whole Day')
+        ) : (
+          <button className="ar-shift-edit-btn ar-closure-fullday-btn" onClick={() => onStartEdit('FULL_DAY')}>
+            Close Whole Day
+          </button>
+        )
+      )}
+    </div>
+  );
+}
+
+// Admin control panel for the Day→Night override (Issue C) and store
+// closures (Issue D) — naturally one "Day/Night control panel" per the
+// combined build, mounted alongside ShiftBreakdownPanel at both of its call
+// sites. Self-fetches GET /admin/reconciliation/day/:date on date change
+// rather than taking priorShiftGate/closures as props, so it works
+// identically at both mount points without the parent needing to thread
+// extra state through. Every check here is re-evaluated live on each fetch —
+// no caching — so reopening a closure or a force-unlock "just works" as soon
+// as onUpdated triggers a refresh.
+function AdminDayControlsPanel({ date, token, onUpdated }) {
+  const [detail, setDetail] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const { showToast } = useToast();
+
+  const [unlockEditing, setUnlockEditing] = useState(false);
+  const [unlockReason, setUnlockReason] = useState('');
+  const [unlockSaving, setUnlockSaving] = useState(false);
+
+  const [closureEditing, setClosureEditing] = useState(null); // 'DAY' | 'NIGHT' | 'FULL_DAY' | null
+  const [closureReason, setClosureReason] = useState('');
+  const [closureSaving, setClosureSaving] = useState(false);
+  const [reopenSaving, setReopenSaving] = useState(null); // scope currently being reopened
+
+  const load = useCallback(async () => {
+    if (!date) { setDetail(null); setLoading(false); return; }
+    setLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/admin/reconciliation/day/${date}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error();
+      setDetail(await res.json());
+    } catch {
+      setDetail(null);
+    } finally {
+      setLoading(false);
+    }
+  }, [date, token]);
+
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch-on-mount/date-change, same established pattern as loadCommittedDates/fetchRecord above.
+  useEffect(() => { load(); }, [load]);
+
+  const refresh = async () => {
+    await load();
+    if (onUpdated) await onUpdated();
+  };
+
+  const submitUnlock = async () => {
+    if (!unlockReason.trim()) return showToast('A reason is required', 'error');
+    setUnlockSaving(true);
+    try {
+      const res = await fetch(`${API_BASE}/admin/reconciliation/shift/force-unlock-night`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ date, reason: unlockReason.trim() }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message || 'Unlock failed');
+      }
+      showToast('Night shift entry unlocked');
+      setUnlockEditing(false);
+      setUnlockReason('');
+      await refresh();
+    } catch (e) {
+      showToast(e.message || 'Unlock failed', 'error');
+    } finally {
+      setUnlockSaving(false);
+    }
+  };
+
+  const submitClosure = async (scope) => {
+    if (!closureReason.trim()) return showToast('A reason is required', 'error');
+    setClosureSaving(true);
+    try {
+      const res = await fetch(`${API_BASE}/admin/reconciliation/closure`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ date, scope, reason: closureReason.trim() }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message || 'Failed to mark closed');
+      }
+      showToast('Marked closed');
+      setClosureEditing(null);
+      setClosureReason('');
+      await refresh();
+    } catch (e) {
+      showToast(e.message || 'Failed to mark closed', 'error');
+    } finally {
+      setClosureSaving(false);
+    }
+  };
+
+  const reopenClosure = async (scope) => {
+    setReopenSaving(scope);
+    try {
+      const res = await fetch(`${API_BASE}/admin/reconciliation/closure/reopen`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ date, scope }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message || 'Reopen failed');
+      }
+      showToast('Reopened');
+      await refresh();
+    } catch (e) {
+      showToast(e.message || 'Reopen failed', 'error');
+    } finally {
+      setReopenSaving(null);
+    }
+  };
+
+  if (loading || !detail) return null;
+
+  const priorShiftGate = detail.priorShiftGate || { waitingOnDayShift: false };
+  const dayClosed = !!detail.closures?.day;
+
+  return (
+    <div className="ar-day-controls">
+      {priorShiftGate.waitingOnDayShift && (
+        <div className="ar-day-controls-section">
+          <div className="ar-day-controls-title">Night Shift Entry</div>
+          {dayClosed ? (
+            <p className="ar-panel-sub">Day is marked Closed — Night is already unlocked automatically.</p>
+          ) : unlockEditing ? (
+            <div className="ar-shift-edit-form">
+              <div className="ar-field">
+                <label className="ar-label">Reason (required)</label>
+                <textarea
+                  className="ar-notes" rows={2}
+                  placeholder="e.g. Day staff called in sick, Night needs to start."
+                  value={unlockReason} onChange={(e) => setUnlockReason(e.target.value)}
+                />
+              </div>
+              <div className="ar-shift-edit-actions">
+                <button className="ar-submit-btn ar-submit-btn--sm" onClick={submitUnlock} disabled={unlockSaving}>
+                  {unlockSaving ? 'Unlocking…' : 'Confirm Unlock'}
+                </button>
+                <button
+                  className="ar-cancel-btn ar-cancel-btn--sm"
+                  onClick={() => { setUnlockEditing(false); setUnlockReason(''); }}
+                  disabled={unlockSaving}
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button className="ar-shift-edit-btn" onClick={() => setUnlockEditing(true)}>
+              Unlock Night Shift Entry
+            </button>
+          )}
+        </div>
+      )}
+
+      <ClosureSection
+        closures={detail.closures}
+        editingScope={closureEditing}
+        onStartEdit={(scope) => { setClosureEditing(scope); setClosureReason(''); }}
+        onCancelEdit={() => { setClosureEditing(null); setClosureReason(''); }}
+        reason={closureReason}
+        onReasonChange={setClosureReason}
+        onSubmit={submitClosure}
+        onReopen={reopenClosure}
+        saving={closureSaving}
+        reopenSaving={reopenSaving}
+      />
     </div>
   );
 }
@@ -1092,6 +1400,8 @@ export const AdminReconciliation = () => {
                   onUpdated={loadPendingItems}
                 />
 
+                <AdminDayControlsPanel date={selectedDate} token={user.token} onUpdated={loadPendingItems} />
+
                 {isEditingPending ? (
                   <EditableGrid
                     form={form}
@@ -1484,6 +1794,7 @@ export const AdminReconciliation = () => {
           <span className="ar-cal-legend-item"><span className="ar-cal-dot ar-cal-dot--ok" /> Both shifts OK</span>
           <span className="ar-cal-legend-item"><span className="ar-cal-dot ar-cal-dot--pending" /> Pending</span>
           <span className="ar-cal-legend-item"><span className="ar-cal-dot ar-cal-dot--variance" /> Variance — needs review</span>
+          <span className="ar-cal-legend-item"><span className="ar-cal-dot ar-cal-dot--closed" /> Closed</span>
         </div>
 
         {calSelectedDate && (
@@ -1495,15 +1806,21 @@ export const AdminReconciliation = () => {
             {loadingCalDay ? (
               <div className="ar-center"><div className="ar-spinner" /></div>
             ) : calDayDetail && ((calDayDetail.shifts || []).length > 0 || calDayDetail.xVsZ) ? (
-              <ShiftBreakdownPanel
-                date={calSelectedDate}
-                shifts={calDayDetail.shifts || []}
-                xVsZ={calDayDetail.xVsZ}
-                token={user.token}
-                onUpdated={refreshCalendarDay}
-              />
+              <>
+                <ShiftBreakdownPanel
+                  date={calSelectedDate}
+                  shifts={calDayDetail.shifts || []}
+                  xVsZ={calDayDetail.xVsZ}
+                  token={user.token}
+                  onUpdated={refreshCalendarDay}
+                />
+                <AdminDayControlsPanel date={calSelectedDate} token={user.token} onUpdated={refreshCalendarDay} />
+              </>
             ) : (
-              <p className="ar-panel-sub">No reconciliation data for this date yet.</p>
+              <>
+                <p className="ar-panel-sub">No reconciliation data for this date yet.</p>
+                <AdminDayControlsPanel date={calSelectedDate} token={user.token} onUpdated={refreshCalendarDay} />
+              </>
             )}
           </div>
         )}

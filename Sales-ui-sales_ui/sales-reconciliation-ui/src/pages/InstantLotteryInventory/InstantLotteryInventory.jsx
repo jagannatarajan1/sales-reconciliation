@@ -14,6 +14,7 @@ import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../components/ui/Toast";
 import { ShiftBanner } from "../../components/ShiftBanner";
 import { WaitingOnPriorShift } from "../../components/WaitingOnPriorShift";
+import { ShiftClosedNotice } from "../../components/ShiftClosedNotice";
 import PhotoAttachments from "../../components/PhotoAttachments";
 import { PHOTO_SECTIONS } from "../../constants/photoSections";
 
@@ -69,7 +70,7 @@ const describeOpenNoSource = (source) => {
 /* ══════════════════════════════════
    A. TODAY'S INVENTORY
 ══════════════════════════════════ */
-function TodayInventory({ token, showToast, userRole, isLocked, waitingOnDayShift, dayShiftHasEntries }) {
+function TodayInventory({ token, showToast, userRole, isLocked, waitingOnDayShift, dayShiftHasEntries, closed }) {
   const [inventory, setInventory] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -254,7 +255,7 @@ function TodayInventory({ token, showToast, userRole, isLocked, waitingOnDayShif
           <div className="stat-label">Total Sales</div>
           <div className="stat-value green">£{grandSales.toFixed(2)}</div>
         </div>
-        {!isLocked && !isEditing && !waitingOnDayShift && (
+        {!isLocked && !isEditing && !waitingOnDayShift && !closed && (
           <button type="button" className="ili-edit-btn" onClick={() => setIsEditing(true)}>
             <FiEdit2 /> Edit
           </button>
@@ -276,11 +277,13 @@ function TodayInventory({ token, showToast, userRole, isLocked, waitingOnDayShif
         </div>
       )}
 
-      {!loading && !error && waitingOnDayShift && (
+      {!loading && !error && closed && <ShiftClosedNotice />}
+
+      {!loading && !error && !closed && waitingOnDayShift && (
         <WaitingOnPriorShift dayShiftHasEntries={dayShiftHasEntries} />
       )}
 
-      {!loading && !error && !waitingOnDayShift && (
+      {!loading && !error && !closed && !waitingOnDayShift && (
         <>
           <div className="table-container">
             <table className="inventory-grid">
@@ -422,6 +425,7 @@ export const InstantLotteryInventory = () => {
   const [shiftSource, setShiftSource] = useState(null);
   const [waitingOnDayShift, setWaitingOnDayShift] = useState(false);
   const [dayShiftHasEntries, setDayShiftHasEntries] = useState(false);
+  const [closed, setClosed] = useState(false);
 
   useEffect(() => {
     fetch(`${SUMMARY_URL}/today`, {
@@ -441,6 +445,9 @@ export const InstantLotteryInventory = () => {
         // Night waiting on Day's staff commit — always false for Day/Full Day.
         setWaitingOnDayShift(d?.waitingOnDayShift ?? false);
         setDayShiftHasEntries(d?.dayShiftHasEntries ?? false);
+        // This shift is marked Closed — an admin holiday closure, distinct
+        // from "already committed" (isLocked) and "waiting on Day".
+        setClosed(d?.closed ?? false);
       })
       .catch(() => {});
   }, [user.token]);
@@ -498,6 +505,7 @@ export const InstantLotteryInventory = () => {
           isLocked={isLocked}
           waitingOnDayShift={waitingOnDayShift}
           dayShiftHasEntries={dayShiftHasEntries}
+          closed={closed}
         />
 
         <PhotoAttachments

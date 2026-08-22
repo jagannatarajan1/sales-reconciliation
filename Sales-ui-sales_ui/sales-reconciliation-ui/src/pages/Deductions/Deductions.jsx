@@ -5,6 +5,7 @@ import { FiArrowLeft, FiCalendar, FiAlertCircle, FiPlus, FiX, FiEdit2, FiCheck, 
 import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../components/ui/Toast";
 import { WaitingOnPriorShift } from "../../components/WaitingOnPriorShift";
+import { ShiftClosedNotice } from "../../components/ShiftClosedNotice";
 import "./Deductions.css";
 import PhotoAttachments from "../../components/PhotoAttachments";
 import { PHOTO_SECTIONS } from "../../constants/photoSections";
@@ -37,7 +38,7 @@ const FIELDS = [
 /* ══════════════════════════════════
    A. DEDUCTIONS GRID
 ══════════════════════════════════ */
-function DeductionsGrid({ token, showToast, isLocked, waitingOnDayShift, dayShiftHasEntries }) {
+function DeductionsGrid({ token, showToast, isLocked, waitingOnDayShift, dayShiftHasEntries, closed }) {
   const empty = Object.fromEntries(FIELDS.map(f => [f.key, '']));
   const [values, setValues] = useState(empty);
   const [saving, setSaving] = useState(false);
@@ -95,6 +96,17 @@ function DeductionsGrid({ token, showToast, isLocked, waitingOnDayShift, dayShif
 
   if (loading) return <div className="ded-loading">Loading…</div>;
   if (error)   return <div className="ded-loading" style={{ color: '#dc2626' }}><FiAlertCircle /> {error}</div>;
+
+  if (closed) {
+    return (
+      <div className="ded-section">
+        <div className="ded-section-header-row">
+          <h2 className="ded-section-title">Deductions</h2>
+        </div>
+        <ShiftClosedNotice />
+      </div>
+    );
+  }
 
   if (waitingOnDayShift) {
     return (
@@ -498,6 +510,7 @@ export const Deductions = () => {
   const [isPendingAdminReview, setIsPendingAdminReview] = useState(false);
   const [waitingOnDayShift, setWaitingOnDayShift] = useState(false);
   const [dayShiftHasEntries, setDayShiftHasEntries] = useState(false);
+  const [closed, setClosed] = useState(false);
 
   useEffect(() => {
     if (!user?.token) return;
@@ -514,6 +527,10 @@ export const Deductions = () => {
         // is deliberately never lock-gated at all (see its own comment).
         setWaitingOnDayShift(d?.waitingOnDayShift ?? false);
         setDayShiftHasEntries(d?.dayShiftHasEntries ?? false);
+        // This shift is marked Closed — an admin holiday closure, distinct
+        // from "already committed" and "waiting on Day". Same scoping as
+        // waitingOnDayShift above: applies only to the Deductions grid.
+        setClosed(d?.closed ?? false);
       })
       .catch(() => {});
   }, [user?.token]);
@@ -546,6 +563,7 @@ export const Deductions = () => {
           isLocked={isLocked}
           waitingOnDayShift={waitingOnDayShift}
           dayShiftHasEntries={dayShiftHasEntries}
+          closed={closed}
         />
         <SupplierInvoices token={user.token} showToast={showToast} isLocked={isLocked} />
 

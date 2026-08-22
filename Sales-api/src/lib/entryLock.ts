@@ -1,5 +1,6 @@
 import { Shift } from "@prisma/client";
 import { prisma } from "./prisma.js";
+import { isShiftClosed } from "./storeClosure.js";
 
 // Whether staff may still write entries for a given session.
 //
@@ -98,6 +99,12 @@ export async function blockIfLocked(
 // DAY) — Day has no entries at all yet — counts as "not committed", i.e.
 // still pending, the same as an explicit isShiftCommitted: false. It is
 // never treated as an error or as an implicit pass.
+//
+// A Day marked Closed (storeClosure.ts) is the one other way to satisfy this
+// gate: nothing was ever going to be submitted for a closed Day, so Night
+// must not wait on it forever. See getPriorShiftGate below for where that
+// check lives — deliberately scoped inside the `shift === NIGHT` branch only,
+// so it never adds a query for DAY/FULL_DAY callers.
 
 export interface PriorShiftGate {
   waitingOnDayShift: boolean;
@@ -113,13 +120,20 @@ const NOT_WAITING: PriorShiftGate = { waitingOnDayShift: false, dayShiftHasEntri
 export async function getPriorShiftGate(date: Date, shift: Shift): Promise<PriorShiftGate> {
   if (shift !== Shift.NIGHT) return NOT_WAITING;
 
-  const dayRow = await prisma.shiftReconciliation.findUnique({
-    where: { date_shift: { date, shift: Shift.DAY } },
-    select: { isShiftCommitted: true, hasEntries: true },
-  });
+  // A Day marked Closed (see storeClosure.ts) counts as satisfied — nothing
+  // was ever going to be submitted for it. Queried only inside this NIGHT
+  // branch, alongside the existing ShiftReconciliation lookup, so DAY/
+  // FULL_DAY keep making zero extra queries (see NOT_WAITING above).
+  const [dayRow, dayClosed] = await Promise.all([
+    prisma.shiftReconciliation.findUnique({
+      where: { date_shift: { date, shift: Shift.DAY } },
+      select: { isShiftCommitted: true, hasEntries: true },
+    }),
+    isShiftClosed(date, Shift.DAY),
+  ]);
 
   return {
-    waitingOnDayShift: !dayRow?.isShiftCommitted,
+    waitingOnDayShift: !dayClosed && !dayRow?.isShiftCommitted,
     dayShiftHasEntries: !!dayRow?.hasEntries,
   };
 }

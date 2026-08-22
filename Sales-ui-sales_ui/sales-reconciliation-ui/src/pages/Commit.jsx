@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { motion } from "framer-motion";
-import { FiArrowLeft, FiCheckCircle, FiMail, FiAlertCircle } from "react-icons/fi";
+import { FiArrowLeft, FiCheckCircle, FiMail, FiAlertCircle, FiFileText } from "react-icons/fi";
 import { useAuth } from "../context/AuthContext";
 import { VARIANCE_TOLERANCE } from "../constants";
 import PhotoAttachments from "../components/PhotoAttachments";
@@ -183,6 +183,37 @@ export const Commit = () => {
   const dayShift = shifts.find((s) => s.shift === "DAY");
   const nightShift = shifts.find((s) => s.shift === "NIGHT");
 
+  // Shift Readiness value: which figure to show and how to label its
+  // provenance. Priority: admin adjustment > staff entry > raw till figure >
+  // nothing entered yet. A closed shift (Issue D) or the other shift's
+  // withheld money (isOwnShift false) short-circuits straight to "—"
+  // regardless of the above — there is nothing to show either way.
+  const shiftReadinessValue = (s) => {
+    if (s.closed || s.isOwnShift === false) {
+      return { value: "—", sublabel: null, muted: false };
+    }
+    if (s.adminEditedTotal != null) {
+      return { value: fmtGBP(s.adminEditedTotal), sublabel: "Admin adjusted", muted: false };
+    }
+    if (s.staffEnteredTotal != null) {
+      return { value: fmtGBP(s.staffEnteredTotal), sublabel: "You entered", muted: false };
+    }
+    if (s.originalTotal != null) {
+      return { value: fmtGBP(s.originalTotal), sublabel: "Till says — not yet entered", muted: true };
+    }
+    return { value: "Pending", sublabel: null, muted: false };
+  };
+
+  // Status pill: closed always wins (Issue D) — otherwise unchanged from the
+  // finalStatus this row already carried.
+  const shiftReadinessPill = (s) => {
+    if (s.closed) return { key: "closed", label: "Closed" };
+    if (s.finalStatus === "VARIANCE") return { key: "variance", label: "Variance" };
+    if (s.finalStatus === "RESOLVED") return { key: "resolved", label: "Resolved" };
+    if (s.finalStatus === "OK") return { key: "ok", label: "OK" };
+    return { key: "pending", label: "Pending" };
+  };
+
   const handleShiftCommit = async () => {
     setShiftError("");
     setShiftCommitting(true);
@@ -232,160 +263,212 @@ export const Commit = () => {
           <div className="commit-spinner" />
           <span>Loading…</span>
         </div>
-      ) : (
+      ) : isCommitted ? (
+        /* ── Already committed ── short-circuits the whole card, unchanged */
         <div className="commit-card">
+          <div className="commit-done-badge">
+            <FiCheckCircle /> Committed successfully
+            {committedAt && (
+              <span className="commit-done-time">{formatDateTime(committedAt)}</span>
+            )}
+          </div>
+          <div className="commit-email-sent"><FiMail /> Notification email sent</div>
+          <p className="commit-committed-note">{committedMsg}</p>
+        </div>
+      ) : (
+        <>
+          {/* ── "Your Shift" card — the per-shift sign-off. Deliberately has
+              no relationship to zReportAvailable anywhere below: that gate
+              belongs entirely to the End of Day Commit card next. ── */}
+          <div className="commit-card commit-card--shift">
+            <div className="commit-section-head">
+              <h2 className="commit-section-heading">Your Shift</h2>
+              <p className="commit-section-subtitle">
+                Submitting your shift is never blocked by the Z Report — that only affects
+                End of Day Commit below.
+              </p>
+            </div>
 
-          {/* ── Already committed ── */}
-          {isCommitted && (
-            <>
+            {/* Shift readiness — only rendered once there is actual shift
+                data to show; stays invisible entirely until that feature
+                is live, same as every other shift UI in this app. */}
+            {(dayShift || nightShift) && (
+              <div className="commit-shift-readiness">
+                <div className="commit-shift-readiness-title">Shift Readiness</div>
+                <div className="commit-shift-rows">
+                  {[dayShift, nightShift].filter(Boolean).map((s) => {
+                    const { value, sublabel, muted } = shiftReadinessValue(s);
+                    const pill = shiftReadinessPill(s);
+                    return (
+                      <div key={s.shift} className="commit-shift-row">
+                        <span className="commit-shift-row-label">{SHIFT_LABEL[s.shift]}</span>
+                        <span className="commit-shift-row-values">
+                          <span
+                            className={`commit-shift-row-value${muted ? " commit-shift-row-value--muted" : ""}`}
+                          >
+                            {value}
+                          </span>
+                          {sublabel && (
+                            <span className="commit-shift-row-sublabel">{sublabel}</span>
+                          )}
+                        </span>
+                        <span className={`commit-shift-row-pill commit-shift-row-pill--${pill.key}`}>
+                          {pill.label}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Per-shift sign-off. Only offered when a real shift is active
+                (never for the legacy FULL_DAY bucket) and while the day is
+                still open. Deliberately independent of zReportAvailable —
+                that gate belongs to the day commit further down. */}
+            {activeShift && activeShift !== "FULL_DAY" && !isCommitted && (
+              <div className={`commit-shift-commit${shiftCommitted ? " commit-shift-commit--done" : ""}`}>
+                <div className="commit-shift-commit-head">
+                  <span className="commit-shift-commit-title">
+                    {shiftLabel || "This shift"}
+                  </span>
+                  {shiftCommitted && (
+                    <span className="commit-shift-commit-badge">
+                      <FiCheckCircle /> Submitted
+                    </span>
+                  )}
+                </div>
+
+                {shiftCommitted ? (
+                  <p className="commit-shift-commit-note">
+                    Your shift has been submitted to the admin and its figures are now locked.
+                    {shiftCommittedAt ? ` Submitted ${formatDate(shiftCommittedAt)}.` : ""}
+                  </p>
+                ) : (
+                  <>
+                    <p className="commit-shift-commit-note">
+                      Submit this shift once you have finished entering its figures. You do not
+                      need to wait for the Z Report — your shift is checked against its own
+                      X Report. The day is committed separately at the end.
+                    </p>
+                    {shiftError && (
+                      <div className="commit-error-msg"><FiAlertCircle /> {shiftError}</div>
+                    )}
+                    <button
+                      type="button"
+                      className="commit-shift-commit-btn"
+                      onClick={handleShiftCommit}
+                      disabled={shiftCommitting}
+                    >
+                      {shiftCommitting ? "Submitting…" : `Submit ${shiftLabel || "shift"}`}
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
+
+            {/* Issue B — link to the staff's own full till report. Same
+                guard as the sign-off block above (a real, non-FULL_DAY
+                shift); the report itself is never gated by Z Report or
+                closure, only this link's visibility follows the same
+                "is there an active shift" rule the rest of the card uses. */}
+            {activeShift && activeShift !== "FULL_DAY" && (
+              <button
+                type="button"
+                className="commit-shift-report-link"
+                onClick={() => navigate("/my-shift-report")}
+              >
+                <FiFileText /> View my shift's full till report
+              </button>
+            )}
+
+            {!committed && (
+              <div className="commit-staff-section">
+                <div className="commit-field commit-field--notes">
+                  <label className="commit-label">Staff Notes (optional)</label>
+                  <textarea
+                    className="commit-textarea"
+                    rows={3}
+                    placeholder="Anything the admin should know about today…"
+                    value={staffNotes}
+                    onChange={(e) => setStaffNotes(e.target.value)}
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* ── "End of Day Commit" card — the day-level commit, gated on
+              zReportAvailable. The Z-missing banner and the day-level
+              errorMsg both live here now: neither one has anything to do
+              with the shift sign-off in the card above. ── */}
+          <div className="commit-card commit-card--day-commit">
+            <h2 className="commit-section-heading">End of Day Commit</h2>
+
+            {/* Z Report missing — day commit stays blocked until it arrives.
+                Copy is explicit that this never touches shift submission. */}
+            {!zReportAvailable && (
+              <div className="commit-error-msg">
+                <FiAlertCircle />
+                {(zReportMessage
+                  || "The Z Report hasn't arrived yet for this date — End of Day Commit isn't available until it does.")
+                  + " This does not affect your shift submission above."}
+              </div>
+            )}
+
+            {targetDate && (
+              <div className="commit-date-block">
+                <span className="commit-date-label">Committing for</span>
+                <span className="commit-date-value">{formatDate(targetDate)}</span>
+              </div>
+            )}
+
+            {errorMsg && (
+              <div className="commit-error-msg"><FiAlertCircle /> {errorMsg}</div>
+            )}
+
+            {!committed && (
+              <div className="commit-staff-section">
+                <div className="commit-field commit-field--notes">
+                  <label className="commit-label">Staff Notes (optional)</label>
+                  <textarea
+                    className="commit-textarea"
+                    rows={3}
+                    placeholder="Anything the admin should know about today…"
+                    value={staffNotes}
+                    onChange={(e) => setStaffNotes(e.target.value)}
+                  />
+                </div>
+              </div>
+            )}
+
+            {committed ? (
               <div className="commit-done-badge">
                 <FiCheckCircle /> Committed successfully
                 {committedAt && (
                   <span className="commit-done-time">{formatDateTime(committedAt)}</span>
                 )}
               </div>
-              <div className="commit-email-sent"><FiMail /> Notification email sent</div>
-              <p className="commit-committed-note">{committedMsg}</p>
-            </>
-          )}
-
-          {/* ── Ready to commit ── */}
-          {!isCommitted && (
-            <>
-              {/* Z Report missing — commit stays blocked until it arrives */}
-              {!zReportAvailable && (
-                <div className="commit-error-msg"><FiAlertCircle /> {zReportMessage}</div>
-              )}
-
-              {targetDate && (
-                <div className="commit-date-block">
-                  <span className="commit-date-label">Committing for</span>
-                  <span className="commit-date-value">{formatDate(targetDate)}</span>
-                </div>
-              )}
-
-              {/* Shift readiness — only rendered once there is actual shift
-                  data to show; stays invisible entirely until that feature
-                  is live, same as every other shift UI in this app. */}
-              {(dayShift || nightShift) && (
-                <div className="commit-shift-readiness">
-                  <div className="commit-shift-readiness-title">Shift Readiness</div>
-                  <div className="commit-shift-rows">
-                    {[dayShift, nightShift].filter(Boolean).map((s) => (
-                      <div key={s.shift} className="commit-shift-row">
-                        <span className="commit-shift-row-label">{SHIFT_LABEL[s.shift]}</span>
-                        <span className="commit-shift-row-value">
-                          {/* The other shift's figures are withheld by the API
-                              (isOwnShift false) — its status still shows, so
-                              handover context survives without exposing money. */}
-                          {s.isOwnShift === false
-                            ? "—"
-                            : s.finalTotal != null
-                              ? fmtGBP(s.finalTotal)
-                              : "Pending"}
-                        </span>
-                        <span className={`commit-shift-row-pill commit-shift-row-pill--${(s.finalStatus || '').toLowerCase()}`}>
-                          {s.finalStatus === 'VARIANCE' ? 'Variance' : s.finalStatus === 'RESOLVED' ? 'Resolved' : s.finalStatus === 'OK' ? 'OK' : 'Pending'}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Per-shift sign-off. Only offered when a real shift is active
-                  (never for the legacy FULL_DAY bucket) and while the day is
-                  still open. Deliberately independent of zReportAvailable —
-                  that gate belongs to the day commit further down. */}
-              {activeShift && activeShift !== "FULL_DAY" && !isCommitted && (
-                <div className={`commit-shift-commit${shiftCommitted ? " commit-shift-commit--done" : ""}`}>
-                  <div className="commit-shift-commit-head">
-                    <span className="commit-shift-commit-title">
-                      {shiftLabel || "This shift"}
-                    </span>
-                    {shiftCommitted && (
-                      <span className="commit-shift-commit-badge">
-                        <FiCheckCircle /> Submitted
-                      </span>
-                    )}
-                  </div>
-
-                  {shiftCommitted ? (
-                    <p className="commit-shift-commit-note">
-                      Your shift has been submitted to the admin and its figures are now locked.
-                      {shiftCommittedAt ? ` Submitted ${formatDate(shiftCommittedAt)}.` : ""}
-                    </p>
-                  ) : (
-                    <>
-                      <p className="commit-shift-commit-note">
-                        Submit this shift once you have finished entering its figures. You do not
-                        need to wait for the Z Report — your shift is checked against its own
-                        X Report. The day is committed separately at the end.
-                      </p>
-                      {shiftError && (
-                        <div className="commit-error-msg"><FiAlertCircle /> {shiftError}</div>
-                      )}
-                      <button
-                        type="button"
-                        className="commit-shift-commit-btn"
-                        onClick={handleShiftCommit}
-                        disabled={shiftCommitting}
-                      >
-                        {shiftCommitting ? "Submitting…" : `Submit ${shiftLabel || "shift"}`}
-                      </button>
-                    </>
-                  )}
-                </div>
-              )}
-
-              {errorMsg && (
-                <div className="commit-error-msg"><FiAlertCircle /> {errorMsg}</div>
-              )}
-
-              {!committed && (
-                <div className="commit-staff-section">
-                  <div className="commit-field commit-field--notes">
-                    <label className="commit-label">Staff Notes (optional)</label>
-                    <textarea
-                      className="commit-textarea"
-                      rows={3}
-                      placeholder="Anything the admin should know about today…"
-                      value={staffNotes}
-                      onChange={(e) => setStaffNotes(e.target.value)}
-                    />
-                  </div>
-                </div>
-              )}
-
-              {committed ? (
-                <div className="commit-done-badge">
-                  <FiCheckCircle /> Committed successfully
-                  {committedAt && (
-                    <span className="commit-done-time">{formatDateTime(committedAt)}</span>
-                  )}
-                </div>
-              ) : (
-                <button
-                  className={`commit-btn ${limitExceeded || !zReportAvailable ? "commit-btn--red" : "commit-btn--green"}`}
-                  onClick={handleCommit}
-                  disabled={committing || committed || limitExceeded || !zReportAvailable}
-                >
-                  {committing
-                    ? <><span className="commit-btn-spinner" /> Committing…</>
-                    : !zReportAvailable
-                      ? "Commit Blocked — Z Report Not Available"
-                      : alreadyAttempted
-                        ? "Already Attempted — Commit Locked for This Date"
-                        : limitExceeded
-                          ? `Commit Blocked — Exceeds £${VARIANCE_TOLERANCE.toFixed(2)} Limit`
-                          : "Confirm Commit"
-                  }
-                </button>
-              )}
-            </>
-          )}
-
-        </div>
+            ) : (
+              <button
+                className={`commit-btn ${limitExceeded || !zReportAvailable ? "commit-btn--red" : "commit-btn--green"}`}
+                onClick={handleCommit}
+                disabled={committing || committed || limitExceeded || !zReportAvailable}
+              >
+                {committing
+                  ? <><span className="commit-btn-spinner" /> Committing…</>
+                  : !zReportAvailable
+                    ? "Commit Blocked — Z Report Not Available"
+                    : alreadyAttempted
+                      ? "Already Attempted — Commit Locked for This Date"
+                      : limitExceeded
+                        ? `Commit Blocked — Exceeds £${VARIANCE_TOLERANCE.toFixed(2)} Limit`
+                        : "Confirm Commit"
+                }
+              </button>
+            )}
+          </div>
+        </>
       )}
 
       <PhotoAttachments

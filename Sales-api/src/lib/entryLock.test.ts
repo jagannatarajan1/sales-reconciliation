@@ -7,11 +7,16 @@ import { Shift } from "@prisma/client";
 // would tell them to re-open a shift that is not the thing blocking them.
 const findReconciliation = vi.fn();
 const findShift = vi.fn();
+// storeClosure.ts's isShiftClosed does its own select-only findUnique on
+// prisma.storeClosure — mocked separately so getPriorShiftGate's "zero
+// queries for DAY/FULL_DAY" guarantee can be asserted against it too.
+const findClosure = vi.fn();
 
 vi.mock("./prisma.js", () => ({
   prisma: {
     reconciliationRecord: { findUnique: (...a: unknown[]) => findReconciliation(...a) },
     shiftReconciliation: { findUnique: (...a: unknown[]) => findShift(...a) },
+    storeClosure: { findUnique: (...a: unknown[]) => findClosure(...a) },
   },
 }));
 
@@ -29,8 +34,12 @@ const DATE = new Date("2026-08-21T00:00:00.000Z");
 beforeEach(() => {
   findReconciliation.mockReset();
   findShift.mockReset();
+  findClosure.mockReset();
   findReconciliation.mockResolvedValue(null);
   findShift.mockResolvedValue(null);
+  // Not closed by default — every existing test that never mentions closure
+  // keeps meaning exactly what it did before this feature existed.
+  findClosure.mockResolvedValue(null);
 });
 
 describe("isDayLocked", () => {
@@ -112,11 +121,13 @@ describe("isPriorShiftPending / getPriorShiftGate", () => {
   it("is always false for DAY — nothing precedes the first shift", async () => {
     expect(await isPriorShiftPending(DATE, Shift.DAY)).toBe(false);
     expect(findShift).not.toHaveBeenCalled();
+    expect(findClosure).not.toHaveBeenCalled();
   });
 
   it("is always false for FULL_DAY — the two-shift sequence doesn't exist while the split is off", async () => {
     expect(await isPriorShiftPending(DATE, Shift.FULL_DAY)).toBe(false);
     expect(findShift).not.toHaveBeenCalled();
+    expect(findClosure).not.toHaveBeenCalled();
   });
 
   // The "no row exists yet at all" case must read as pending/locked, never
@@ -159,6 +170,43 @@ describe("isPriorShiftPending / getPriorShiftGate", () => {
       dayShiftHasEntries: false,
     });
     expect(findShift).not.toHaveBeenCalled();
+    // The new closure lookup must never run for DAY/FULL_DAY either —
+    // extends the existing zero-queries guarantee to Issue D's addition.
+    expect(findClosure).not.toHaveBeenCalled();
+  });
+
+  // Issue C/D interaction: a Day marked Closed satisfies the gate exactly
+  // like a genuine staff commit would, even when Day never had a single
+  // ShiftReconciliation row (nobody was ever going to submit a closed Day).
+  it("Day closed → waitingOnDayShift false even with zero ShiftReconciliation rows at all", async () => {
+    findShift.mockResolvedValue(null);
+    findClosure.mockResolvedValue({ active: true });
+
+    expect(await getPriorShiftGate(DATE, Shift.NIGHT)).toEqual({
+      waitingOnDayShift: false,
+      dayShiftHasEntries: false,
+    });
+    expect(await isPriorShiftPending(DATE, Shift.NIGHT)).toBe(false);
+  });
+
+  it("Day closed still surfaces dayShiftHasEntries truthfully if Day had entries before being closed", async () => {
+    findShift.mockResolvedValue({ isShiftCommitted: false, hasEntries: true });
+    findClosure.mockResolvedValue({ active: true });
+
+    expect(await getPriorShiftGate(DATE, Shift.NIGHT)).toEqual({
+      waitingOnDayShift: false,
+      dayShiftHasEntries: true,
+    });
+  });
+
+  it("an inactive (reopened) closure row does not satisfy the gate — Day is still waited on", async () => {
+    findShift.mockResolvedValue(null);
+    findClosure.mockResolvedValue({ active: false });
+
+    expect(await getPriorShiftGate(DATE, Shift.NIGHT)).toEqual({
+      waitingOnDayShift: true,
+      dayShiftHasEntries: false,
+    });
   });
 });
 

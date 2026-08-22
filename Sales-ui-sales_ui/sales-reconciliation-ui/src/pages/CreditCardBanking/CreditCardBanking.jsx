@@ -6,6 +6,7 @@ import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../components/ui/Toast";
 import { ShiftBanner } from "../../components/ShiftBanner";
 import { WaitingOnPriorShift } from "../../components/WaitingOnPriorShift";
+import { ShiftClosedNotice } from "../../components/ShiftClosedNotice";
 import "./CreditCardBanking.css";
 import PhotoAttachments from "../../components/PhotoAttachments";
 import { PHOTO_SECTIONS } from "../../constants/photoSections";
@@ -42,6 +43,7 @@ export const CreditCardBanking = () => {
   const [shiftSource, setShiftSource] = useState(null);
   const [waitingOnDayShift, setWaitingOnDayShift] = useState(false);
   const [dayShiftHasEntries, setDayShiftHasEntries] = useState(false);
+  const [closed, setClosed]           = useState(false);
   const [loading, setLoading]         = useState(true);
   const [saving, setSaving]       = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -69,6 +71,9 @@ export const CreditCardBanking = () => {
         // Night waiting on Day's staff commit — always false for Day/Full Day.
         setWaitingOnDayShift(data.waitingOnDayShift ?? false);
         setDayShiftHasEntries(data.dayShiftHasEntries ?? false);
+        // This shift is marked Closed — an admin holiday closure, distinct
+        // from "already committed" (isLocked) and "waiting on Day".
+        setClosed(data.closed ?? false);
 
         const loaded =
           Array.isArray(data.creditCardEntries) && data.creditCardEntries.length > 0
@@ -162,7 +167,7 @@ export const CreditCardBanking = () => {
           <h1>Credit Card Banking</h1>
           <div className="ccb-header-actions">
             <span className="ccb-date-badge">{displayDate}</span>
-            {!isLocked && !isEditing && !waitingOnDayShift && (
+            {!isLocked && !isEditing && !waitingOnDayShift && !closed && (
               <button type="button" className="ccb-edit-btn" onClick={() => setIsEditing(true)}>
                 <FiEdit2 /> Edit
               </button>
@@ -186,6 +191,8 @@ export const CreditCardBanking = () => {
             <div className="ccb-spinner" />
             <span>Loading…</span>
           </div>
+        ) : closed ? (
+          <ShiftClosedNotice />
         ) : waitingOnDayShift ? (
           <WaitingOnPriorShift dayShiftHasEntries={dayShiftHasEntries} />
         ) : (

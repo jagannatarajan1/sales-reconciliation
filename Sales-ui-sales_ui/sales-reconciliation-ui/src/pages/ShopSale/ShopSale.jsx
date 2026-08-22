@@ -143,8 +143,14 @@ function ShopSaleCalendar({ token, selectedDate, onSelectDate, onShowActiveDate 
               <span>{cell.dayNum}</span>
               {status && (
                 <span className="sc-day-dots">
-                  <span className={`sc-dot sc-dot--${(status.dayStatus || "pending").toLowerCase()}`} title={`Day: ${STATUS_LABEL[status.dayStatus] ?? status.dayStatus}`} />
-                  <span className={`sc-dot sc-dot--${(status.nightStatus || "pending").toLowerCase()}`} title={`Night: ${STATUS_LABEL[status.nightStatus] ?? status.nightStatus}`} />
+                  <span
+                    className={`sc-dot sc-dot--${status.dayClosed ? "closed" : (status.dayStatus || "pending").toLowerCase()}`}
+                    title={status.dayClosed ? "Day: Closed" : `Day: ${STATUS_LABEL[status.dayStatus] ?? status.dayStatus}`}
+                  />
+                  <span
+                    className={`sc-dot sc-dot--${status.nightClosed ? "closed" : (status.nightStatus || "pending").toLowerCase()}`}
+                    title={status.nightClosed ? "Night: Closed" : `Night: ${STATUS_LABEL[status.nightStatus] ?? status.nightStatus}`}
+                  />
                 </span>
               )}
             </button>
@@ -156,6 +162,7 @@ function ShopSaleCalendar({ token, selectedDate, onSelectDate, onShowActiveDate 
         <span className="sc-legend-item"><span className="sc-dot sc-dot--ok" /> OK</span>
         <span className="sc-legend-item"><span className="sc-dot sc-dot--variance" /> Variance</span>
         <span className="sc-legend-item"><span className="sc-dot sc-dot--pending" /> Pending</span>
+        <span className="sc-legend-item"><span className="sc-dot sc-dot--closed" /> Closed</span>
       </div>
       <p className="sc-legend-note">Each date shows Day / Night shift status.</p>
 

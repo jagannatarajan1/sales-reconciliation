@@ -1,0 +1,192 @@
+/* My Shift Report — staff-facing view of one shift's own till report.
+   Visual language deliberately matches AdminTillReconciliation.css (same
+   dark gradient page, glass panels, `--space`/`--radius`/`--color-*` tokens
+   from styles/tokens.css) so it reads as part of the same app. Class prefix
+   `msr-` (my-shift-report) keeps it fully separate from the admin-only
+   `tr-`/`ar-`/`zr-` prefixed pages it sits beside. */
+
+.msr-page {
+  min-height: 100vh;
+  background: linear-gradient(145deg, #0f172a 0%, #1e1b4b 40%, #312e81 100%);
+  padding: 2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  font-family: var(--font-heading);
+}
+
+/* ── Back button ── */
+.msr-back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0.6rem 1.4rem;
+  background: rgba(255, 255, 255, 0.1);
+  color: white;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: var(--radius-sm);
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  align-self: flex-start;
+  backdrop-filter: blur(10px);
+  transition: background 0.2s ease, transform 0.2s ease;
+}
+.msr-back-btn:hover { background: rgba(255, 255, 255, 0.18); transform: translateX(-3px); }
+
+/* ── Page header ── */
+.msr-page-header { max-width: 1100px; margin: 0 auto; width: 100%; }
+.msr-page-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 6px;
+  font-size: 1.75rem;
+  color: white;
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.25);
+}
+.msr-page-sub { margin: 0; font-size: 0.9rem; color: rgba(255, 255, 255, 0.82); max-width: 640px; }
+
+/* ── Loading / error / info states ── */
+.msr-center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 3rem 1rem;
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 0.9rem;
+}
+.msr-spinner {
+  width: 38px;
+  height: 38px;
+  border: 4px solid rgba(255, 255, 255, 0.3);
+  border-top-color: white;
+  border-radius: 50%;
+  animation: msr-spin 0.8s linear infinite;
+}
+@keyframes msr-spin { to { transform: rotate(360deg); } }
+
+.msr-error-panel, .msr-info-panel {
+  max-width: 1100px;
+  width: 100%;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  border-radius: var(--radius-lg);
+  padding: 1.25rem 1.5rem;
+}
+.msr-error-panel {
+  background: var(--color-danger-bg);
+  border: 1px solid var(--color-danger-border);
+  color: var(--color-danger);
+}
+.msr-info-panel {
+  background: var(--color-info-bg);
+  border: 1px solid var(--color-info-border);
+  color: #0c4a6e;
+}
+.msr-error-title, .msr-info-title { margin: 0; font-weight: 700; font-size: 1rem; }
+.msr-error-message, .msr-info-message { margin: 4px 0 0; font-size: 0.88rem; opacity: 0.9; }
+.msr-info-hint { margin: 6px 0 0; font-size: 0.82rem; opacity: 0.8; }
+.msr-retry-btn {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border-radius: 8px;
+  border: none;
+  background: var(--color-info);
+  color: white;
+  font-weight: 700;
+  font-size: 0.85rem;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.msr-error-panel .msr-retry-btn { background: var(--color-danger); }
+
+/* ── Reprint note ── */
+.msr-note-box {
+  max-width: 1100px;
+  width: 100%;
+  margin: 0 auto;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  background: var(--color-info-bg);
+  border: 1px solid var(--color-info-border);
+  color: #0c4a6e;
+  border-radius: var(--radius-md);
+  padding: 0.75rem 1.1rem;
+  font-size: 0.85rem;
+}
+.msr-note-box svg { flex-shrink: 0; color: var(--color-info); }
+
+/* ── Summary tiles ── */
+.msr-tiles {
+  max-width: 1100px;
+  width: 100%;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 0.9rem;
+}
+.msr-tile {
+  background: var(--bg-surface);
+  border-radius: var(--radius-lg);
+  padding: 1rem 1.1rem;
+  box-shadow: var(--shadow-sm);
+  border-top: 3px solid var(--brand-500);
+}
+.msr-tile--highlight { border-top-color: var(--accent-from); }
+.msr-tile-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-tertiary);
+  margin-bottom: 4px;
+}
+.msr-tile-value { font-size: 1.4rem; font-weight: 800; color: var(--text-primary); font-family: var(--font-heading); }
+
+/* ── Sections ── */
+.msr-sections { max-width: 1100px; width: 100%; margin: 0 auto; display: flex; flex-direction: column; gap: 0.9rem; }
+.msr-section { background: var(--bg-surface); border-radius: var(--radius-lg); box-shadow: var(--shadow-sm); overflow: hidden; padding-bottom: 0.25rem; }
+.msr-section-header {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem 1.25rem;
+}
+.msr-section-title { display: flex; align-items: center; gap: 8px; font-weight: 700; color: var(--text-primary); font-size: 1rem; }
+.msr-section-meta { font-size: 0.82rem; color: var(--text-tertiary); font-weight: 600; }
+.msr-section-sub { margin: -0.4rem 1.25rem 0.6rem; font-size: 0.82rem; color: var(--text-muted); }
+.msr-section-empty { margin: 0 1.25rem 1rem; font-size: 0.85rem; color: var(--text-muted); }
+
+/* ── Tables ── */
+.msr-table-wrap { overflow-x: auto; margin: 0 0 0.5rem; }
+.msr-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; min-width: 480px; }
+.msr-table th {
+  text-align: left;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-tertiary);
+  padding: 8px 1.25rem;
+  border-bottom: 1px solid var(--color-border);
+  white-space: nowrap;
+}
+.msr-table td { padding: 9px 1.25rem; border-bottom: 1px solid var(--color-border); color: var(--text-secondary); white-space: nowrap; }
+.msr-row-name { color: var(--text-primary); font-weight: 600; white-space: normal; }
+
+/* ── Responsive ── */
+@media (max-width: 720px) {
+  .msr-page { padding: 1.1rem; }
+  .msr-error-panel, .msr-info-panel { flex-direction: column; align-items: flex-start; }
+  .msr-retry-btn { margin-left: 0; }
+}

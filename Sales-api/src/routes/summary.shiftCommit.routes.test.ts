@@ -30,9 +30,14 @@ const shiftReconciliation = {
     throw new Error("upsert should not be reached when Day is still pending");
   }),
 };
+// Day is never marked Closed in these tests — getPriorShiftGate's new
+// closure check (Issue D) must still see a real prisma.storeClosure model to
+// query against, defaulting to "not closed" so these pre-existing
+// waiting-on-Day scenarios keep meaning exactly what they did before.
+const storeClosure = { findUnique: vi.fn(async () => null as Record<string, unknown> | null) };
 
 vi.mock("../lib/prisma.js", () => ({
-  prisma: { activeDateOverride, shiftReconciliation },
+  prisma: { activeDateOverride, shiftReconciliation, storeClosure },
 }));
 
 const { summaryRouter } = await import("./summary.routes.js");
@@ -52,6 +57,7 @@ beforeEach(async () => {
   dayShiftRow.mockResolvedValue(null);
   shiftReconciliation.findUnique.mockClear();
   shiftReconciliation.upsert.mockClear();
+  storeClosure.findUnique.mockClear();
 
   const app = express();
   app.use(express.json());
