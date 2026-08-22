@@ -60,7 +60,15 @@ export interface ParsedTillReport {
   // timestamp.
   printedAt: Date | null;
   printedMinutes: number | null;
-  reportRef: string | null; // "Z10409" — Z-Reports only, X-Reports carry no ID
+  // "Z10409" for a Z-Report; "1001" for an S-Report-style X-Report (the
+  // numeric id after "S-REPORT ID :" — see REPORT_TYPE_MARKER_RE). The
+  // classic bare "X-REPORT" marker carries no id at all, so this stays null
+  // for that shape. S-Reports are stored as reportType X_REPORT (same
+  // concept, different till template — see resolveReportType), and this
+  // field is deliberately reused rather than adding a parallel one, since an
+  // X-Report either has no id (old shape) or has this one (S-Report shape),
+  // never both.
+  reportRef: string | null;
   departmentTotal: number | null;
   grandTotal: number | null;
   tender: TillReportTender;
@@ -95,14 +103,24 @@ const TIME_FIELD_RE = /\bTime:\s*(\d{2}):(\d{2})/i;
 // been seen both with and without a preamble before it (sometimes the
 // letterhead/logo block simply isn't present in the plain-text part at
 // all), so this searches the whole body rather than requiring position 0.
+// "S" is included alongside "X"/"Z": the S-Report template (seen from
+// 17/08/2026 onward) uses this exact same "<Letter>-Report Printed by NAME
+// at DATE TIME" header line, just with no separate Date:/Time: fields
+// anywhere else in the body — see the fallback use of this match in
+// parseTillReport.
 const HEADER_LINE_RE =
-  /(X|Z)-Report Printed by .+? at (\d{2})\/(\d{2})\/(\d{4})\s+(\d{2}):(\d{2}):(\d{2})/i;
+  /(X|Z|S)-Report Printed by .+? at (\d{2})\/(\d{2})\/(\d{4})\s+(\d{2}):(\d{2}):(\d{2})/i;
 
-// The report-type marker line differs in shape between the two report
-// types in real samples: Z-Reports carry an id ("Z-REPORT ID: Z10409"),
-// X-Reports don't ("X-REPORT" alone). Both are matched by one pattern with
-// the id capture optional.
-const REPORT_TYPE_MARKER_RE = /^\s*(X|Z)-REPORT(?:\s+ID:\s*(\S+))?\s*$/im;
+// The report-type marker line differs in shape across the real samples
+// seen: Z-Reports carry an id ("Z-REPORT ID: Z10409"), the classic
+// X-Reports don't ("X-REPORT" alone), and the newer S-Report template
+// carries a numeric id with looser spacing around the colon ("S-REPORT ID :
+// 1001"). All three are matched by one pattern with the id capture
+// optional and `\s*:\s*` tolerating spacing on either side of the colon. An
+// "S" marker is conceptually the same kind of report as "X" (a mid-shift
+// snapshot, not an end-of-day Z), so it resolves to the same X_REPORT type
+// — see resolveReportType.
+const REPORT_TYPE_MARKER_RE = /^\s*(X|Z|S)-REPORT(?:\s+ID\s*:\s*(\S+))?\s*$/im;
 
 // Legacy/loose subject conventions actually observed in this inbox before
 // the till was sending the documented "X-Report Printed" / "Z-Report
@@ -111,6 +129,9 @@ const REPORT_TYPE_MARKER_RE = /^\s*(X|Z)-REPORT(?:\s+ID:\s*(\S+))?\s*$/im;
 // parseTillReport's doc comment) — this is deliberately forgiving.
 const SUBJECT_X_RE = /^\s*X[\s-]*Report(\s+Printed)?\s*$/i;
 const SUBJECT_Z_RE = /^\s*Z[\s-]*Report(\s+Printed)?\s*$/i;
+// S-Report subjects ("S-Report Printed") resolve to X_REPORT — same
+// reasoning as the body marker above.
+const SUBJECT_S_RE = /^\s*S[\s-]*Report(\s+Printed)?\s*$/i;
 
 const GRAND_TOTAL_RE = /GRAND\s+TOTAL\s+([\d,]+\.\d{2})/i;
 
@@ -124,6 +145,34 @@ const DIVIDER_RE = /-{10,}/;
 const CASH_RE = /^[ \t]*CASH[ \t]+([\d,]+\.\d{2})[ \t]*$/im;
 const CARD_RE = /^[ \t]*CARD[ \t]+([\d,]+\.\d{2})[ \t]*$/im;
 const MANUAL_CARD_RE = /^[ \t]*MANUAL[ \t]+CARD[ \t]+([\d,]+\.\d{2})[ \t]*$/im;
+
+// --- S-Report-style 4-column tender table ---
+//
+// The S-Report template (seen from 17/08/2026 onward) prints TENDER TYPE as
+// a 4-column table ("TYPE  SYSTEM  COUNT  DIFFER") instead of the older
+// simple "<TYPE>  <amount>" line — e.g. "CASH  582.58  50.00  -532.58". The
+// figure this app cares about (matching cashTotal/cardTotal/manualCardTotal)
+// is always the first number — the SYSTEM column — so these capture that
+// one and require exactly three trailing numeric columns, which is what
+// stops them from ever matching the OLD one-number format (and vice versa:
+// the plain CASH_RE/CARD_RE/MANUAL_CARD_RE above require the line to END
+// right after the single number, so they never match a 4-column row either).
+// Each field is tried against both shapes below rather than picking one
+// shape up front, so old and new reports are both handled without a format
+// flag anywhere. "MANUAL CAR" (no trailing D) is the S-Report's own
+// truncation of "MANUAL CARD" to fit the column width — the same field,
+// just a shorter label — so the D is optional here.
+const CASH_4COL_RE = /^[ \t]*CASH[ \t]+([\d,]+\.\d{2})[ \t]+[\d,]+\.\d{2}[ \t]+-?[\d,]+\.\d{2}[ \t]*$/im;
+const CARD_4COL_RE = /^[ \t]*CARD[ \t]+([\d,]+\.\d{2})[ \t]+[\d,]+\.\d{2}[ \t]+-?[\d,]+\.\d{2}[ \t]*$/im;
+const MANUAL_CARD_4COL_RE =
+  /^[ \t]*MANUAL[ \t]+CARD?[ \t]+([\d,]+\.\d{2})[ \t]+[\d,]+\.\d{2}[ \t]+-?[\d,]+\.\d{2}[ \t]*$/im;
+// The tender table's own "TOTAL" row (SYSTEM column) — the S-Report format's
+// replacement for a standalone "GRAND TOTAL" line, which it doesn't print at
+// all. Anchored to line-start so it can't match "SUB TOTAL"/"DEPARTMENT
+// TOTAL"/"Income / Expense TOTAL" lines elsewhere, none of which start with
+// "TOTAL" itself; scoped to the tender section by the caller for extra
+// safety on top of that.
+const TENDER_TOTAL_4COL_RE = /^[ \t]*TOTAL[ \t]+([\d,]+\.\d{2})[ \t]+[\d,]+\.\d{2}[ \t]+-?[\d,]+\.\d{2}[ \t]*$/im;
 
 // --- Detailed sections added in phase 1 of the richer-parsing work ---
 //
@@ -399,13 +448,19 @@ function resolveReportType(body: string, subject: string | undefined): {
   note: string | null;
 } {
   const bodyMatch = body.match(REPORT_TYPE_MARKER_RE);
-  const bodyType: TillReportType | null = bodyMatch ? (bodyMatch[1].toUpperCase() === "X" ? "X_REPORT" : "Z_REPORT") : null;
+  // "S" (S-Report) resolves to X_REPORT — same concept as the classic
+  // bare X-REPORT marker (a mid-shift snapshot, not an end-of-day Z), just a
+  // different till template/wording. Its numeric id still flows into
+  // reportRef below like a Z-Report's id does.
+  const bodyLetter = bodyMatch?.[1]?.toUpperCase();
+  const bodyType: TillReportType | null = bodyLetter == null ? null : bodyLetter === "Z" ? "Z_REPORT" : "X_REPORT";
   const reportRef = bodyMatch?.[2] ?? null;
 
   let subjectType: TillReportType | null = null;
   if (subject) {
     if (SUBJECT_X_RE.test(subject)) subjectType = "X_REPORT";
     else if (SUBJECT_Z_RE.test(subject)) subjectType = "Z_REPORT";
+    else if (SUBJECT_S_RE.test(subject)) subjectType = "X_REPORT";
   }
 
   // Body wins when both are present and they disagree — subject has been
@@ -429,20 +484,32 @@ function resolveReportType(body: string, subject: string | undefined): {
 }
 
 /**
- * Parses an X-Report or Z-Report email body (plain text) into its structured
- * fields.
+ * Parses an X-Report, Z-Report, or S-Report email body (plain text) into its
+ * structured fields. ("S-Report" is a newer till template for the same kind
+ * of mid-shift snapshot an X-Report is — see resolveReportType — so it is
+ * classified as reportType X_REPORT, not a third type.)
  *
  * businessDate/printedAt are read from the report's own "Date:"/"Time:"
  * fields, not the free-text "<Type>-Report Printed by ... at ..." header
  * line and not the email's received timestamp. This is deliberate: the
  * "Date:"/"Time:" fields have been present and internally consistent in
- * every real sample seen, while the header line has been seen (a) entirely
- * absent from the plain-text body, and (b) present but naming a DIFFERENT
- * date than the "Date:" field on the same report. When the header line IS
- * present and its date matches "Date:", its seconds are borrowed for a more
- * precise printedAt; a mismatch is recorded in parseError as a visible,
- * non-fatal note rather than silently discarded or allowed to override the
- * authoritative fields.
+ * every real X-Report/Z-Report sample seen, while the header line has been
+ * seen (a) entirely absent from the plain-text body, and (b) present but
+ * naming a DIFFERENT date than the "Date:" field on the same report. When
+ * the header line IS present and its date matches "Date:", its seconds are
+ * borrowed for a more precise printedAt; a mismatch is recorded in
+ * parseError as a visible, non-fatal note rather than silently discarded or
+ * allowed to override the authoritative fields.
+ *
+ * S-Reports carry no "Date:"/"Time:" fields at all (nor "POS ID:"/"Staff
+ * ID:"), so for those — and only when Date:/Time: are genuinely absent —
+ * businessDate/printedMinutes/printedAt fall back to the same header line
+ * instead, taken as-is (there is nothing to cross-check it against in that
+ * case). This fallback is additive: whenever a Date:/Time: field IS present
+ * (every X-Report/Z-Report seen so far), the precedence above is unchanged.
+ * The S-Report's other timestamp — "Login by NAME at YYYY-MM-DD HH:M..." —
+ * is truncated mid-value in real till output and is never used for
+ * businessDate/printedAt; it is simply ignored.
  */
 export function parseTillReport(body: string, subject?: string): ParsedTillReport {
   const notes: string[] = [];
@@ -455,14 +522,17 @@ export function parseTillReport(body: string, subject?: string): ParsedTillRepor
   if (!dateField) notes.push("no Date: field found");
   if (!timeField) notes.push("no Time: field found");
 
-  const businessDate = dateField?.date ?? null;
-  const printedMinutes = timeField ? timeField.hours * 60 + timeField.minutes : null;
+  const headerMatch = body.match(HEADER_LINE_RE);
 
+  let businessDate = dateField?.date ?? null;
+  let printedMinutes = timeField ? timeField.hours * 60 + timeField.minutes : null;
   let printedAt: Date | null = null;
+
   if (businessDate && timeField) {
+    // Existing X-Report/Z-Report path — both authoritative fields present.
+    // Unchanged from before the S-Report format existed.
     let seconds = 0;
 
-    const headerMatch = body.match(HEADER_LINE_RE);
     if (headerMatch) {
       const [, , hdd, hmm, hyyyy, hh, hmin, hss] = headerMatch;
       const headerDateMatches =
@@ -496,18 +566,63 @@ export function parseTillReport(body: string, subject?: string): ParsedTillRepor
         seconds
       )
     );
+  } else if (headerMatch) {
+    // S-Report fallback path: at least one of Date:/Time: is missing (in
+    // every real S-Report seen, both are), so fill in only what's missing
+    // from the "<Letter>-Report Printed by NAME at DATE TIME" header line
+    // and take it as-is — there's no separate authoritative field left to
+    // cross-check it against once we're here.
+    const [, , hdd, hmm, hyyyy, hh, hmin, hss] = headerMatch;
+
+    if (!businessDate) {
+      businessDate = new Date(Date.UTC(Number(hyyyy), Number(hmm) - 1, Number(hdd)));
+      notes.push('businessDate derived from the "Printed by ... at ..." header line — no Date: field present');
+    }
+    if (printedMinutes == null) {
+      printedMinutes = Number(hh) * 60 + Number(hmin);
+      notes.push('printedAt/printedMinutes derived from the "Printed by ... at ..." header line — no Time: field present');
+    }
+
+    printedAt = new Date(
+      Date.UTC(
+        businessDate.getUTCFullYear(),
+        businessDate.getUTCMonth(),
+        businessDate.getUTCDate(),
+        Math.floor(printedMinutes / 60),
+        printedMinutes % 60,
+        Number(hss)
+      )
+    );
   }
 
   const departmentTotal = parseLabelledAmount(body, /DEPARTMENT\s+TOTAL\s+([\d,]+\.\d{2})/i);
-  const grandTotal = parseLabelledAmount(body, GRAND_TOTAL_RE);
   if (departmentTotal == null) notes.push("no DEPARTMENT TOTAL found");
+
+  let grandTotal = parseLabelledAmount(body, GRAND_TOTAL_RE);
 
   const tenderSection = extractTenderSection(body);
   const tender: TillReportTender = { cash: null, card: null, manualCard: null };
   if (tenderSection) {
-    tender.cash = parseLabelledAmount(tenderSection, CASH_RE);
-    tender.card = parseLabelledAmount(tenderSection, CARD_RE);
-    tender.manualCard = parseLabelledAmount(tenderSection, MANUAL_CARD_RE);
+    // Old two-column format ("CASH   630.51") is tried first; the 4-column
+    // SYSTEM/COUNT/DIFFER format ("CASH  582.58  50.00  -532.58") is tried
+    // as a fallback. The two regexes are mutually exclusive by construction
+    // (see their definitions), so this is a safe either/or per field rather
+    // than a whole-report format switch.
+    tender.cash = parseLabelledAmount(tenderSection, CASH_RE) ?? parseLabelledAmount(tenderSection, CASH_4COL_RE);
+    tender.card = parseLabelledAmount(tenderSection, CARD_RE) ?? parseLabelledAmount(tenderSection, CARD_4COL_RE);
+    tender.manualCard =
+      parseLabelledAmount(tenderSection, MANUAL_CARD_RE) ?? parseLabelledAmount(tenderSection, MANUAL_CARD_4COL_RE);
+
+    if (grandTotal == null) {
+      // No standalone "GRAND TOTAL" line anywhere in the body — the
+      // S-Report format doesn't print one at all. Fall back to the tender
+      // table's own "TOTAL" row (SYSTEM column), scoped to the tender
+      // section like every other tender figure above.
+      grandTotal = parseLabelledAmount(tenderSection, TENDER_TOTAL_4COL_RE);
+      if (grandTotal != null) {
+        notes.push("grandTotal derived from the tender table's TOTAL row — no standalone GRAND TOTAL line found");
+      }
+    }
   } else {
     notes.push("no TENDER TYPE section found");
   }

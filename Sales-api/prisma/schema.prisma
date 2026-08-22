@@ -413,7 +413,11 @@ model TillReport {
   printedMinutes Int
   shift          Shift
 
-  reportRef String? // "Z10409" — Z-Reports only, X-Reports carry no id
+  // "Z10409" for a Z-Report, or "1001" for an S-Report-style X-Report (its
+  // "S-REPORT ID : N" marker — see tillReportParser.ts's REPORT_TYPE_MARKER_RE
+  // and resolveReportType, S-Reports are stored as reportType X_REPORT). The
+  // classic bare "X-REPORT" marker carries no id, so this stays null there.
+  reportRef String?
 
   departmentTotal Decimal? @db.Decimal(18, 2)
   grandTotal      Decimal? @db.Decimal(18, 2)

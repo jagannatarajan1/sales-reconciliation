@@ -288,3 +288,199 @@ describe("parseTillReport — a department named CASH: department lines vs tende
     expect(result.parseError).toContain("no SUB TOTAL found in DEPARTMENT SALES section");
   });
 });
+
+// The two fixtures below are real S-Report emails (a newer till template,
+// first seen 17/08/2026) reproduced verbatim from the actual message
+// bodies. Unlike every X-Report/Z-Report sample above, these carry NO
+// "Date:"/"Time:"/"POS ID:"/"Staff ID:" fields anywhere — only the
+// "S-Report Printed by NAME at DATE TIME" header line and a truncated
+// "Login by NAME at YYYY-MM-DD HH:M..." line that must never be relied on.
+// Their TENDER TYPE section is also a 4-column SYSTEM/COUNT/DIFFER table
+// rather than the old single-amount-per-line shape, and there is no
+// standalone "GRAND TOTAL" line at all — the tender table's own "TOTAL" row
+// is the only source for it. See tillReportParser.ts's S-Report fallback
+// paths (the `else if (headerMatch)` branch in parseTillReport, and the
+// CASH_4COL_RE/CARD_4COL_RE/MANUAL_CARD_4COL_RE/TENDER_TOTAL_4COL_RE
+// regexes).
+describe("parseTillReport — real S-Report (shift 1), no Date:/Time: fields at all", () => {
+  const result = parseTillReport(fixture("s-report-2026-08-17-shift1.txt"), "S-Report Printed");
+
+  it("classifies as X_REPORT (an S-Report is the same kind of report as an X-Report) and captures the numeric id as reportRef", () => {
+    expect(result.reportType).toBe("X_REPORT");
+    expect(result.reportRef).toBe("1001");
+  });
+
+  it("derives businessDate/printedAt/printedMinutes from the header line, with no Date:/Time: fields present", () => {
+    expect(result.businessDate?.toISOString()).toBe("2026-08-17T00:00:00.000Z");
+    expect(result.printedMinutes).toBe(13 * 60 + 7);
+    expect(result.printedAt?.toISOString()).toBe("2026-08-17T13:07:53.000Z");
+  });
+
+  it("succeeds end-to-end: every field ingestTillReports requires for classification is populated", () => {
+    // Mirrors tillReportIngest.ts's own classification gate — this must NOT
+    // be treated as an unclassifiable/failed message any more.
+    expect(result.reportType).not.toBeNull();
+    expect(result.businessDate).not.toBeNull();
+    expect(result.printedAt).not.toBeNull();
+    expect(result.printedMinutes).not.toBeNull();
+  });
+
+  it("extracts department/grand totals, with grandTotal falling back to the tender table's TOTAL row", () => {
+    expect(result.departmentTotal).toBe(813.1);
+    expect(result.grandTotal).toBe(808.1);
+    expect(result.parseError).toContain("grandTotal derived from the tender table's TOTAL row");
+  });
+
+  it("extracts tender from the SYSTEM column of the 4-column table, including the truncated 'MANUAL CAR' label", () => {
+    expect(result.tender.cash).toBe(582.58);
+    expect(result.tender.card).toBe(200.08);
+    expect(result.tender.manualCard).toBe(25.44);
+  });
+
+  it("extracts department lines, spot-checking ALCOHOL", () => {
+    expect(result.departmentLines.find((l) => l.departmentName === "ALCOHOL")).toEqual({
+      departmentName: "ALCOHOL",
+      amount: 10.36,
+      category: "MERCHANDISE",
+    });
+    expect(result.departmentLines.filter((l) => l.category === "LOTTERY_GROUP")).toEqual([
+      { departmentName: "INSTANT LOTTERY", amount: 10.0, category: "LOTTERY_GROUP" },
+      { departmentName: "PAYPOINT", amount: 530.0, category: "LOTTERY_GROUP" },
+    ]);
+  });
+
+  it("extracts VAT breakdown lines including the Exmt row", () => {
+    expect(result.vatLines).toEqual([
+      { vatCode: "0.00", salesExVat: 96.66, vat: 0.0, salesInVat: 96.66 },
+      { vatCode: "20.00", salesExVat: 147.03, vat: 29.41, salesInVat: 176.44 },
+      { vatCode: "Exmt", salesExVat: 540.0, vat: 0.0, salesInVat: 540.0 },
+    ]);
+  });
+
+  it("extracts the transaction count and income/expense total", () => {
+    expect(result.transactionCount).toBe(57);
+    expect(result.incomeExpenseLines).toEqual([{ label: "INST PO", amount: -5.0 }]);
+    expect(result.incomeExpenseTotal).toBe(-5.0);
+  });
+
+  it("extracts every void line — 6 Drawer rows and 3 Voided rows — despite the empty LINE DISCOUNTS section above them", () => {
+    expect(result.voidLines).toHaveLength(9);
+    expect(result.voidLines.filter((v) => v.type.startsWith("Drawer"))).toHaveLength(6);
+    expect(result.voidLines.filter((v) => v.type.startsWith("Voided"))).toHaveLength(3);
+    expect(result.voidLines.find((v) => v.type === "Voided - 01")).toMatchObject({ amount: 12.45 });
+  });
+
+  it("extracts product lines grouped under their department header", () => {
+    expect(result.productLines.find((p) => p.productName === "PERLA")).toMatchObject({
+      departmentName: "ALCOHOL",
+      salesQuantity: 2,
+      stockValue: -67,
+      stockUnavailable: false,
+    });
+    expect(result.productLines.find((p) => p.productName === "THATCHERS KATY SINGLE")).toMatchObject({
+      departmentName: "ALCOHOL",
+      salesQuantity: 2,
+      stockValue: null,
+      stockUnavailable: true,
+    });
+  });
+});
+
+describe("parseTillReport — real S-Report (shift 2), Voided-only refunds/voids section", () => {
+  const result = parseTillReport(fixture("s-report-2026-08-17-shift2.txt"), "S-Report Printed");
+
+  it("classifies as X_REPORT and captures the numeric id as reportRef", () => {
+    expect(result.reportType).toBe("X_REPORT");
+    expect(result.reportRef).toBe("1002");
+  });
+
+  it("derives businessDate/printedAt/printedMinutes from the header line", () => {
+    expect(result.businessDate?.toISOString()).toBe("2026-08-17T00:00:00.000Z");
+    expect(result.printedMinutes).toBe(22 * 60 + 1);
+    expect(result.printedAt?.toISOString()).toBe("2026-08-17T22:01:02.000Z");
+  });
+
+  it("succeeds end-to-end: every field ingestTillReports requires for classification is populated", () => {
+    expect(result.reportType).not.toBeNull();
+    expect(result.businessDate).not.toBeNull();
+    expect(result.printedAt).not.toBeNull();
+    expect(result.printedMinutes).not.toBeNull();
+  });
+
+  it("extracts department/grand totals, with grandTotal falling back to the tender table's TOTAL row", () => {
+    expect(result.departmentTotal).toBe(740.41);
+    expect(result.grandTotal).toBe(735.41);
+  });
+
+  it("extracts tender from the SYSTEM column of the 4-column table", () => {
+    expect(result.tender.cash).toBe(180.29);
+    expect(result.tender.card).toBe(344.04);
+    expect(result.tender.manualCard).toBe(211.08);
+  });
+
+  it("extracts department lines, spot-checking ALCOHOL", () => {
+    expect(result.departmentLines.find((l) => l.departmentName === "ALCOHOL")).toEqual({
+      departmentName: "ALCOHOL",
+      amount: 233.15,
+      category: "MERCHANDISE",
+    });
+    expect(result.departmentLines.filter((l) => l.category === "LOTTERY_GROUP")).toEqual([
+      { departmentName: "INSTANT LOTTERY", amount: 4.0, category: "LOTTERY_GROUP" },
+    ]);
+  });
+
+  it("extracts VAT breakdown lines including the Exmt row", () => {
+    expect(result.vatLines).toEqual([
+      { vatCode: "0.00", salesExVat: 136.69, vat: 0.0, salesInVat: 136.69 },
+      { vatCode: "20.00", salesExVat: 499.77, vat: 99.95, salesInVat: 599.72 },
+      { vatCode: "Exmt", salesExVat: 4.0, vat: 0.0, salesInVat: 4.0 },
+    ]);
+  });
+
+  it("extracts the transaction count and income/expense total", () => {
+    expect(result.transactionCount).toBe(94);
+    expect(result.incomeExpenseTotal).toBe(-5.0);
+  });
+
+  it("extracts 7 Voided rows and zero Drawer rows", () => {
+    expect(result.voidLines).toHaveLength(7);
+    expect(result.voidLines.every((v) => v.type.startsWith("Voided"))).toBe(true);
+    expect(result.voidLines.map((v) => v.amount)).toEqual([1.35, 25.9, 7.0, 1.35, 17.59, 1.25, 28.0]);
+  });
+
+  it("extracts product lines grouped under their department header", () => {
+    expect(result.productLines.find((p) => p.productName === "CARLING LAGER 10X440ML")).toMatchObject({
+      departmentName: "ALCOHOL",
+      salesQuantity: 2,
+      stockValue: -12,
+      stockUnavailable: false,
+    });
+    expect(result.productLines.find((p) => p.productName === "MEATBALL MARINARA WRAP")).toMatchObject({
+      departmentName: "FOOD TO GO",
+      salesQuantity: 1,
+      stockValue: null,
+      stockUnavailable: true,
+    });
+  });
+});
+
+describe("parseTillReport — S-Report tender/grandTotal fallback never fires for the old X-Report/Z-Report format", () => {
+  it("an old-format report with an explicit GRAND TOTAL line never falls back to the tender table's TOTAL row", () => {
+    const result = parseTillReport(fixture("x-report-2026-08-14-full.txt"), "X-Report Printed");
+    expect(result.grandTotal).toBe(1517.08);
+    expect(result.parseError ?? "").not.toContain("grandTotal derived from the tender table's TOTAL row");
+  });
+
+  it("an old-format report still reads tender from the plain 2-column CASH/CARD/MANUAL CARD lines, not the 4-column fallback", () => {
+    const result = parseTillReport(fixture("z-report-2026-08-10.txt"), "Z report");
+    expect(result.tender.cash).toBe(548.07);
+    expect(result.tender.card).toBe(639.0);
+    expect(result.tender.manualCard).toBe(238.38);
+  });
+
+  it("an old-format report with explicit Date:/Time: fields never falls back to the header-line-only path", () => {
+    const result = parseTillReport(fixture("z-report-2026-08-10.txt"), "Z report");
+    expect(result.parseError).toBeNull();
+    expect(result.businessDate?.toISOString()).toBe("2026-08-10T00:00:00.000Z");
+  });
+});
